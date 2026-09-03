@@ -1,3 +1,4 @@
+import re
 import requests
 from datetime import datetime
 from supabase import create_client, Client
@@ -7,52 +8,64 @@ SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def fetch_stocks(market_name):
+def fetch_trade_amount_rank(sosok, market_name):
+    # 네이버 금융 공식 거래대금 상위 페이지 (sosok=0: 코스피, sosok=1: 코스닥)
+    url = f"https://finance.naver.com/sise/sise_quant.naver?sosok={sosok}&order=deal_amount"
     headers = {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
 
-    stocks = []
-    # 1~5페이지(총 100종목) 수집
-    for page in range(1, 6):
-        url = f"https://m.stock.naver.com/api/stocks/marketValue/{market_name}?page={page}&pageSize=20"
-        try:
-            res = requests.get(url, headers=headers, timeout=10)
-            if res.status_code == 200:
-                stocks.extend(res.json().get("stocks", []))
-        except Exception:
-            continue
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        res.encoding = "euc-kr"
+        html = res.text
+    except Exception as e:
+        print(f"{market_name} 조회 실패: {e}")
+        return []
 
+    rows = html.split("<tr")
     today_str = datetime.today().strftime("%Y-%m-%d")
     results = []
 
-    for s in stocks:
+    for r in rows:
+        if "code=" not in r or 'class="tltle"' not in r:
+            continue
+
         try:
-            # 1. 거래대금 (API 기본 단위: '억원')
-            raw_trade = s.get("totalTradePrice", "0")
-            trade_amount_eok = float(str(raw_trade).replace(",", ""))
-
-            # 500억 이상 조건
-            if trade_amount_eok < 500:
+            # 종목 코드 및 종목명
+            code_m = re.search(r'code=([0-9A-Za-z]+)', r)
+            name_m = re.search(r'class="tltle"[^>]*>([^<]+)</a>', r)
+            if not code_m or not name_m:
                 continue
 
-            # 2. 가격 및 등락률
-            close_price = int(str(s.get("nowPrice", "0")).replace(",", ""))
-            open_price = int(str(s.get("openPrice", "0")).replace(",", ""))
-            raw_rate = str(s.get("changeRate", "0")).replace("%", "").replace(",", "")
-            change_rate = float(raw_rate) if raw_rate else 0.0
+            ticker = code_m.group(1).strip()
+            name = name_m.group(1).strip()
 
-            # 3. 양봉 마감 (종가 >= 시가)
-            if close_price < open_price:
+            # <td> 태그 추출
+            tds = re.findall(r'<td[^>]*>(.*?)</td>', r, re.DOTALL)
+            clean = [re.sub(r'<[^>]+>', '', td).strip().replace(',', '') for td in tds]
+
+            if len(clean) < 7:
                 continue
 
-            # 원 단위로 환산하여 저장 (1억 = 100,000,000원)
-            trade_amount_won = int(trade_amount_eok * 100_000_000)
+            # clean[2]: 현재가, clean[4]: 등락률, clean[6]: 거래대금 (단위: 백만원)
+            close_price = int(clean[2])
+            change_rate = float(clean[4].replace('%', ''))
+            trade_amount_million = int(clean[6])
+            trade_amount_won = trade_amount_million * 1_000_000
+
+            # 1. 거래대금 500억 (50,000백만원) 이상
+            if trade_amount_million < 50_000:
+                continue
+
+            # 2. 양봉 마감 (등락률 0% 이상)
+            if change_rate < 0:
+                continue
 
             results.append({
                 "date": today_str,
-                "ticker": str(s.get("itemCode")),
-                "name": str(s.get("stockName")),
+                "ticker": ticker,
+                "name": name,
                 "market": market_name,
                 "close_price": close_price,
                 "change_rate": change_rate,
@@ -65,20 +78,20 @@ def fetch_stocks(market_name):
     return results
 
 def main():
-    print("=== 거래대금 500억 이상 & 양봉 종목 수집 시작 ===")
-    kospi = fetch_stocks("KOSPI")
-    kosdaq = fetch_stocks("KOSDAQ")
+    print("=== 거래대금 순위 기준 스크리닝 시작 ===")
+    kospi = fetch_trade_amount_rank(0, "KOSPI")
+    kosdaq = fetch_trade_amount_rank(1, "KOSDAQ")
     total = kospi + kosdaq
 
-    print(f"조건 만족 종목: 코스피 {len(kospi)}개 / 코스닥 {len(kosdaq)}개 (총 {len(total)}개)")
+    print(f"추출 완료: 코스피 {len(kospi)}개 / 코스닥 {len(kosdaq)}개 (총 {len(total)}개)")
 
     if not total:
         print("조건 만족 종목이 없습니다.")
         return
 
-    # Supabase TRIPLE D PAPA 테이블에 저장
+    # Supabase 'TRIPLE D PAPA' 테이블에 적재
     supabase.table("TRIPLE D PAPA").upsert(total).execute()
-    print(f"★ 성공! 총 {len(total)}개 종목이 Supabase에 정상 저장되었습니다. ★")
+    print(f"★ 성공! 총 {len(total)}개 종목이 Supabase에 저장되었습니다. ★")
 
 if __name__ == "__main__":
     main()

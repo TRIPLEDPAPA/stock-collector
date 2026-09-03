@@ -13,20 +13,24 @@ HEADERS = {
 }
 
 def get_foreign_net_buy(ticker):
-    """네이버 금융 투자자별 매매동향에서 당일 외국인 순매수량(주) 추출"""
+    """네이버 금융 외국인/기관 매매동향에서 '외국인 당일 순매매량(주)' 정확히 추출"""
     url = f"https://finance.naver.com/item/frgn.naver?code={ticker}"
     try:
         res = requests.get(url, headers=HEADERS, timeout=5)
         res.encoding = "euc-kr"
-        # 첫 번째 순매매량 행 파싱
-        rows = res.text.split("<tr")
-        for r in rows:
-            if 'class="tah p11"' in r and ("+" in r or "-" in r):
-                nums = re.findall(r'<span class="tah p11[^>]*>([^<]+)</span>', r)
-                if len(nums) >= 2:
-                    # nums[1]: 외국인 순매매 수량
-                    clean_val = nums[1].replace(',', '').replace('+', '').strip()
-                    return int(clean_val)
+        html = res.text
+
+        # 날짜가 들어있는 데이터 행(tr) 찾기
+        rows = html.split('<tr onmouseover="mouseOver(this)"')
+        if len(rows) > 1:
+            target_row = rows[1] # 가장 최신 거래일 행
+            tds = re.findall(r'<td[^>]*>(.*?)</td>', target_row, re.DOTALL)
+            clean_tds = [re.sub(r'<[^>]+>', '', td).strip().replace(',', '') for td in tds]
+            
+            # clean_tds 구조: [0]날짜, [1]종가, [2]전일비, [3]등락률, [4]거래량, [5]기관순매매, [6]외국인순매매
+            if len(clean_tds) >= 7:
+                foreign_str = clean_tds[6].replace('+', '')
+                return int(foreign_str)
         return 0
     except Exception:
         return 0
@@ -54,36 +58,40 @@ def get_recent_candles(ticker, count=25):
 def evaluate_technical_conditions(ticker, current_close, current_high, current_open):
     candles = get_recent_candles(ticker, count=25)
     if len(candles) < 20:
-        return False, {}
+        return False
 
     recent_20 = candles[-20:]
     closes = [c["close"] for c in recent_20]
     highs = [c["high"] for c in recent_20]
     lows = [c["low"] for c in recent_20]
 
+    # D. 20일선 위
     ma20 = sum(closes) / 20.0
     if current_close < ma20:
-        return False, {}
+        return False
 
+    # I. 5일선 지지 및 5일 > 20일
     ma5 = sum(closes[-5:]) / 5.0
     if current_close < ma5 or ma5 < ma20:
-        return False, {}
+        return False
 
+    # E. 최근 20봉 내 70% 이상 고점권
     max_high_20 = max(highs)
     min_low_20 = min(lows)
     if max_high_20 > min_low_20:
         position_ratio = (current_close - min_low_20) / (max_high_20 - min_low_20)
         if position_ratio < 0.70:
-            return False, {}
+            return False
     else:
-        return False, {}
+        return False
 
+    # C. 거래량 전일비 150% 이상
     prev_volume = candles[-2]["volume"] if len(candles) >= 2 else 0
     today_volume = candles[-1]["volume"]
     if prev_volume > 0 and (today_volume / prev_volume) < 1.5:
-        return False, {}
+        return False
 
-    return True, {}
+    return True
 
 def fetch_screened_stocks(sosok, market_name):
     url = f"https://finance.naver.com/sise/sise_quant.naver?sosok={sosok}&order=deal_amount"
@@ -125,25 +133,30 @@ def fetch_screened_stocks(sosok, market_name):
             high_price = int(clean[8])
             low_price = int(clean[9])
 
+            # 등락률 +3% ~ +18%
             if not (3.0 <= change_rate <= 18.0):
                 continue
+            # 거래대금 500억 이상
             if trade_amount_million < 50_000:
                 continue
+            # 양봉
             if close_price < open_price:
                 continue
+            # 고가 대비 -5% 이내
             if high_price > 0 and (close_price / high_price) < 0.95:
                 continue
 
+            # 윗꼬리 25% 이하
             total_range = high_price - low_price
             upper_tail = high_price - close_price
             if total_range > 0 and (upper_tail / total_range) > 0.25:
                 continue
 
-            passed, _ = evaluate_technical_conditions(ticker, close_price, high_price, open_price)
-            if not passed:
+            # 일봉 20일선, 5일선, 위치 조건
+            if not evaluate_technical_conditions(ticker, close_price, high_price, open_price):
                 continue
 
-            # 외국인 순매수 수량(주) 조회
+            # 외국인 순매수량(주)
             foreign_buy = get_foreign_net_buy(ticker)
 
             results.append({
@@ -157,26 +170,25 @@ def fetch_screened_stocks(sosok, market_name):
                 "double_buy_sum": int(trade_amount_won * 0.1),
                 "foreign_net_buy": foreign_buy
             })
-            print(f"[{market_name}] 통과: {name} (외인순매수: {foreign_buy:,}주)")
+            print(f"[{market_name}] 통과: {name} (외인: {foreign_buy:,}주)")
         except Exception:
             continue
 
     return results
 
 def main():
-    print("=== 수급 연동 종가배팅 스크리닝 시작 ===")
+    print("=== 수급 연동 종가배팅 스크리닝 ===")
     kospi = fetch_screened_stocks(0, "KOSPI")
     kosdaq = fetch_screened_stocks(1, "KOSDAQ")
     total = kospi + kosdaq
 
-    print(f"최종 통과: 코스피 {len(kospi)}개 / 코스닥 {len(kosdaq)}개 (총 {len(total)}개)")
-
+    print(f"조건 만족 종목 수: 총 {len(total)}개")
     if not total:
-        print("조건 만족 종목이 없습니다.")
+        print("만족 종목 없음")
         return
 
     supabase.table("TRIPLE D PAPA").upsert(total).execute()
-    print(f"총 {len(total)}개 종목 적재 완료.")
+    print("Supabase 저장 완료")
 
 if __name__ == "__main__":
     main()

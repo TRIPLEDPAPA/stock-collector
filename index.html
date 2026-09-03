@@ -41,10 +41,12 @@
     .market-KOSDAQ { background: #10b981; color: #fff; }
     .stock-sub { font-size: 0.75rem; color: var(--text-sub); }
 
-    .badge-foreign { font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; }
-    .foreign-buy { color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); }
-    .foreign-sell { color: #60a5fa; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); }
-    .foreign-zero { color: var(--text-sub); background: rgba(148, 163, 184, 0.1); }
+    /* 수급 배지 스타일 */
+    .investor-bar { margin-top: 6px; display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .badge-inv { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
+    .inv-buy { color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.25); }
+    .inv-sell { color: #60a5fa; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.25); }
+    .inv-zero { color: var(--text-sub); background: rgba(148, 163, 184, 0.1); }
 
     .stock-values { text-align: right; display: flex; flex-direction: column; gap: 2px; }
     .stock-price { font-size: 1.15rem; font-weight: 700; color: #fff; }
@@ -87,22 +89,17 @@
     let allStocks = [];
     let currentFilter = 'ALL';
 
-    function formatForeignVolume(vol) {
+    function renderBadge(label, vol) {
       if (!vol || vol === 0) {
-        return '<span class="badge-foreign foreign-zero">외인 0주</span>';
+        return `<span class="badge-inv inv-zero">${label} 0</span>`;
       }
       const abs = Math.abs(vol);
-      let text = "";
-      if (abs >= 10000) {
-        text = (vol / 10000).toFixed(1) + "만주";
-      } else {
-        text = Number(vol).toLocaleString() + "주";
-      }
-
+      const text = abs >= 10000 ? (vol / 10000).toFixed(1) + "만" : Number(vol).toLocaleString();
+      
       if (vol > 0) {
-        return '<span class="badge-foreign foreign-buy">외인 +' + text + '</span>';
+        return `<span class="badge-inv inv-buy">${label} +${text}</span>`;
       } else {
-        return '<span class="badge-foreign foreign-sell">외인 ' + text + '</span>';
+        return `<span class="badge-inv inv-sell">${label} ${text}</span>`;
       }
     }
 
@@ -168,7 +165,10 @@
         const openStr = s.open_price ? Number(s.open_price).toLocaleString() : "-";
         const prevStr = s.prev_close ? Number(s.prev_close).toLocaleString() : "-";
         const rateStr = s.change_rate > 0 ? "+" + s.change_rate + "%" : s.change_rate + "%";
-        const foreignBadge = formatForeignVolume(s.foreign_net_buy);
+
+        const badgeFrg = renderBadge("외인", s.foreign_net_buy);
+        const badgeInst = renderBadge("기관", s.inst_net_buy);
+        const badgeRetail = renderBadge("개인", s.retail_net_buy);
 
         return `
           <div class="stock-card" onclick="window.open('https://m.stock.naver.com/domestic/stock/${s.ticker}/total', '_blank')">
@@ -177,10 +177,12 @@
                 <div class="stock-title-row">
                   <span class="stock-market market-${s.market}">${s.market}</span>
                   <span class="stock-name">${s.name}</span>
-                </div>
-                <div style="margin-top: 4px; display: flex; gap: 6px; align-items: center;">
-                  ${foreignBadge}
                   <span class="stock-sub">${s.ticker}</span>
+                </div>
+                <div class="investor-bar">
+                  ${badgeFrg}
+                  ${badgeInst}
+                  ${badgeRetail}
                 </div>
               </div>
               <div class="stock-values">

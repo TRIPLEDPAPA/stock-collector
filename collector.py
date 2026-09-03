@@ -120,9 +120,13 @@ def main():
         print("조건 만족 종목 없음.")
         return
 
-    # Supabase 저장
-    supabase.table("TRIPLE D PAPA").upsert(total).execute()
-    print("★ 수급 데이터가 정상 적재되었습니다. ★")
+    # [핵심] 저장 전에 오늘 날짜 기존 데이터를 먼저 깨끗하게 비웁니다.
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    supabase.table("TRIPLE D PAPA").delete().eq("date", today_str).execute()
+
+    # 새 데이터 일괄 삽입
+    supabase.table("TRIPLE D PAPA").insert(total).execute()
+    print("★ 기존 데이터 정리 후 신규 수급 데이터 정상 적재 완료 ★")
 
 if __name__ == "__main__":
     main()

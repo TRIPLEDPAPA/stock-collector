@@ -14,6 +14,8 @@ HEADERS = {
 
 def parse_int_safe(val):
     try:
+        if val is None:
+            return 0
         return int(str(val).replace(",", "").replace("+", "").strip())
     except Exception:
         return 0
@@ -35,6 +37,65 @@ def get_investor_trend(ticker):
         pass
     return 0, 0, 0
 
+def get_recent_candles(ticker, count=25):
+    """과거 일봉 데이터 조회 (20봉 기준 이평선 및 고점 위치 계산용)"""
+    url = f"https://fchart.stock.naver.com/sise.nhn?symbol={ticker}&timeframe=day&count={count}&requestType=0"
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=5)
+        items = re.findall(r'<item data="([^"]+)"', res.text)
+        candles = []
+        for item in items:
+            vals = item.split("|")
+            candles.append({
+                "date": vals[0],
+                "open": int(vals[1]),
+                "high": int(vals[2]),
+                "low": int(vals[3]),
+                "close": int(vals[4]),
+                "volume": int(vals[5])
+            })
+        return candles
+    except Exception:
+        return []
+
+def evaluate_technical_conditions(ticker, current_close, current_high, current_open):
+    candles = get_recent_candles(ticker, count=25)
+    if len(candles) < 20:
+        return False
+
+    recent_20 = candles[-20:]
+    closes = [c["close"] for c in recent_20]
+    highs = [c["high"] for c in recent_20]
+    lows = [c["low"] for c in recent_20]
+
+    # D. 20일선 위
+    ma20 = sum(closes) / 20.0
+    if current_close < ma20:
+        return False
+
+    # I. 5일선 지지 및 5일 > 20일
+    ma5 = sum(closes[-5:]) / 5.0
+    if current_close < ma5 or ma5 < ma20:
+        return False
+
+    # E. 최근 20봉 내 70% 이상 고점권
+    max_high_20 = max(highs)
+    min_low_20 = min(lows)
+    if max_high_20 > min_low_20:
+        position_ratio = (current_close - min_low_20) / (max_high_20 - min_low_20)
+        if position_ratio < 0.70:
+            return False
+    else:
+        return False
+
+    # C. 거래량 전일비 150% 이상
+    prev_volume = candles[-2]["volume"] if len(candles) >= 2 else 0
+    today_volume = candles[-1]["volume"]
+    if prev_volume > 0 and (today_volume / prev_volume) < 1.5:
+        return False
+
+    return True
+
 def fetch_screened_stocks(sosok, market_name):
     url = f"https://finance.naver.com/sise/sise_quant.naver?sosok={sosok}&order=deal_amount"
     try:
@@ -42,7 +103,7 @@ def fetch_screened_stocks(sosok, market_name):
         res.encoding = "euc-kr"
         html = res.text
     except Exception as e:
-        print(f"{market_name} 조회 실패: {e}")
+        print(f"[{market_name}] 시세 페이지 수신 실패: {e}")
         return []
 
     rows = html.split("<tr")
@@ -73,6 +134,7 @@ def fetch_screened_stocks(sosok, market_name):
             trade_amount_won = trade_amount_million * 1_000_000
             open_price = parse_int_safe(clean[7])
             high_price = parse_int_safe(clean[8])
+            low_price = parse_int_safe(clean[9])
 
             # 전일 종가 계산
             diff_str = clean[3].replace('상승', '').replace('하락', '').replace('보합', '').strip()
@@ -84,14 +146,32 @@ def fetch_screened_stocks(sosok, market_name):
             else:
                 prev_close = close_price
 
-            # 조건: 거래대금 500억 이상, 양봉(종가 >= 시가), 등락률 3~18%
-            if trade_amount_million < 50_000 or close_price < open_price or not (3.0 <= change_rate <= 18.0):
+            # [A] 등락률 +3% ~ +18%
+            if not (3.0 <= change_rate <= 18.0):
+                continue
+            # [B] 거래대금 500억 이상
+            if trade_amount_million < 50_000:
+                continue
+            # [F] 당일 양봉 (종가 >= 시가)
+            if close_price < open_price:
+                continue
+            # [(G)] 고가 대비 -5% 이내 유지
+            if high_price > 0 and (close_price / high_price) < 0.95:
+                continue
+            # [H] 윗꼬리 25% 이하
+            total_range = high_price - low_price
+            upper_tail = high_price - close_price
+            if total_range > 0 and (upper_tail / total_range) > 0.25:
                 continue
 
-            # 수급 데이터 조회
+            # [C, D, E, I] 20봉 기술적 지표 검증
+            if not evaluate_technical_conditions(ticker, close_price, high_price, open_price):
+                continue
+
+            # 개인/외인/기관 수급 조회
             foreign_buy, inst_buy, retail_buy = get_investor_trend(ticker)
 
-            item_data = {
+            results.append({
                 "date": today_str,
                 "ticker": ticker,
                 "name": name,
@@ -105,34 +185,32 @@ def fetch_screened_stocks(sosok, market_name):
                 "foreign_net_buy": foreign_buy,
                 "inst_net_buy": inst_buy,
                 "retail_net_buy": retail_buy
-            }
-            results.append(item_data)
-            print(f"[{market_name}] 추출: {name} (외인:{foreign_buy:,} / 기관:{inst_buy:,} / 개인:{retail_buy:,})")
+            })
+            print(f"[{market_name}] 통과: {name} (외:{foreign_buy:,} / 기:{inst_buy:,} / 개:{retail_buy:,})")
         except Exception:
             continue
 
     return results
 
 def main():
-    print("=== 수급 및 주가 적재 파이프라인 시작 ===")
+    print("=== 종가배팅 스크리너 구동 시작 ===")
     kospi = fetch_screened_stocks(0, "KOSPI")
     kosdaq = fetch_screened_stocks(1, "KOSDAQ")
     total = kospi + kosdaq
 
-    print(f"추출 종목 수: 총 {len(total)}개")
+    print(f"조건 만족 종목: 총 {len(total)}개")
     if not total:
         print("조건 만족 종목이 없습니다.")
         return
 
     today_str = datetime.today().strftime("%Y-%m-%d")
-    
     try:
-        # 오늘자 중복 방지를 위해 삭제 후 삽입
+        # 당일 기존 데이터 초기화 후 삽입
         supabase.table("TRIPLE D PAPA").delete().eq("date", today_str).execute()
         res = supabase.table("TRIPLE D PAPA").insert(total).execute()
-        print("★ Supabase 저장 성공! 총 저장 행 수:", len(res.data))
+        print(f"★ Supabase 적재 완료: 총 {len(res.data)}건 저장됨")
     except Exception as e:
-        print("★ Supabase 적재 에러 발생! 원인:", str(e))
+        print(f"★ 적재 에러 발생: {e}")
 
 if __name__ == "__main__":
     main()

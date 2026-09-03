@@ -12,26 +12,22 @@
       --text: #f8fafc;
       --text-sub: #94a3b8;
       --red: #ef4444;
-      --blue: #38bdf8;
       --accent: #38bdf8;
       --border: #334155;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background-color: var(--bg); color: var(--text); padding: 14px; min-height: 100vh; }
-    
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
     h1 { font-size: 1.1rem; font-weight: 700; color: #fff; }
     .status-badge { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; background-color: rgba(56, 189, 248, 0.15); color: var(--accent); padding: 3px 8px; border-radius: 999px; font-weight: 600; }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
-    /* 조건별 가로 스크롤 바 */
     .condition-scroll-box { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: none; }
     .condition-scroll-box::-webkit-scrollbar { display: none; }
     .cond-btn { white-space: nowrap; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-sub); font-size: 0.78rem; font-weight: 600; cursor: pointer; }
     .cond-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
 
     .summary-bar { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-sub); margin-bottom: 12px; }
-
     .stock-list { display: flex; flex-direction: column; gap: 10px; }
     .stock-card { background-color: var(--card-bg); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); cursor: pointer; }
     
@@ -53,7 +49,6 @@
     .stock-price { font-size: 1.1rem; font-weight: 700; color: #fff; }
     .stock-rate { font-size: 0.82rem; font-weight: 700; color: var(--red); }
 
-    /* 9대 조건 체크 칩 */
     .chips-box { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 6px; border-top: 1px dashed var(--border); }
     .chip { font-size: 0.65rem; padding: 2px 5px; border-radius: 4px; font-weight: 500; }
     .chip-pass { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
@@ -77,8 +72,7 @@
     </div>
   </header>
 
-  <!-- 9대 조건별 선택 탭 -->
-  <div class="condition-scroll-box" id="condition-bar">
+  <div class="condition-scroll-box">
     <button class="cond-btn active" onclick="setCondition('ALL')">전체보기</button>
     <button class="cond-btn" onclick="setCondition('주가등락률')">주가등락률</button>
     <button class="cond-btn" onclick="setCondition('거래대금')">거래대금</button>
@@ -92,7 +86,7 @@
   </div>
 
   <div class="summary-bar">
-    <span id="summary-count">종목을 불러오는 중...</span>
+    <span id="summary-count">불러오는 중...</span>
     <span id="last-updated"></span>
   </div>
 
@@ -120,7 +114,7 @@
       try {
         const { data: latestRow } = await supabaseClient.from("TRIPLE D PAPA").select("date").order("date", { ascending: false }).limit(1);
         if (!latestRow || latestRow.length === 0) {
-          document.getElementById("stock-container").innerHTML = '<div class="empty">데이터가 없습니다.</div>';
+          document.getElementById("stock-container").innerHTML = '<div class="empty">저장된 데이터가 없습니다.</div>';
           return;
         }
 
@@ -151,10 +145,7 @@
       if (currentCond === 'ALL') {
         filtered = allStocks;
       } else {
-        // 해당 조건 태그를 포함하고 있는 종목 선별
-        filtered = allStocks.filter(s => (s.passed_tags || []).includes(currentCond));
-        
-        // [핵심] 만약 해당 조건을 만족한 종목이 0개라면 거래대금 1위 종목을 무조건 1개 표기
+        filtered = allStocks.filter(s => (s.passed_tags || "").split(',').includes(currentCond));
         if (filtered.length === 0 && allStocks.length > 0) {
           filtered = [allStocks[0]];
           isForced = true;
@@ -162,17 +153,14 @@
       }
 
       document.getElementById("summary-count").innerText = isForced 
-        ? `해당 조건 만족 종목 없음 → [거래대금 1위 1개 강제 표기]` 
+        ? `조건 일치 종목 없음 → [1위 종목 표기]` 
         : `조건 충족: ${filtered.length}개`;
 
       container.innerHTML = filtered.map(s => {
-        const tags = s.passed_tags || [];
+        const tags = (s.passed_tags || "").split(',');
         const score = s.pass_count || tags.length;
         const amountEok = Math.round(s.trade_amount / 100000000).toLocaleString();
-        const priceStr = Number(s.close_price).toLocaleString();
-        const rateStr = s.change_rate > 0 ? `+${s.change_rate}%` : `${s.change_rate}%`;
 
-        // 9개 조건 칩 생성
         const chipsHtml = ALL_CONDS.map(c => {
           const pass = tags.includes(c);
           return `<span class="chip ${pass ? 'chip-pass' : 'chip-fail'}">${pass ? '✔ ' : ''}${c}</span>`;
@@ -194,8 +182,8 @@
                 </div>
               </div>
               <div class="stock-values">
-                <div class="stock-price">${priceStr}원</div>
-                <div class="stock-rate">${rateStr}</div>
+                <div class="stock-price">${Number(s.close_price).toLocaleString()}원</div>
+                <div class="stock-rate">${s.change_rate > 0 ? '+' : ''}${s.change_rate}%</div>
               </div>
             </div>
 

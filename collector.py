@@ -1,4 +1,3 @@
-import re
 import requests
 from datetime import datetime
 from supabase import create_client, Client
@@ -8,67 +7,52 @@ SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def fetch_top_trading_stocks(sosok, market_name):
-    # sosok: 0 = 코스피, 1 = 코스닥 (네이버 금융 거래대금 상위 페이지)
-    url = f"https://finance.naver.com/sise/sise_quant.naver?sosok={sosok}"
+def fetch_trade_amount_leaders(market_name):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
     }
 
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        res.encoding = "euc-kr"
-        html = res.text
-    except Exception as e:
-        print(f"{market_name} 요청 실패: {e}")
-        return []
+    # 거래대금 상위 및 시세 상위 종목 통합 수집 (페이지별 조회)
+    stocks = []
+    for page in range(1, 4):  # 1~3페이지(총 60종목) 순회
+        url = f"https://m.stock.naver.com/api/stocks/marketValue/{market_name}?page={page}&pageSize=20"
+        try:
+            res = requests.get(url, headers=headers, timeout=10)
+            if res.status_code == 200:
+                stocks.extend(res.json().get("stocks", []))
+        except Exception:
+            continue
 
-    # 테이블 행(tr) 단위 분리
-    rows = html.split("<tr")
     today_str = datetime.today().strftime("%Y-%m-%d")
     results = []
 
-    for r in rows:
-        # 종목 링크가 포함된 행만 파싱
-        if "code=" not in r or "title=" not in r:
-            continue
-
+    for s in stocks:
         try:
-            # 종목코드 & 종목명 추출
-            code_match = re.search(r'code=([0-9A-Za-z]+)', r)
-            name_match = re.search(r'class="tltle"[^>]*>([^<]+)</a>', r)
-            if not code_match or not name_match:
-                continue
+            # 주가 정보 추출
+            close_price = int(str(s.get("nowPrice", "0")).replace(",", ""))
+            open_price = int(str(s.get("openPrice", "0")).replace(",", ""))
+            change_rate = float(str(s.get("changeRate", "0")).replace("%", "").replace(",", ""))
 
-            ticker = code_match.group(1).strip()
-            name = name_match.group(1).strip()
+            # 거래대금 정보 추출 (거래대금이 없으면 거래량 * 현재가로 보정 계산)
+            raw_trade = s.get("totalTradePrice")
+            if raw_trade:
+                trade_amount = int(float(str(raw_trade).replace(",", "")) * 1_000_000)
+            else:
+                volume = int(str(s.get("totalTradeVolume", "0")).replace(",", ""))
+                trade_amount = volume * close_price
 
-            # 모든 td 태그의 텍스트 추출
-            tds = re.findall(r'<td[^>]*>(.*?)</td>', r, re.DOTALL)
-            clean_tds = [re.sub(r'<[^>]+>', '', td).strip().replace(',', '') for td in tds]
-
-            if len(clean_tds) < 7:
-                continue
-
-            # clean_tds 인덱스 구성:
-            # [1]: 종목명, [2]: 현재가, [3]: 전일비, [4]: 등락률, [5]: 거래량, [6]: 거래대금(백만원)
-            close_price = int(clean_tds[2])
-            change_rate = float(clean_tds[4].replace('%', ''))
-            trade_amount_million = int(clean_tds[6])
-            trade_amount = trade_amount_million * 1_000_000  # 원 단위 환산
-
-            # 조건 1: 거래대금 500억 이상 (50,000,000,000원)
+            # 조건 1: 거래대금 500억 (50,000,000,000원) 이상
             if trade_amount < 50_000_000_000:
                 continue
 
-            # 조건 2: 양봉 마감 (당일 상승 또는 보합)
-            if change_rate < 0:
+            # 조건 2: 당일 양봉 마감 (종가 >= 시가 이면서 등락률 0 이상)
+            if close_price < open_price or change_rate < 0:
                 continue
 
             results.append({
                 "date": today_str,
-                "ticker": ticker,
-                "name": name,
+                "ticker": str(s.get("itemCode")),
+                "name": str(s.get("stockName")),
                 "market": market_name,
                 "close_price": close_price,
                 "change_rate": change_rate,
@@ -81,9 +65,9 @@ def fetch_top_trading_stocks(sosok, market_name):
     return results
 
 def main():
-    print("=== 거래대금 500억 이상 & 양봉 종목 스크리닝 시작 ===")
-    kospi = fetch_top_trading_stocks(0, "KOSPI")
-    kosdaq = fetch_top_trading_stocks(1, "KOSDAQ")
+    print("=== 거래대금 500억 이상 & 양봉 종목 자동 수집 시작 ===")
+    kospi = fetch_trade_amount_leaders("KOSPI")
+    kosdaq = fetch_trade_amount_leaders("KOSDAQ")
     total = kospi + kosdaq
 
     print(f"조건 만족 종목 수: 코스피 {len(kospi)}개 / 코스닥 {len(kosdaq)}개 (총 {len(total)}개)")
@@ -92,9 +76,9 @@ def main():
         print("조건 만족 종목이 없습니다.")
         return
 
-    # Supabase 'TRIPLE D PAPA' 테이블에 적재
+    # Supabase 'TRIPLE D PAPA' 테이블에 일괄 적재
     supabase.table("TRIPLE D PAPA").upsert(total).execute()
-    print(f"★ 성공! 총 {len(total)}개 종목이 Supabase에 저장되었습니다. ★")
+    print(f"성공: 총 {len(total)}개 종목이 Supabase에 저장되었습니다.")
 
 if __name__ == "__main__":
     main()

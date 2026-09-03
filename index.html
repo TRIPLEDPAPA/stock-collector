@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>TRIPLE D PAPA - 모바일 전광판</title>
+  <title>TRIPLE D PAPA - 조건별 전광판</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -17,44 +17,51 @@
       --border: #334155;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); padding: 16px; min-height: 100vh; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-    h1 { font-size: 1.15rem; font-weight: 700; color: #fff; }
+    body { background-color: var(--bg); color: var(--text); padding: 14px; min-height: 100vh; }
+    
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    h1 { font-size: 1.1rem; font-weight: 700; color: #fff; }
     .status-badge { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; background-color: rgba(56, 189, 248, 0.15); color: var(--accent); padding: 3px 8px; border-radius: 999px; font-weight: 600; }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
-    
-    .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; }
-    .filter-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-sub); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
-    .filter-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
 
-    .summary-bar { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 12px; }
-    .stock-list { display: flex; flex-direction: column; gap: 12px; }
-    .stock-card { background-color: var(--card-bg); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); cursor: pointer; }
+    /* 조건별 가로 스크롤 바 */
+    .condition-scroll-box { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: none; }
+    .condition-scroll-box::-webkit-scrollbar { display: none; }
+    .cond-btn { white-space: nowrap; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-sub); font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+    .cond-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+
+    .summary-bar { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-sub); margin-bottom: 12px; }
+
+    .stock-list { display: flex; flex-direction: column; gap: 10px; }
+    .stock-card { background-color: var(--card-bg); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); cursor: pointer; }
     
     .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
-    .stock-info { display: flex; flex-direction: column; gap: 4px; }
     .stock-title-row { display: flex; align-items: center; gap: 6px; }
-    .stock-name { font-size: 1.1rem; font-weight: 700; }
-    .stock-market { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
+    .stock-name { font-size: 1.05rem; font-weight: 700; }
+    .stock-market { font-size: 0.68rem; padding: 2px 4px; border-radius: 4px; font-weight: 600; }
     .market-KOSPI { background: #3b82f6; color: #fff; }
     .market-KOSDAQ { background: #10b981; color: #fff; }
-    .stock-sub { font-size: 0.75rem; color: var(--text-sub); }
+    .score-badge { font-size: 0.7rem; background: rgba(56, 189, 248, 0.2); color: var(--accent); padding: 1px 6px; border-radius: 4px; font-weight: 700; }
 
-    .investor-bar { margin-top: 6px; display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
-    .badge-inv { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
-    .inv-buy { color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.25); }
-    .inv-sell { color: #60a5fa; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.25); }
+    .investor-bar { margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
+    .badge-inv { font-size: 0.68rem; padding: 1px 4px; border-radius: 3px; font-weight: 600; }
+    .inv-buy { color: #f87171; background: rgba(239, 68, 68, 0.15); }
+    .inv-sell { color: #60a5fa; background: rgba(59, 130, 246, 0.15); }
     .inv-zero { color: var(--text-sub); background: rgba(148, 163, 184, 0.1); }
 
     .stock-values { text-align: right; display: flex; flex-direction: column; gap: 2px; }
-    .stock-price { font-size: 1.15rem; font-weight: 700; color: #fff; }
-    .stock-rate { font-size: 0.85rem; font-weight: 700; color: var(--red); }
+    .stock-price { font-size: 1.1rem; font-weight: 700; color: #fff; }
+    .stock-rate { font-size: 0.82rem; font-weight: 700; color: var(--red); }
 
-    .card-bottom { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 0.75rem; color: var(--text-sub); }
-    .price-details { display: flex; gap: 8px; }
-    .price-item span { color: #e2e8f0; font-weight: 600; }
+    /* 9대 조건 체크 칩 */
+    .chips-box { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 6px; border-top: 1px dashed var(--border); }
+    .chip { font-size: 0.65rem; padding: 2px 5px; border-radius: 4px; font-weight: 500; }
+    .chip-pass { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .chip-fail { background: rgba(51, 65, 85, 0.4); color: #64748b; }
+
+    .card-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: var(--text-sub); }
     .amount-highlight { color: #e2e8f0; font-weight: 600; }
-    .loading, .empty { text-align: center; padding: 40px 0; color: var(--text-sub); font-size: 0.9rem; }
+    .loading, .empty { text-align: center; padding: 40px 0; color: var(--text-sub); font-size: 0.85rem; }
   </style>
 </head>
 <body>
@@ -62,23 +69,31 @@
   <header>
     <div>
       <h1>TRIPLE D PAPA</h1>
-      <div id="target-date" style="font-size: 0.75rem; color: var(--text-sub); margin-top: 2px;">로딩 중...</div>
+      <div id="target-date" style="font-size: 0.72rem; color: var(--text-sub); margin-top: 2px;">로딩 중...</div>
     </div>
     <div class="status-badge">
       <span class="live-dot"></span>
-      <span id="refresh-status">30초 자동 갱신</span>
+      <span>30초 갱신</span>
     </div>
   </header>
 
-  <div class="filter-bar">
-    <button class="filter-btn active" onclick="setFilter('ALL')">전체</button>
-    <button class="filter-btn" onclick="setFilter('KOSPI')">코스피</button>
-    <button class="filter-btn" onclick="setFilter('KOSDAQ')">코스닥</button>
+  <!-- 9대 조건별 선택 탭 -->
+  <div class="condition-scroll-box" id="condition-bar">
+    <button class="cond-btn active" onclick="setCondition('ALL')">전체보기</button>
+    <button class="cond-btn" onclick="setCondition('주가등락률')">주가등락률</button>
+    <button class="cond-btn" onclick="setCondition('거래대금')">거래대금</button>
+    <button class="cond-btn" onclick="setCondition('거래량비율')">거래량비율</button>
+    <button class="cond-btn" onclick="setCondition('20일이평선')">20일선위</button>
+    <button class="cond-btn" onclick="setCondition('주가위치')">주가위치(70%)</button>
+    <button class="cond-btn" onclick="setCondition('양봉마감')">양봉마감</button>
+    <button class="cond-btn" onclick="setCondition('고가근접')">고가근접</button>
+    <button class="cond-btn" onclick="setCondition('윗꼬리제한')">윗꼬리제한</button>
+    <button class="cond-btn" onclick="setCondition('단기이평정배열')">단기정배열</button>
   </div>
 
   <div class="summary-bar">
-    <span id="summary-count">종목을 불러오는 중입니다...</span>
-    <span id="last-updated" style="font-size: 0.72rem; color: var(--text-sub);"></span>
+    <span id="summary-count">종목을 불러오는 중...</span>
+    <span id="last-updated"></span>
   </div>
 
   <div class="stock-list" id="stock-container">
@@ -90,83 +105,78 @@
     const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    const ALL_CONDS = ["주가등락률", "거래대금", "거래량비율", "20일이평선", "주가위치", "양봉마감", "고가근접", "윗꼬리제한", "단기이평정배열"];
     let allStocks = [];
-    let currentFilter = 'ALL';
+    let currentCond = 'ALL';
 
     function renderBadge(label, vol) {
-      if (!vol || vol === 0) {
-        return `<span class="badge-inv inv-zero">${label} 0</span>`;
-      }
+      if (!vol || vol === 0) return `<span class="badge-inv inv-zero">${label} 0</span>`;
       const abs = Math.abs(vol);
       const text = abs >= 10000 ? (vol / 10000).toFixed(1) + "만" : Number(vol).toLocaleString();
-      return vol > 0 
-        ? `<span class="badge-inv inv-buy">${label} +${text}</span>` 
-        : `<span class="badge-inv inv-sell">${label} ${text}</span>`;
+      return vol > 0 ? `<span class="badge-inv inv-buy">${label} +${text}</span>` : `<span class="badge-inv inv-sell">${label} ${text}</span>`;
     }
 
-    async function loadTodayStocks() {
+    async function loadStocks() {
       try {
-        const { data: latestRow, error: dateError } = await supabaseClient
-          .from("TRIPLE D PAPA")
-          .select("date")
-          .order("date", { ascending: false })
-          .limit(1);
-
-        if (dateError || !latestRow || latestRow.length === 0) {
-          showEmpty("저장된 주식 데이터가 없습니다.");
+        const { data: latestRow } = await supabaseClient.from("TRIPLE D PAPA").select("date").order("date", { ascending: false }).limit(1);
+        if (!latestRow || latestRow.length === 0) {
+          document.getElementById("stock-container").innerHTML = '<div class="empty">데이터가 없습니다.</div>';
           return;
         }
 
         const latestDate = latestRow[0].date;
-        document.getElementById("target-date").innerText = "기준일자: " + latestDate;
+        document.getElementById("target-date").innerText = "기준: " + latestDate;
 
-        const { data, error } = await supabaseClient
-          .from("TRIPLE D PAPA")
-          .select("*")
-          .eq("date", latestDate)
-          .order("trade_amount", { ascending: false });
-
-        if (error || !data) {
-          showEmpty("데이터를 불러오지 못했습니다.");
-          return;
+        const { data } = await supabaseClient.from("TRIPLE D PAPA").select("*").eq("date", latestDate).order("trade_amount", { ascending: false });
+        if (data) {
+          allStocks = data;
+          renderList();
+          document.getElementById("last-updated").innerText = new Date().toLocaleTimeString('ko-KR', { hour12: false });
         }
-
-        allStocks = data;
-        renderList();
-
-        const now = new Date();
-        document.getElementById("last-updated").innerText = "최근 갱신: " + now.toLocaleTimeString('ko-KR', { hour12: false });
-      } catch (e) {
-        showEmpty("네트워크 오류가 발생했습니다.");
-      }
+      } catch (e) {}
     }
 
-    function setFilter(market) {
-      currentFilter = market;
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    function setCondition(cond) {
+      currentCond = cond;
+      document.querySelectorAll('.cond-btn').forEach(b => b.classList.remove('active'));
       event.target.classList.add('active');
       renderList();
     }
 
     function renderList() {
       const container = document.getElementById("stock-container");
-      const filtered = currentFilter === 'ALL' 
-        ? allStocks 
-        : allStocks.filter(s => s.market === currentFilter);
+      let filtered = [];
+      let isForced = false;
 
-      document.getElementById("summary-count").innerText = `총 ${filtered.length}개 종목 만족`;
-
-      if (filtered.length === 0) {
-        container.innerHTML = '<div class="empty">해당 조건의 종목이 없습니다.</div>';
-        return;
+      if (currentCond === 'ALL') {
+        filtered = allStocks;
+      } else {
+        // 해당 조건 태그를 포함하고 있는 종목 선별
+        filtered = allStocks.filter(s => (s.passed_tags || []).includes(currentCond));
+        
+        // [핵심] 만약 해당 조건을 만족한 종목이 0개라면 거래대금 1위 종목을 무조건 1개 표기
+        if (filtered.length === 0 && allStocks.length > 0) {
+          filtered = [allStocks[0]];
+          isForced = true;
+        }
       }
 
+      document.getElementById("summary-count").innerText = isForced 
+        ? `해당 조건 만족 종목 없음 → [거래대금 1위 1개 강제 표기]` 
+        : `조건 충족: ${filtered.length}개`;
+
       container.innerHTML = filtered.map(s => {
+        const tags = s.passed_tags || [];
+        const score = s.pass_count || tags.length;
         const amountEok = Math.round(s.trade_amount / 100000000).toLocaleString();
         const priceStr = Number(s.close_price).toLocaleString();
-        const openStr = s.open_price ? Number(s.open_price).toLocaleString() : "-";
-        const prevStr = s.prev_close ? Number(s.prev_close).toLocaleString() : "-";
         const rateStr = s.change_rate > 0 ? `+${s.change_rate}%` : `${s.change_rate}%`;
+
+        // 9개 조건 칩 생성
+        const chipsHtml = ALL_CONDS.map(c => {
+          const pass = tags.includes(c);
+          return `<span class="chip ${pass ? 'chip-pass' : 'chip-fail'}">${pass ? '✔ ' : ''}${c}</span>`;
+        }).join('');
 
         return `
           <div class="stock-card" onclick="window.open('https://m.stock.naver.com/domestic/stock/${s.ticker}/total', '_blank')">
@@ -175,7 +185,7 @@
                 <div class="stock-title-row">
                   <span class="stock-market market-${s.market}">${s.market}</span>
                   <span class="stock-name">${s.name}</span>
-                  <span class="stock-sub">${s.ticker}</span>
+                  <span class="score-badge">${score}/9 통과</span>
                 </div>
                 <div class="investor-bar">
                   ${renderBadge("외인", s.foreign_net_buy)}
@@ -188,26 +198,22 @@
                 <div class="stock-rate">${rateStr}</div>
               </div>
             </div>
-            
+
+            <div class="chips-box">
+              ${chipsHtml}
+            </div>
+
             <div class="card-bottom">
-              <div class="price-details">
-                <div class="price-item">전일 <span>${prevStr}</span></div>
-                <div class="price-item">시가 <span>${openStr}</span></div>
-              </div>
-              <div class="amount-highlight">대금 ${amountEok}억</div>
+              <span>전일 ${Number(s.prev_close || 0).toLocaleString()} · 시가 ${Number(s.open_price || 0).toLocaleString()}</span>
+              <span class="amount-highlight">대금 ${amountEok}억</span>
             </div>
           </div>
         `;
       }).join('');
     }
 
-    function showEmpty(msg) {
-      document.getElementById("summary-count").innerText = "";
-      document.getElementById("stock-container").innerHTML = `<div class="empty">${msg}</div>`;
-    }
-
-    loadTodayStocks();
-    setInterval(loadTodayStocks, 30000);
+    loadStocks();
+    setInterval(loadStocks, 30000);
   </script>
 </body>
 </html>

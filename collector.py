@@ -54,58 +54,45 @@ def get_recent_candles(ticker, count=25):
     except Exception:
         return []
 
-def evaluate_conditions(close_price, open_price, high_price, low_price, change_rate, trade_amount_million, candles):
+def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_m, candles):
     passed = []
 
-    # 1. 주가 등락률 (+3% ~ +18%)
-    if 3.0 <= change_rate <= 18.0:
-        passed.append("주가등락률")
+    # 1. 등락률
+    if 3.0 <= chg <= 18.0: passed.append("주가등락률")
+    # 2. 거래대금 500억
+    if deal_m >= 50_000: passed.append("거래대금")
+    # 3. 양봉 마감
+    if close_p >= open_p: passed.append("양봉마감")
+    # 4. 고가 근접
+    if high_p > 0 and (close_p / high_p) >= 0.95: passed.append("고가근접")
+    # 5. 윗꼬리 25% 제한
+    rng = high_p - low_p
+    tail = high_p - close_p
+    if rng > 0 and (tail / rng) <= 0.25: passed.append("윗꼬리제한")
 
-    # 2. 거래대금 (500억 이상)
-    if trade_amount_million >= 50_000:
-        passed.append("거래대금")
-
-    # 6. 양봉 마감 (종가 >= 시가)
-    if close_price >= open_price:
-        passed.append("양봉마감")
-
-    # 7. 고가 근접 (고가 대비 -5% 이내)
-    if high_price > 0 and (close_price / high_price) >= 0.95:
-        passed.append("고가근접")
-
-    # 8. 윗꼬리 비율 제한 (윗꼬리가 25% 이하)
-    total_range = high_price - low_price
-    upper_tail = high_price - close_price
-    if total_range > 0 and (upper_tail / total_range) <= 0.25:
-        passed.append("윗꼬리제한")
-
-    # 캔들 기반 기술적 지표 4개 판정
+    # 캔들 분석
     if len(candles) >= 20:
         recent_20 = candles[-20:]
         closes = [c["close"] for c in recent_20]
         highs = [c["high"] for c in recent_20]
         lows = [c["low"] for c in recent_20]
 
-        # 4. 20일 이동평균선 (현재가 >= 20일선)
+        # 6. 20일선 위
         ma20 = sum(closes) / 20.0
-        if close_price >= ma20:
-            passed.append("20일이평선")
+        if close_p >= ma20: passed.append("20일이평선")
 
-        # 9. 단기 이평 정배열 (현재가 >= 5일선 >= 20일선)
+        # 7. 단기정배열
         ma5 = sum(closes[-5:]) / 5.0
-        if close_price >= ma5 and ma5 >= ma20:
-            passed.append("단기이평정배열")
+        if close_p >= ma5 and ma5 >= ma20: passed.append("단기이평정배열")
 
-        # 5. 기간 내 주가 위치 (최근 20봉 기준 상위 70% 이상)
-        max_h, min_l = max(highs), min(lows)
-        if max_h > min_l and ((close_price - min_l) / (max_h - min_l)) >= 0.70:
-            passed.append("주가위치")
+        # 8. 최근 20봉 위치 70% 이상
+        mx, mn = max(highs), min(lows)
+        if mx > mn and ((close_p - mn) / (mx - mn)) >= 0.70: passed.append("주가위치")
 
-        # 3. 거래량 비율 (전일 대비 150% 이상)
-        prev_vol = candles[-2]["volume"] if len(candles) >= 2 else 0
-        today_vol = candles[-1]["volume"]
-        if prev_vol > 0 and (today_vol / prev_vol) >= 1.5:
-            passed.append("거래량비율")
+        # 9. 거래량비율 150% 이상
+        p_vol = candles[-2]["volume"] if len(candles) >= 2 else 0
+        t_vol = candles[-1]["volume"]
+        if p_vol > 0 and (t_vol / p_vol) >= 1.5: passed.append("거래량비율")
 
     return passed
 
@@ -115,7 +102,8 @@ def fetch_stocks(sosok, market_name):
         res = requests.get(url, headers=HEADERS, timeout=10)
         res.encoding = "euc-kr"
         html = res.text
-    except Exception:
+    except Exception as e:
+        print(f"[{market_name}] 수집 실패: {e}")
         return []
 
     rows = html.split("<tr")
@@ -137,69 +125,71 @@ def fetch_stocks(sosok, market_name):
             clean = [re.sub(r'<[^>]+>', '', td).strip().replace(',', '') for td in tds]
             if len(clean) < 11: continue
 
-            close_price = parse_int_safe(clean[2])
-            change_rate = float(clean[4].replace('%', ''))
-            trade_amount_million = parse_int_safe(clean[6])
-            open_price = parse_int_safe(clean[7])
-            high_price = parse_int_safe(clean[8])
-            low_price = parse_int_safe(clean[9])
+            close_p = parse_int_safe(clean[2])
+            chg = float(clean[4].replace('%', ''))
+            deal_m = parse_int_safe(clean[6])
+            open_p = parse_int_safe(clean[7])
+            high_p = parse_int_safe(clean[8])
+            low_p = parse_int_safe(clean[9])
 
             diff_str = clean[3].replace('상승', '').replace('하락', '').replace('보합', '').strip()
-            diff_price = parse_int_safe(diff_str)
-            prev_close = close_price - diff_price if change_rate > 0 else (close_price + diff_price if change_rate < 0 else close_price)
+            diff_p = parse_int_safe(diff_str)
+            prev_close = close_p - diff_p if chg > 0 else (close_p + diff_p if chg < 0 else close_p)
 
-            # 거래대금 100억 이상 기본 모수 확보
-            if trade_amount_million < 10_000:
+            # 거래대금 상위 30위 내 기본 확보 (최소 200억 이상)
+            if deal_m < 20_000:
                 continue
 
             candles = get_recent_candles(ticker, count=25)
-            passed_tags = evaluate_conditions(close_price, open_price, high_price, low_price, change_rate, trade_amount_million, candles)
+            passed_list = evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_m, candles)
 
-            # 최소 1개 이상 조건을 만족한 유의미한 종목 대상
-            if len(passed_tags) == 0:
-                continue
-
-            foreign_buy, inst_buy, retail_buy = get_investor_trend(ticker)
+            frg, inst, retail = get_investor_trend(ticker)
 
             results.append({
                 "date": today_str,
                 "ticker": ticker,
                 "name": name,
                 "market": market_name,
-                "close_price": close_price,
-                "open_price": open_price,
+                "close_price": close_p,
+                "open_price": open_p,
                 "prev_close": prev_close,
-                "change_rate": round(change_rate, 2),
-                "trade_amount": trade_amount_million * 1_000_000,
-                "double_buy_sum": int(trade_amount_million * 100_000),
-                "foreign_net_buy": foreign_buy,
-                "inst_net_buy": inst_buy,
-                "retail_net_buy": retail_buy,
-                "passed_tags": passed_tags,
-                "pass_count": len(passed_tags)
+                "change_rate": round(chg, 2),
+                "trade_amount": deal_m * 1_000_000,
+                "double_buy_sum": int(deal_m * 100_000),
+                "foreign_net_buy": frg,
+                "inst_net_buy": inst,
+                "retail_net_buy": retail,
+                "passed_tags": ",".join(passed_list),  # 문자열로 안전하게 변환
+                "pass_count": len(passed_list)
             })
-        except Exception:
+            print(f"[{market_name}] 추출 완료: {name} (통과: {len(passed_list)}개)")
+        except Exception as err:
             continue
 
     return results
 
 def main():
-    print("=== 건건별 조건 판정 데이터 수집 시작 ===")
+    print("=== 데이터 추출 시작 ===")
     kospi = fetch_stocks(0, "KOSPI")
     kosdaq = fetch_stocks(1, "KOSDAQ")
     total = kospi + kosdaq
 
+    print(f"추출된 총 종목 수: {len(total)}개")
     if not total:
-        print("수집 대상 종목 없음.")
+        print("조건 만족 종목이 전혀 없습니다.")
         return
 
     today_str = datetime.today().strftime("%Y-%m-%d")
     try:
-        supabase.table("TRIPLE D PAPA").delete().eq("date", today_str).execute()
-        supabase.table("TRIPLE D PAPA").insert(total).execute()
-        print(f"★ 총 {len(total)}개 종목 적재 완료 (조건별 태그 포함)")
+        # 기존 데이터 삭제
+        del_res = supabase.table("TRIPLE D PAPA").delete().eq("date", today_str).execute()
+        print("기존 데이터 삭제 완료:", len(del_res.data) if del_res.data else 0)
+
+        # 새 데이터 전송
+        insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
+        print(f"★ Supabase 전송 대성공! 저장된 행 수: {len(insert_res.data)}건")
     except Exception as e:
-        print("적재 에러:", e)
+        print("★ Supabase 전송 중 치명적 에러 발생! 원인:", e)
 
 if __name__ == "__main__":
     main()

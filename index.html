@@ -1,140 +1,18 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>TRIPLE D PAPA - 모바일 전광판</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --text: #f8fafc;
-      --text-sub: #94a3b8;
-      --red: #ef4444;
-      --accent: #38bdf8;
-      --border: #334155;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); padding: 16px; min-height: 100vh; }
-    
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-    h1 { font-size: 1.15rem; font-weight: 700; color: #fff; }
-    .badge { font-size: 0.75rem; background-color: rgba(56, 189, 248, 0.15); color: var(--accent); padding: 3px 8px; border-radius: 999px; font-weight: 600; }
-    
-    .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; }
-    .filter-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-sub); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
-    .filter-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
-
-    .summary-text { font-size: 0.8rem; color: var(--text-sub); margin-bottom: 12px; }
-
-    .stock-list { display: flex; flex-direction: column; gap: 10px; }
-    .stock-card { background-color: var(--card-bg); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); }
-    
-    .stock-info { display: flex; flex-direction: column; gap: 4px; }
-    .stock-title-row { display: flex; align-items: center; gap: 6px; }
-    .stock-name { font-size: 1.05rem; font-weight: 700; }
-    .stock-market { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
-    .market-KOSPI { background: #3b82f6; color: #fff; }
-    .market-KOSDAQ { background: #10b981; color: #fff; }
-    .stock-sub { font-size: 0.75rem; color: var(--text-sub); }
-
-    .stock-values { text-align: right; display: flex; flex-direction: column; gap: 4px; }
-    .stock-price { font-size: 1.05rem; font-weight: 700; color: #fff; }
-    .stock-rate { font-size: 0.85rem; font-weight: 700; color: var(--red); }
-    .stock-amount { font-size: 0.75rem; color: #e2e8f0; font-weight: 600; }
-
-    .loading, .empty { text-align: center; padding: 40px 0; color: var(--text-sub); font-size: 0.9rem; }
-  </style>
-</head>
-<body>
-
-  <header>
-    <div>
-      <h1>TRIPLE D PAPA</h1>
-      <div id="target-date" style="font-size: 0.75rem; color: var(--text-sub); margin-top: 2px;">로딩 중...</div>
-    </div>
-    <span class="badge">거래대금 500억+ 양봉</span>
-  </header>
-
-  <div class="filter-bar">
-    <button class="filter-btn active" onclick="setFilter('ALL')">전체</button>
-    <button class="filter-btn" onclick="setFilter('KOSPI')">코스피</button>
-    <button class="filter-btn" onclick="setFilter('KOSDAQ')">코스닥</button>
-  </div>
-
-  <div class="summary-text" id="summary-count">종목을 불러오는 중입니다...</div>
-  <div class="stock-list" id="stock-container">
-    <div class="loading">데이터를 불러오고 있습니다...</div>
-  </div>
-
-  <script>
-    const SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    let allStocks = [];
-    let currentFilter = 'ALL';
-
-    async function loadTodayStocks() {
-      try {
-        // 가장 최신 적재된 날짜의 데이터 조회 (거래대금 내림차순 정렬)
-        const { data: latestRow } = await supabaseClient
-          .from("TRIPLE D PAPA")
-          .select("date")
-          .order("date", { ascending: false })
-          .limit(1);
-
-        if (!latestRow || latestRow.length === 0) {
-          showEmpty("저장된 주식 데이터가 없습니다.");
-          return;
-        }
-
-        const latestDate = latestRow[0].date;
-        document.getElementById("target-date").innerText = `기준일자: ${latestDate}`;
-
-        const { data, error } = await supabaseClient
-          .from("TRIPLE D PAPA")
-          .select("*")
-          .eq("date", latestDate)
-          .order("trade_amount", { ascending: false });
-
-        if (error || !data) {
-          showEmpty("데이터를 가져오는 중 오류가 발생했습니다.");
-          return;
-        }
-
-        allStocks = data;
-        renderList();
-      } catch (e) {
-        showEmpty("네트워크 오류가 발생했습니다.");
-      }
-    }
-
-    function setFilter(market) {
-      currentFilter = market;
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
-      renderList();
-    }
-
-    function renderList() {
-      const container = document.getElementById("stock-container");
-      const filtered = currentFilter === 'ALL' 
-        ? allStocks 
-        : allStocks.filter(s => s.market === currentFilter);
-
-      document.getElementById("summary-count").innerText = `총 ${filtered.length}개 종목 만족`;
-
-      if (filtered.length === 0) {
-        container.innerHTML = '<div class="empty">해당 조건의 종목이 없습니다.</div>';
-        return;
-      }
-
-      container.innerHTML = filtered.map(s => {
+container.innerHTML = filtered.map(s => {
         const amountEok = Math.round(s.trade_amount / 100000000).toLocaleString();
         const priceStr = Number(s.close_price).toLocaleString();
         const rateStr = s.change_rate > 0 ? `+${s.change_rate}%` : `${s.change_rate}%`;
+
+        // 외국인 수급 뱃지 포맷팅
+        const fBuy = s.foreign_net_buy || 0;
+        let foreignBadge = "";
+        if (fBuy > 0) {
+          foreignBadge = `<span style="font-size:0.7rem; color:#ef4444; background:rgba(239,68,68,0.15); padding:2px 6px; border-radius:4px; font-weight:600;">외인 +${(fBuy / 10000).toFixed(1)}만주</span>`;
+        } else if (fBuy < 0) {
+          foreignBadge = `<span style="font-size:0.7rem; color:#3b82f6; background:rgba(59,130,246,0.15); padding:2px 6px; border-radius:4px; font-weight:600;">외인 ${(fBuy / 10000).toFixed(1)}만주</span>`;
+        } else {
+          foreignBadge = `<span style="font-size:0.7rem; color:#94a3b8; background:rgba(148,163,184,0.15); padding:2px 6px; border-radius:4px; font-weight:600;">외인 0</span>`;
+        }
 
         return `
           <div class="stock-card" onclick="window.open('https://m.stock.naver.com/domestic/stock/${s.ticker}/total', '_blank')">
@@ -143,7 +21,10 @@
                 <span class="stock-market market-${s.market}">${s.market}</span>
                 <span class="stock-name">${s.name}</span>
               </div>
-              <div class="stock-sub">${s.ticker} · 터치 시 네이버페이 증권 이동</div>
+              <div style="margin-top: 4px; display: flex; gap: 6px; align-items: center;">
+                ${foreignBadge}
+                <span class="stock-sub">${s.ticker}</span>
+              </div>
             </div>
             <div class="stock-values">
               <div class="stock-price">${priceStr}원</div>
@@ -153,14 +34,3 @@
           </div>
         `;
       }).join('');
-    }
-
-    function showEmpty(msg) {
-      document.getElementById("summary-count").innerText = "";
-      document.getElementById("stock-container").innerHTML = `<div class="empty">${msg}</div>`;
-    }
-
-    loadTodayStocks();
-  </script>
-</body>
-</html>

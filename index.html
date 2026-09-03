@@ -21,13 +21,14 @@
     
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
     h1 { font-size: 1.15rem; font-weight: 700; color: #fff; }
-    .badge { font-size: 0.75rem; background-color: rgba(56, 189, 248, 0.15); color: var(--accent); padding: 3px 8px; border-radius: 999px; font-weight: 600; }
+    .status-badge { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; background-color: rgba(56, 189, 248, 0.15); color: var(--accent); padding: 3px 8px; border-radius: 999px; font-weight: 600; }
+    .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
     
     .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; }
     .filter-btn { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-sub); font-size: 0.85rem; font-weight: 600; cursor: pointer; }
     .filter-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
 
-    .summary-text { font-size: 0.8rem; color: var(--text-sub); margin-bottom: 12px; }
+    .summary-bar { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 12px; }
 
     .stock-list { display: flex; flex-direction: column; gap: 12px; }
     .stock-card { background-color: var(--card-bg); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); cursor: pointer; }
@@ -41,7 +42,6 @@
     .market-KOSDAQ { background: #10b981; color: #fff; }
     .stock-sub { font-size: 0.75rem; color: var(--text-sub); }
 
-    /* 수급 배지 스타일 */
     .investor-bar { margin-top: 6px; display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
     .badge-inv { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
     .inv-buy { color: #f87171; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.25); }
@@ -67,7 +67,10 @@
       <h1>TRIPLE D PAPA</h1>
       <div id="target-date" style="font-size: 0.75rem; color: var(--text-sub); margin-top: 2px;">로딩 중...</div>
     </div>
-    <span class="badge">종가배팅 전광판</span>
+    <div class="status-badge">
+      <span class="live-dot"></span>
+      <span id="refresh-status">30초 자동 갱신</span>
+    </div>
   </header>
 
   <div class="filter-bar">
@@ -76,7 +79,11 @@
     <button class="filter-btn" onclick="setFilter('KOSDAQ')">코스닥</button>
   </div>
 
-  <div class="summary-text" id="summary-count">종목을 불러오는 중입니다...</div>
+  <div class="summary-bar">
+    <span id="summary-count">종목을 불러오는 중입니다...</span>
+    <span id="last-updated" style="font-size: 0.72rem; color: var(--text-sub);"></span>
+  </div>
+
   <div class="stock-list" id="stock-container">
     <div class="loading">데이터를 불러오고 있습니다...</div>
   </div>
@@ -132,6 +139,11 @@
 
         allStocks = data;
         renderList();
+
+        // 갱신 시각 표시
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('ko-KR', { hour12: false });
+        document.getElementById("last-updated").innerText = "최근 갱신: " + timeStr;
       } catch (e) {
         showEmpty("네트워크 오류가 발생했습니다.");
       }
@@ -208,7 +220,11 @@
       document.getElementById("stock-container").innerHTML = '<div class="empty">' + msg + '</div>';
     }
 
+    // 1. 처음 화면 접속 시 즉시 로딩
     loadTodayStocks();
+
+    // 2. 30초(30000ms)마다 백그라운드 자동 갱신 (화면 깜빡임 없음)
+    setInterval(loadTodayStocks, 30000);
   </script>
 </body>
 </html>

@@ -29,12 +29,13 @@
 
     .summary-text { font-size: 0.8rem; color: var(--text-sub); margin-bottom: 12px; }
 
-    .stock-list { display: flex; flex-direction: column; gap: 10px; }
-    .stock-card { background-color: var(--card-bg); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); cursor: pointer; }
+    .stock-list { display: flex; flex-direction: column; gap: 12px; }
+    .stock-card { background-color: var(--card-bg); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); cursor: pointer; }
     
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
     .stock-info { display: flex; flex-direction: column; gap: 4px; }
     .stock-title-row { display: flex; align-items: center; gap: 6px; }
-    .stock-name { font-size: 1.05rem; font-weight: 700; }
+    .stock-name { font-size: 1.1rem; font-weight: 700; }
     .stock-market { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
     .market-KOSPI { background: #3b82f6; color: #fff; }
     .market-KOSDAQ { background: #10b981; color: #fff; }
@@ -45,10 +46,14 @@
     .foreign-sell { color: #60a5fa; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); }
     .foreign-zero { color: var(--text-sub); background: rgba(148, 163, 184, 0.1); }
 
-    .stock-values { text-align: right; display: flex; flex-direction: column; gap: 4px; }
-    .stock-price { font-size: 1.05rem; font-weight: 700; color: #fff; }
+    .stock-values { text-align: right; display: flex; flex-direction: column; gap: 2px; }
+    .stock-price { font-size: 1.15rem; font-weight: 700; color: #fff; }
     .stock-rate { font-size: 0.85rem; font-weight: 700; color: var(--red); }
-    .stock-amount { font-size: 0.75rem; color: #e2e8f0; font-weight: 600; }
+
+    .card-bottom { display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px dashed var(--border); font-size: 0.75rem; color: var(--text-sub); }
+    .price-details { display: flex; gap: 8px; }
+    .price-item span { color: #e2e8f0; font-weight: 600; }
+    .amount-highlight { color: #e2e8f0; font-weight: 600; }
 
     .loading, .empty { text-align: center; padding: 40px 0; color: var(--text-sub); font-size: 0.9rem; }
   </style>
@@ -160,25 +165,36 @@
       container.innerHTML = filtered.map(function(s) {
         const amountEok = Math.round(s.trade_amount / 100000000).toLocaleString();
         const priceStr = Number(s.close_price).toLocaleString();
+        const openStr = s.open_price ? Number(s.open_price).toLocaleString() : "-";
+        const prevStr = s.prev_close ? Number(s.prev_close).toLocaleString() : "-";
         const rateStr = s.change_rate > 0 ? "+" + s.change_rate + "%" : s.change_rate + "%";
         const foreignBadge = formatForeignVolume(s.foreign_net_buy);
 
         return `
           <div class="stock-card" onclick="window.open('https://m.stock.naver.com/domestic/stock/${s.ticker}/total', '_blank')">
-            <div class="stock-info">
-              <div class="stock-title-row">
-                <span class="stock-market market-${s.market}">${s.market}</span>
-                <span class="stock-name">${s.name}</span>
+            <div class="card-top">
+              <div class="stock-info">
+                <div class="stock-title-row">
+                  <span class="stock-market market-${s.market}">${s.market}</span>
+                  <span class="stock-name">${s.name}</span>
+                </div>
+                <div style="margin-top: 4px; display: flex; gap: 6px; align-items: center;">
+                  ${foreignBadge}
+                  <span class="stock-sub">${s.ticker}</span>
+                </div>
               </div>
-              <div style="margin-top: 6px; display: flex; gap: 6px; align-items: center;">
-                ${foreignBadge}
-                <span class="stock-sub">${s.ticker}</span>
+              <div class="stock-values">
+                <div class="stock-price">${priceStr}원</div>
+                <div class="stock-rate">${rateStr}</div>
               </div>
             </div>
-            <div class="stock-values">
-              <div class="stock-price">${priceStr}원</div>
-              <div class="stock-rate">${rateStr}</div>
-              <div class="stock-amount">${amountEok}억원</div>
+            
+            <div class="card-bottom">
+              <div class="price-details">
+                <div class="price-item">전일 <span>${prevStr}</span></div>
+                <div class="price-item">시가 <span>${openStr}</span></div>
+              </div>
+              <div class="amount-highlight">대금 ${amountEok}억</div>
             </div>
           </div>
         `;

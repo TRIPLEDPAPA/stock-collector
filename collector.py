@@ -12,19 +12,24 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-def get_foreign_net_buy_mobile(ticker):
-    """네이버 모바일 증권 API를 통해 외국인 당일 순매수 수량(주) 직접 추출"""
+def get_investor_trend(ticker):
+    """네이버 모바일 API에서 당일 외인, 기관, 개인 순매수량(주) 한 번에 추출"""
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
         res = requests.get(url, headers=HEADERS, timeout=5)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
-                frg = data[0].get("foreignerPureBuyQuant", 0)
-                return int(str(frg).replace(",", ""))
+                latest = data[0]
+                
+                frg = int(str(latest.get("foreignerPureBuyQuant", 0)).replace(",", ""))
+                inst = int(str(latest.get("organPureBuyQuant", 0)).replace(",", ""))
+                retail = int(str(latest.get("individualPureBuyQuant", 0)).replace(",", ""))
+                
+                return frg, inst, retail
     except Exception:
         pass
-    return 0
+    return 0, 0, 0
 
 def fetch_screened_stocks(sosok, market_name):
     url = f"https://finance.naver.com/sise/sise_quant.naver?sosok={sosok}&order=deal_amount"
@@ -65,7 +70,7 @@ def fetch_screened_stocks(sosok, market_name):
             open_price = int(clean[7])
             high_price = int(clean[8])
 
-            # 전일가 역산
+            # 전일가 계산
             diff_str = clean[3].replace('상승', '').replace('하락', '').replace('보합', '').strip()
             diff_price = int(diff_str) if diff_str.isdigit() else 0
             if change_rate > 0:
@@ -75,12 +80,12 @@ def fetch_screened_stocks(sosok, market_name):
             else:
                 prev_close = close_price
 
-            # 기본 필터: 거래대금 500억 이상, 양봉 마감, 등락률 3~18%
+            # 기본 필터: 거래대금 500억 이상, 당일 양봉, 등락률 3~18%
             if trade_amount_million < 50_000 or close_price < open_price or not (3.0 <= change_rate <= 18.0):
                 continue
 
-            # 외국인 순매수량
-            foreign_buy = get_foreign_net_buy_mobile(ticker)
+            # 개인, 외국인, 기관 수급 조회
+            foreign_buy, inst_buy, retail_buy = get_investor_trend(ticker)
 
             item_data = {
                 "date": today_str,
@@ -93,30 +98,31 @@ def fetch_screened_stocks(sosok, market_name):
                 "change_rate": float(change_rate),
                 "trade_amount": int(trade_amount_won),
                 "double_buy_sum": int(trade_amount_won * 0.1),
-                "foreign_net_buy": int(foreign_buy)
+                "foreign_net_buy": int(foreign_buy),
+                "inst_net_buy": int(inst_buy),
+                "retail_net_buy": int(retail_buy)
             }
             results.append(item_data)
-            print(f"[{market_name}] 수집성공: {name} | 시가:{open_price} | 종가:{close_price} | 전일:{prev_close} | 외인:{foreign_buy}")
+            print(f"[{market_name}] {name} (외인:{foreign_buy:,} / 기관:{inst_buy:,} / 개인:{retail_buy:,})")
         except Exception as err:
-            print(f"파싱 에러: {err}")
             continue
 
     return results
 
 def main():
-    print("=== Supabase 데이터 클린 적재 시작 ===")
+    print("=== 수급 3주체(개인/외인/기관) 데이터 수집 시작 ===")
     kospi = fetch_screened_stocks(0, "KOSPI")
     kosdaq = fetch_screened_stocks(1, "KOSDAQ")
     total = kospi + kosdaq
 
-    print(f"총 수집된 종목: {len(total)}개")
+    print(f"총 만족 종목: {len(total)}개")
     if not total:
-        print("조건 만족 종목이 없습니다.")
+        print("조건 만족 종목 없음.")
         return
 
-    # Supabase 전송
-    res = supabase.table("TRIPLE D PAPA").insert(total).execute()
-    print("★ 저장 완료! 결과:", res)
+    # Supabase 저장
+    supabase.table("TRIPLE D PAPA").upsert(total).execute()
+    print("★ 수급 데이터가 정상 적재되었습니다. ★")
 
 if __name__ == "__main__":
     main()

@@ -3,11 +3,15 @@ import re
 import json
 import requests
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from supabase import create_client, Client
 
 SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
 SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# 세션 재사용(TCP 핸드셰이크 단축)
+session = requests.Session()
 
 PC_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -51,10 +55,10 @@ def parse_float_safe(val):
     except Exception:
         return 0.0
 
-def get_recent_candles(ticker, count=30):
+def get_recent_candles(ticker, count=25):
     url = f"https://fchart.stock.naver.com/sise.nhn?symbol={ticker}&timeframe=day&count={count}&requestType=0"
     try:
-        res = requests.get(url, headers=PC_HEADERS, timeout=4)
+        res = session.get(url, headers=PC_HEADERS, timeout=2.5)
         items = re.findall(r'<item data="([^"]+)"', res.text)
         candles = []
         for item in items:
@@ -86,47 +90,29 @@ def calculate_rsi(candles, period=14):
 
 def get_financial_and_trend(ticker):
     per, pbr, eps, roe = 0.0, 0.0, 0.0, 0.0
-    url_integ = f"https://m.stock.naver.com/api/stock/{ticker}/integration"
+    frg, inst, retail = 0, 0, 0
+    
+    # 1. 재무 데이터 (단일 호출 타임아웃 2초 제한)
     try:
-        res = requests.get(url_integ, headers=MOBILE_HEADERS, timeout=3)
+        url_integ = f"https://m.stock.naver.com/api/stock/{ticker}/integration"
+        res = session.get(url_integ, headers=MOBILE_HEADERS, timeout=2.0)
         if res.status_code == 200:
             data = res.json()
-            total_infos = data.get("totalInfos", [])
-            for info in total_infos:
+            for info in data.get("totalInfos", []):
                 code_key = str(info.get("code", "")).lower()
                 val = str(info.get("value", ""))
-                if "per" in code_key:
-                    per = parse_float_safe(val)
-                elif "pbr" in code_key:
-                    pbr = parse_float_safe(val)
-                elif "eps" in code_key:
-                    eps = parse_float_safe(val)
-
+                if "per" in code_key: per = parse_float_safe(val)
+                elif "pbr" in code_key: pbr = parse_float_safe(val)
+                elif "eps" in code_key: eps = parse_float_safe(val)
             if per > 0 and pbr > 0:
                 roe = round((pbr / per) * 100.0, 2)
     except Exception:
         pass
 
-    # integration에서 못 가져온 경우 네이버 기본 재무 API 백업 호출
-    if per == 0.0 and pbr == 0.0:
-        try:
-            url_basic = f"https://m.stock.naver.com/api/stock/{ticker}/basic"
-            res_b = requests.get(url_basic, headers=MOBILE_HEADERS, timeout=2)
-            if res_b.status_code == 200:
-                b_data = res_b.json()
-                per = parse_float_safe(b_data.get("per", 0))
-                pbr = parse_float_safe(b_data.get("pbr", 0))
-                eps = parse_float_safe(b_data.get("eps", 0))
-                if per > 0 and pbr > 0:
-                    roe = round((pbr / per) * 100.0, 2)
-        except Exception:
-            pass
-
-    # 외인/기관 수급
-    frg, inst, retail = 0, 0, 0
+    # 2. 투자자 수급 데이터
     try:
         url_trend = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
-        res_t = requests.get(url_trend, headers=MOBILE_HEADERS, timeout=3)
+        res_t = session.get(url_trend, headers=MOBILE_HEADERS, timeout=2.0)
         if res_t.status_code == 200:
             t_data = res_t.json()
             if isinstance(t_data, list) and len(t_data) > 0:
@@ -153,121 +139,139 @@ def get_deal_amount_label(deal_won):
     else:
         return "100억미만"
 
-def fetch_market_naver(market_type):
+def process_single_stock(item, market_type, today_str):
+    """개별 종목 데이터를 병렬로 분석 처리하는 작업 단위"""
+    try:
+        name = item.get("stockName", "").strip()
+        ticker = item.get("itemCode", "").strip()
+        if not is_pure_stock(ticker, name):
+            return None
+
+        close_p = parse_int_safe(item.get("closePrice", 0))
+        open_p = parse_int_safe(item.get("openPrice", close_p))
+        chg = parse_float_safe(item.get("fluctuationsRatio", 0.0))
+
+        current_vol = parse_int_safe(item.get("accumulatedTradingVolume", 0))
+        if current_vol == 0:
+            current_vol = parse_int_safe(item.get("quant", item.get("volume", item.get("tradeVolume", 0))))
+
+        deal_won = parse_int_safe(item.get("tradePrice", 0))
+        if 0 < deal_won < 50_000_000:
+            deal_won *= 1_000_000
+        if deal_won == 0 and current_vol > 0:
+            deal_won = close_p * current_vol
+
+        # 100억 미만 즉시 스킵 (시간 절약)
+        if deal_won < 10_000_000_000:
+            return None
+
+        # 캔들, 재무, 수급 동시 취합
+        candles = get_recent_candles(ticker, count=25)
+        if current_vol == 0 and candles:
+            current_vol = candles[-1]["volume"]
+
+        prev_vol = candles[-2]["volume"] if len(candles) >= 2 else (candles[-1]["volume"] if candles else 0)
+        vol_ratio = round((current_vol / prev_vol * 100.0), 1) if (prev_vol > 0 and current_vol > 0) else 0.0
+
+        ma5, ma10, ma20 = 0, 0, 0
+        if len(candles) >= 19:
+            past_closes = [c["close"] for c in candles[-19:]] + [close_p]
+            ma5 = round(sum(past_closes[-5:]) / 5.0)
+            ma10 = round(sum(past_closes[-10:]) / 10.0)
+            ma20 = round(sum(past_closes[-20:]) / 20.0)
+
+        rsi_val = calculate_rsi(candles, period=14)
+        per, pbr, eps, roe, frg, inst, retail = get_financial_and_trend(ticker)
+
+        deal_label = get_deal_amount_label(deal_won)
+        passed_tags = [deal_label]
+        if frg > 0 and inst > 0:
+            passed_tags.append("쌍끌이매수")
+
+        return {
+            "date": today_str,
+            "ticker": ticker,
+            "name": name,
+            "market": market_type,
+            "close_price": close_p,
+            "open_price": open_p,
+            "change_rate": round(chg, 2),
+            "trade_amount": deal_won,
+            "deal_tag": deal_label,
+            "volume": current_vol,
+            "prev_volume": prev_vol,
+            "vol_ratio": vol_ratio,
+            "pbr": pbr,
+            "roe": roe,
+            "rsi": rsi_val,
+            "per": per,
+            "eps": eps,
+            "ma5": ma5,
+            "ma10": ma10,
+            "ma20": ma20,
+            "foreign_net_buy": frg,
+            "inst_net_buy": inst,
+            "retail_net_buy": retail,
+            "double_buy_sum": (frg + inst) if (frg > 0 and inst > 0) else 0,
+            "passed_tags": ",".join(passed_tags)
+        }
+    except Exception:
+        return None
+
+def fetch_market_naver_parallel(market_type):
     target = "KOSPI" if market_type == "KOSPI" else "KOSDAQ"
-    results = []
     today_str = datetime.today().strftime("%Y-%m-%d")
+    raw_stocks = []
 
+    # 1. 랭킹 목록 2페이지만 빠르게 조회
     for page in [1, 2]:
-        url = f"https://m.stock.naver.com/api/stocks/marketValue/{target}?page={page}&pageSize=40"
+        url = f"https://m.stock.naver.com/api/stocks/marketValue/{target}?page={page}&pageSize=35"
         try:
-            res = requests.get(url, headers=MOBILE_HEADERS, timeout=6)
-            if res.status_code != 200:
-                continue
+            res = session.get(url, headers=MOBILE_HEADERS, timeout=4)
+            if res.status_code == 200:
+                raw_stocks.extend(res.json().get("stocks", []))
+        except Exception:
+            pass
 
-            stocks = res.json().get("stocks", [])
-            for item in stocks:
-                name = item.get("stockName", "").strip()
-                ticker = item.get("itemCode", "").strip()
-                if not is_pure_stock(ticker, name):
-                    continue
-
-                close_p = parse_int_safe(item.get("closePrice", 0))
-                open_p = parse_int_safe(item.get("openPrice", close_p))
-                high_p = parse_int_safe(item.get("highPrice", close_p))
-                low_p = parse_int_safe(item.get("lowPrice", close_p))
-                chg = parse_float_safe(item.get("fluctuationsRatio", 0.0))
-
-                # 당일 거래량 (API 다중 필드 매핑)
-                current_vol = parse_int_safe(item.get("accumulatedTradingVolume", 0))
-                if current_vol == 0:
-                    current_vol = parse_int_safe(item.get("quant", item.get("volume", item.get("tradeVolume", 0))))
-
-                # 거래대금
-                deal_won = parse_int_safe(item.get("tradePrice", 0))
-                if 0 < deal_won < 50_000_000:
-                    deal_won *= 1_000_000
-                if deal_won == 0 and current_vol > 0:
-                    deal_won = close_p * current_vol
-
-                if deal_won < 10_000_000_000:
-                    continue
-
-                candles = get_recent_candles(ticker, count=25)
-                # API에서 거래량이 안 잡혔을 경우 캔들 마지막 봉에서 fallback
-                if current_vol == 0 and candles:
-                    current_vol = candles[-1]["volume"]
-
-                prev_vol = candles[-2]["volume"] if len(candles) >= 2 else (candles[-1]["volume"] if candles else 0)
-                vol_ratio = round((current_vol / prev_vol * 100.0), 1) if (prev_vol > 0 and current_vol > 0) else 0.0
-
-                ma5, ma10, ma20 = 0, 0, 0
-                if len(candles) >= 19:
-                    past_closes = [c["close"] for c in candles[-19:]] + [close_p]
-                    ma5 = round(sum(past_closes[-5:]) / 5.0)
-                    ma10 = round(sum(past_closes[-10:]) / 10.0)
-                    ma20 = round(sum(past_closes[-20:]) / 20.0)
-
-                rsi_val = calculate_rsi(candles, period=14)
-                per, pbr, eps, roe, frg, inst, retail = get_financial_and_trend(ticker)
-
-                deal_label = get_deal_amount_label(deal_won)
-                passed_tags = [deal_label]
-                if frg > 0 and inst > 0:
-                    passed_tags.append("쌍끌이매수")
-
-                results.append({
-                    "date": today_str,
-                    "ticker": ticker,
-                    "name": name,
-                    "market": market_type,
-                    "close_price": close_p,
-                    "open_price": open_p,
-                    "change_rate": round(chg, 2),
-                    "trade_amount": deal_won,
-                    "deal_tag": deal_label,
-                    "volume": current_vol,
-                    "prev_volume": prev_vol,
-                    "vol_ratio": vol_ratio,
-                    "pbr": pbr,
-                    "roe": roe,
-                    "rsi": rsi_val,
-                    "per": per,
-                    "eps": eps,
-                    "ma5": ma5,
-                    "ma10": ma10,
-                    "ma20": ma20,
-                    "foreign_net_buy": frg,
-                    "inst_net_buy": inst,
-                    "retail_net_buy": retail,
-                    "double_buy_sum": (frg + inst) if (frg > 0 and inst > 0) else 0,
-                    "passed_tags": ",".join(passed_tags)
-                })
-
-                if len(results) >= 40:
+    results = []
+    # 2. 멀티스레드 병렬 처리 (10개씩 동시 처리)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_stock = {
+            executor.submit(process_single_stock, item, market_type, today_str): item 
+            for item in raw_stocks
+        }
+        for future in as_completed(future_to_stock):
+            res = future.result()
+            if res:
+                results.append(res)
+                if len(results) >= 30:
                     break
-        except Exception as e:
-            print(f"[{market_type}] 에러: {e}")
 
-    return results
+    # 거래대금 순 정렬
+    results.sort(key=lambda x: x["trade_amount"], reverse=True)
+    return results[:25]
 
 def main():
-    print("=== [PBR/ROE/RSI/거래량 필드 정합성 강화 스크리너] ===")
-    kospi = fetch_market_naver("KOSPI")
-    kosdaq = fetch_market_naver("KOSDAQ")
+    print("=== [초고속 멀티스레드 스크리너 가동] ===")
+    start_time = datetime.now()
+
+    kospi = fetch_market_naver_parallel("KOSPI")
+    kosdaq = fetch_market_naver_parallel("KOSDAQ")
     total = kospi + kosdaq
 
-    print(f"-> 총 수집: {len(total)}건")
+    elapsed = (datetime.now() - start_time).total_seconds()
+    print(f"-> 수집 완료! 총 {len(total)}건 (소요시간: {elapsed:.1f}초)")
+
     if not total:
-        print("[WARNING] 종목이 0건입니다.")
+        print("[WARNING] 추출된 종목이 0건입니다.")
         return
 
     try:
         supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
         insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
-        print(f"★ [SUCCESS] PBR/ROE/RSI/거래량 포함 {len(insert_res.data)}건 저장 완료!")
+        print(f"★ [SUCCESS] Supabase 적재 완료 ({len(insert_res.data)}건)")
     except Exception as e:
-        print("★ [ERROR] Supabase 저장 오류:", e)
+        print("★ [ERROR] DB 적재 실패:", e)
 
 if __name__ == "__main__":
     main()

@@ -44,7 +44,7 @@
     }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
-    /* 4단 탭 복구 (지수 / 전체 / 코스피 / 코스닥) */
+    /* 4단 탭 (지수 / 전체 / 코스피 / 코스닥) */
     .market-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
     .tab-btn {
       background-color: #1e293b; color: var(--text-sub); border: none; padding: 10px 0;
@@ -89,7 +89,6 @@
     .cond-badge.pass { background-color: var(--tag-green-bg); color: var(--tag-green-text); border-color: var(--tag-green-border); }
     .cond-badge.fail { background-color: var(--tag-gray-bg); color: var(--tag-gray-text); border-color: transparent; }
 
-    /* PER 포함 4열 수치 그리드 (PER, PBR, 거래량 증가율, 체결강도) */
     .metric-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -350,12 +349,10 @@
               <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
             </div>
 
-            <!-- 6대 조건 체크 뱃지 -->
             <div class="conditions-grid">
               ${renderBadges(item.passed_tags)}
             </div>
 
-            <!-- PER, PBR, 거래량 증가율, 체결강도 수치 바 -->
             <div class="metric-grid">
               <div class="metric-item">
                 <span class="metric-title">PER</span>

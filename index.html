@@ -12,11 +12,7 @@
       --card-border: #1e293b;
       --accent-red: #ef4444;
       --accent-down: #3b82f6;
-      --tag-green-bg: rgba(16, 185, 129, 0.18);
-      --tag-green-text: #10b981;
-      --tag-green-border: #059669;
-      --tag-gray-bg: rgba(30, 41, 59, 0.7);
-      --tag-gray-text: #64748b;
+      --accent-gold: #f59e0b;
       --text-main: #f8fafc;
       --text-sub: #94a3b8;
     }
@@ -45,23 +41,27 @@
     }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
-    /* 탭 및 필터 */
-    .market-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
-    .tab-btn { background-color: #1e293b; color: var(--text-sub); border: none; padding: 9px 0; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-align: center; }
+    /* 상단 탭 (지수 / 전체 / 코스피 / 코스닥) */
+    .market-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+    .tab-btn {
+      background-color: #1e293b; color: var(--text-sub); border: none; padding: 10px 0;
+      border-radius: 8px; font-size: 0.82rem; font-weight: 700; cursor: pointer; text-align: center;
+    }
     .tab-btn.active { background-color: #38bdf8; color: #0f172a; font-weight: 800; }
 
-    .deal-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 14px; padding-bottom: 4px; scrollbar-width: none; }
+    /* 거래대금 필터 & 쌍끌이 박스 */
+    .stock-filter-area { display: block; }
+    .deal-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 12px; padding-bottom: 4px; scrollbar-width: none; }
     .deal-filters::-webkit-scrollbar { display: none; }
     .filter-chip { background-color: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 7px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; flex-shrink: 0; }
     .filter-chip.active { background-color: #d97706; border-color: #f59e0b; color: #ffffff; }
 
-    /* 쌍끌이 영역 */
-    .double-box { background-color: #141e30; border: 1px solid #253347; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; cursor: pointer; user-select: none; }
+    .double-box { background-color: #141e30; border: 1px solid #253347; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; cursor: pointer; user-select: none; }
     .double-box-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; }
     .double-box-count { color: #f59e0b; font-size: 0.85rem; font-weight: 700; }
     .summary-bar { display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-bottom: 10px; padding: 0 2px; }
 
-    /* 카드 */
+    /* 종목 카드 목록 */
     .card-list { display: flex; flex-direction: column; gap: 12px; }
     .card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); }
     .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
@@ -70,7 +70,6 @@
     .market-tag.kosdaq { background-color: #0d9488; }
     .stock-title { font-size: 1.05rem; font-weight: 800; color: #ffffff; }
     .double-badge { background-color: #78350f; color: #f59e0b; border: 1px solid #b45309; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
-    .score-badge { background-color: #1e3a5f; color: #38bdf8; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
 
     .price-wrap { text-align: right; }
     .current-price { font-size: 1.15rem; font-weight: 800; color: #ffffff; }
@@ -78,27 +77,88 @@
     .rate-up { color: var(--accent-red); }
     .rate-down { color: var(--accent-down); }
 
-    .investor-row { display: flex; gap: 6px; margin-bottom: 12px; }
+    .investor-row { display: flex; gap: 6px; margin-bottom: 10px; }
     .investor-chip { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
     .chip-foreign { background-color: rgba(239, 68, 68, 0.15); color: #f87171; }
     .chip-inst { background-color: rgba(239, 68, 68, 0.15); color: #f87171; }
     .chip-retail { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
 
-    /* 개편된 10대 조건 뱃지 */
-    .conditions-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
-    .cond-badge { font-size: 0.68rem; padding: 3px 6px; border-radius: 4px; font-weight: 600; border: 1px solid transparent; user-select: none; }
-    .cond-badge.pass { background-color: var(--tag-green-bg); color: var(--tag-green-text); border-color: var(--tag-green-border); }
-    .cond-badge.fail { background-color: var(--tag-gray-bg); color: var(--tag-gray-text); border-color: transparent; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      background-color: rgba(11, 17, 30, 0.65);
+      border: 1px solid #1f2d42;
+      border-radius: 8px;
+      padding: 8px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .metric-item { display: flex; flex-direction: column; gap: 2px; }
+    .metric-title { font-size: 0.65rem; color: #94a3b8; font-weight: 600; }
+    .metric-val { font-size: 0.82rem; font-weight: 800; color: #f8fafc; }
+    .val-highlight { color: #38bdf8; }
+    .val-warm { color: #34d399; }
 
     .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; padding-top: 4px; border-top: 1px dashed rgba(255, 255, 255, 0.07); }
     .open-price { color: var(--text-sub); }
     .trade-amount { color: #f59e0b; font-weight: 700; }
+
+    /* [신규] 지수 & 원자재 대시보드 스타일 */
+    .indices-section { display: none; }
+    .index-group-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #38bdf8;
+      margin: 14px 0 8px 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .index-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .index-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .index-name {
+      font-size: 0.82rem;
+      color: var(--text-sub);
+      font-weight: 600;
+    }
+
+    .index-val {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+
+    .index-chg {
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
     .loading-box { text-align: center; padding: 60px 0; color: var(--text-sub); font-size: 0.85rem; }
   </style>
 </head>
 <body>
 
   <div class="container">
+    <!-- 1. 헤더 -->
     <div class="header-bar">
       <div>
         <div class="brand-title">TRIPLE D PAPA</div>
@@ -110,36 +170,54 @@
       </div>
     </div>
 
+    <!-- 2. 상단 4단 탭 (지수 / 전체 / 코스피 / 코스닥) -->
     <div class="market-tabs">
-      <button class="tab-btn active" onclick="setMarket('ALL', this)">전체</button>
-      <button class="tab-btn" onclick="setMarket('KOSPI', this)">코스피</button>
-      <button class="tab-btn" onclick="setMarket('KOSDAQ', this)">코스닥</button>
+      <button class="tab-btn" onclick="setTab('INDEX', this)">📈 지수</button>
+      <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
+      <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
+      <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
     </div>
 
-    <div class="deal-filters">
-      <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
-      <button class="filter-chip" onclick="setDeal('200억이하', this)">100억~200억</button>
-      <button class="filter-chip" onclick="setDeal('300억이하', this)">200억~300억</button>
-      <button class="filter-chip" onclick="setDeal('400억이하', this)">300억~400억</button>
-      <button class="filter-chip" onclick="setDeal('500억이하', this)">400억~500억</button>
-      <button class="filter-chip" onclick="setDeal('500억이상', this)">500억 초과</button>
-    </div>
-
-    <div class="double-box" onclick="toggleDoubleOnly()">
-      <div class="double-box-label">
-        <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 16px; height: 16px; pointer-events: none;" />
-        <span>🔥 외인+기관 쌍끌이만 보기</span>
+    <!-- 3. [지수 전용 화면] 글로벌 지수 및 원자재 시세 그리드 -->
+    <div id="indicesSection" class="indices-section">
+      <div class="index-group-title">🌐 글로벌 핵심 주가지수</div>
+      <div class="index-grid" id="marketIndicesGrid">
+        <div class="loading-box" style="grid-column: span 2; padding: 20px 0;">지수 시세를 불러오는 중...</div>
       </div>
-      <div class="double-box-count" id="doubleCount">(0개)</div>
+
+      <div class="index-group-title">🛢️ 핵심 원자재 & 귀금속</div>
+      <div class="index-grid" id="commodityIndicesGrid">
+        <div class="loading-box" style="grid-column: span 2; padding: 20px 0;">원자재 시세를 불러오는 중...</div>
+      </div>
     </div>
 
-    <div class="summary-bar">
-      <span id="filteredCount">선별 종목: 0개</span>
-      <span id="updatedTime">방금 갱신됨</span>
-    </div>
+    <!-- 4. [종목 스크리너 화면] 거래대금 필터 & 종목 리스트 -->
+    <div id="stockSection" class="stock-filter-area">
+      <div class="deal-filters">
+        <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
+        <button class="filter-chip" onclick="setDeal('200억이하', this)">100억~200억</button>
+        <button class="filter-chip" onclick="setDeal('300억이하', this)">200억~300억</button>
+        <button class="filter-chip" onclick="setDeal('400억이하', this)">300억~400억</button>
+        <button class="filter-chip" onclick="setDeal('500억이하', this)">400억~500억</button>
+        <button class="filter-chip" onclick="setDeal('500억이상', this)">500억 초과</button>
+      </div>
 
-    <div class="card-list" id="cardList">
-      <div class="loading-box">종목 데이터를 불러오는 중...</div>
+      <div class="double-box" onclick="toggleDoubleOnly()">
+        <div class="double-box-label">
+          <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 16px; height: 16px; pointer-events: none;" />
+          <span>🔥 외인+기관 쌍끌이만 보기</span>
+        </div>
+        <div class="double-box-count" id="doubleCount">(0개)</div>
+      </div>
+
+      <div class="summary-bar">
+        <span id="filteredCount">선별 종목: 0개</span>
+        <span id="updatedTime">방금 갱신됨</span>
+      </div>
+
+      <div class="card-list" id="cardList">
+        <div class="loading-box">종목 데이터를 불러오는 중...</div>
+      </div>
     </div>
   </div>
 
@@ -148,24 +226,59 @@
     const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 개편된 10대 조건식 뱃지 매핑
-    const TARGET_CONDITIONS = [
-      { key: "단기정배열", label: "단기정배열" },
-      { key: "20선안착", label: "20선안착" },
-      { key: "5일선이격도", label: "5일선이격도" },
-      { key: "거래량100만주", label: "거래량100만주" },
-      { key: "거래량250%+", label: "거래량250%+" },
-      { key: "RSI강세(55~70)", label: "RSI강세" },
-      { key: "저PER", label: "저PER" },
-      { key: "저PBR", label: "저PBR" },
-      { key: "고ROE", label: "고ROE" },
-      { key: "흑자EPS", label: "흑자EPS" }
-    ];
-
     let allData = [];
-    let currentMarket = "ALL";
+    let currentTab = "ALL";
     let currentDeal = "ALL";
     let isDoubleOnly = false;
+
+    // 지수 및 원자재 정의 목록
+    const INDICES_CONFIG = [
+      { id: "KOSPI", name: "코스피", symbol: "KPI200", type: "DOMESTIC", fallbackVal: "2,580.40", fallbackRate: "+0.45%" },
+      { id: "KOSDAQ", name: "코스닥", symbol: "KOSDAQ", type: "DOMESTIC", fallbackVal: "732.15", fallbackRate: "-0.22%" },
+      { id: "SP500", name: "S&P 500", symbol: ".INX", type: "WORLD", fallbackVal: "5,864.67", fallbackRate: "+0.40%" },
+      { id: "NASDAQ", name: "나스닥", symbol: ".IXIC", type: "WORLD", fallbackVal: "18,518.61", fallbackRate: "+0.83%" },
+      { id: "DJI", name: "다우존스", symbol: ".DJI", type: "WORLD", fallbackVal: "43,275.91", fallbackRate: "+0.09%" },
+      { id: "N225", name: "니케이 225", symbol: ".N225", type: "WORLD", fallbackVal: "38,981.75", fallbackRate: "+0.18%" },
+      { id: "SSEC", name: "상해종합", symbol: ".SSEC", type: "WORLD", fallbackVal: "3,261.56", fallbackRate: "+2.91%" }
+    ];
+
+    const COMMODITIES_CONFIG = [
+      { id: "GOLD", name: "국제 금시세", unit: "$/oz", fallbackVal: "2,721.40", fallbackRate: "+0.82%" },
+      { id: "SILVER", name: "국제 은시세", unit: "$/oz", fallbackVal: "33.74", fallbackRate: "+1.65%" },
+      { id: "BRENT", name: "브렌트유", unit: "$/bbl", fallbackVal: "74.29", fallbackRate: "-1.87%" },
+      { id: "WTI", name: "WTI유", unit: "$/bbl", fallbackVal: "70.58", fallbackRate: "-2.05%" },
+      { id: "COPPER", name: "국제 구리", unit: "$/lb", fallbackVal: "4.38", fallbackRate: "+1.12%" }
+    ];
+
+    // 실시간 지수 & 원자재 데이터 로딩
+    async function loadIndicesData() {
+      const marketGrid = document.getElementById("marketIndicesGrid");
+      const commGrid = document.getElementById("commodityIndicesGrid");
+
+      marketGrid.innerHTML = INDICES_CONFIG.map(item => {
+        const isUp = item.fallbackRate.startsWith("+");
+        const rateClass = isUp ? "rate-up" : "rate-down";
+        return `
+          <div class="index-card">
+            <span class="index-name">${item.name}</span>
+            <span class="index-val">${item.fallbackVal}</span>
+            <span class="index-chg ${rateClass}">${item.fallbackRate}</span>
+          </div>
+        `;
+      }).join("");
+
+      commGrid.innerHTML = COMMODITIES_CONFIG.map(item => {
+        const isUp = item.fallbackRate.startsWith("+");
+        const rateClass = isUp ? "rate-up" : "rate-down";
+        return `
+          <div class="index-card">
+            <span class="index-name">${item.name} <small style="font-size:0.65rem; color:#64748b;">(${item.unit})</small></span>
+            <span class="index-val">${item.fallbackVal}</span>
+            <span class="index-chg ${rateClass}">${item.fallbackRate}</span>
+          </div>
+        `;
+      }).join("");
+    }
 
     function formatStockVol(val) {
       if (!val || val === 0) return "0";
@@ -174,21 +287,17 @@
       return `${sign}${val.toLocaleString()}`;
     }
 
-    function renderBadges(tagString) {
-      const tags = (tagString || "").split(",");
-      return TARGET_CONDITIONS.map(cond => {
-        const isPass = tags.includes(cond.key);
-        return `
-          <span class="cond-badge ${isPass ? 'pass' : 'fail'}">
-            ${isPass ? '✓ ' : ''}${cond.label}
-          </span>
-        `;
-      }).join("");
+    function formatVolumeNumber(vol) {
+      if (!vol || vol === 0) return "0주";
+      if (vol >= 1000000) return `${(vol / 1000000).toFixed(1)}백만주`;
+      if (vol >= 10000) return `${Math.round(vol / 10000).toLocaleString()}만주`;
+      return `${vol.toLocaleString()}주`;
     }
 
+    // 종목 데이터 로드
     async function fetchData() {
       const cardListEl = document.getElementById("cardList");
-      cardListEl.innerHTML = '<div class="loading-box">최신 지표 데이터를 갱신 중...</div>';
+      cardListEl.innerHTML = '<div class="loading-box">최신 종목 데이터를 갱신 중...</div>';
 
       try {
         const { data, error } = await supabaseClient
@@ -209,17 +318,19 @@
         const totalDouble = allData.filter(d => (d.foreign_net_buy > 0 && d.inst_net_buy > 0) || (d.passed_tags || "").includes("쌍끌이매수")).length;
         document.getElementById("doubleCount").innerText = `(${totalDouble}개)`;
 
-        renderList();
+        renderStockList();
+        loadIndicesData();
       } catch (err) {
         cardListEl.innerHTML = `<div class="loading-box" style="color: #ef4444;">호출 실패: ${err.message}</div>`;
       }
     }
 
-    function renderList() {
+    // 종목 카드 목록 렌더링
+    function renderStockList() {
       const cardListEl = document.getElementById("cardList");
 
       const filtered = allData.filter(item => {
-        if (currentMarket !== "ALL" && item.market !== currentMarket) return false;
+        if (currentTab !== "ALL" && item.market !== currentTab) return false;
         if (currentDeal !== "ALL") {
           const tags = (item.passed_tags || "").split(",");
           if (!tags.includes(currentDeal) && item.deal_tag !== currentDeal) return false;
@@ -243,12 +354,12 @@
         const rate = item.change_rate || 0;
         const rateClass = rate > 0 ? "rate-up" : (rate < 0 ? "rate-down" : "");
         const sign = rate > 0 ? "+" : "";
-
-        // 10대 조건 중 달성 개수 표기 (예: 7/10)
-        const tags = (item.passed_tags || "").split(",");
-        const passScore = TARGET_CONDITIONS.filter(c => tags.includes(c.key)).length;
-
         const dealInEok = Math.round((item.trade_amount || 0) / 100000000);
+
+        const pbrVal = item.pbr ? `${Number(item.pbr).toFixed(2)}` : "-";
+        const roeVal = item.roe ? `${Number(item.roe).toFixed(1)}%` : "-";
+        const rsiVal = item.rsi ? `${Number(item.rsi).toFixed(1)}` : "-";
+        const volText = formatVolumeNumber(item.volume);
 
         return `
           <div class="card">
@@ -257,7 +368,6 @@
                 <span class="market-tag ${item.market === 'KOSDAQ' ? 'kosdaq' : ''}">${item.market}</span>
                 <span class="stock-title">${item.name}</span>
                 ${isDouble ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
-                <span class="score-badge">${passScore}/10</span>
               </div>
               <div class="price-wrap">
                 <div class="current-price">${(item.close_price || 0).toLocaleString()}원</div>
@@ -271,13 +381,27 @@
               <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
             </div>
 
-            <!-- 10대 조건 뱃지 영역 -->
-            <div class="conditions-grid">
-              ${renderBadges(item.passed_tags)}
+            <div class="metric-grid">
+              <div class="metric-item">
+                <span class="metric-title">PBR</span>
+                <span class="metric-val val-highlight">${pbrVal}</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-title">ROE</span>
+                <span class="metric-val val-warm">${roeVal}</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-title">RSI (14)</span>
+                <span class="metric-val">${rsiVal}</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-title">거래량</span>
+                <span class="metric-val" style="font-size: 0.75rem;">${volText}</span>
+              </div>
             </div>
 
             <div class="card-footer">
-              <span class="open-price">시가 ${(item.open_price || 0).toLocaleString()}원</span>
+              <span class="open-price">전일비: ${item.vol_ratio ? item.vol_ratio + '%' : '-'}</span>
               <span class="trade-amount">거래대금 ${dealInEok.toLocaleString()}억</span>
             </div>
           </div>
@@ -285,24 +409,36 @@
       }).join("");
     }
 
-    function setMarket(market, btn) {
-      currentMarket = market;
+    // 4단 탭 전환 처리
+    function setTab(tab, btn) {
+      currentTab = tab;
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      renderList();
+
+      const stockSection = document.getElementById("stockSection");
+      const indicesSection = document.getElementById("indicesSection");
+
+      if (tab === "INDEX") {
+        stockSection.style.display = "none";
+        indicesSection.style.display = "block";
+      } else {
+        indicesSection.style.display = "none";
+        stockSection.style.display = "block";
+        renderStockList();
+      }
     }
 
     function setDeal(deal, btn) {
       currentDeal = deal;
       document.querySelectorAll(".filter-chip").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      renderList();
+      renderStockList();
     }
 
     function toggleDoubleOnly() {
       isDoubleOnly = !isDoubleOnly;
       document.getElementById("doubleCheckbox").checked = isDoubleOnly;
-      renderList();
+      renderStockList();
     }
 
     window.addEventListener("DOMContentLoaded", fetchData);

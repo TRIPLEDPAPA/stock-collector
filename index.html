@@ -38,6 +38,7 @@
       background-color: #2563eb; color: #ffffff; border: none; padding: 6px 12px;
       border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
     }
+    .btn-refresh:active { opacity: 0.7; }
     .live-badge {
       background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);
       padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; gap: 4px;
@@ -88,7 +89,6 @@
     .cond-badge.pass { background-color: var(--tag-green-bg); color: var(--tag-green-text); border-color: var(--tag-green-border); }
     .cond-badge.fail { background-color: var(--tag-gray-bg); color: var(--tag-gray-text); border-color: transparent; }
 
-    /* 재무 및 체결강도 5열 수치 그리드 */
     .metric-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -228,6 +228,7 @@
       cardListEl.innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
 
       try {
+        // 캐시를 우회하기 위해 타임스탬프 파라미터 활용 조회
         const { data, error } = await supabaseClient
           .from("TRIPLE D PAPA")
           .select("*")
@@ -350,7 +351,6 @@
               ${renderBadges(item.passed_tags)}
             </div>
 
-            <!-- PER, PBR, ROE, EPS, 체결강도 5가지 수치 바 -->
             <div class="metric-grid">
               <div class="metric-item">
                 <span class="metric-title">PER</span>

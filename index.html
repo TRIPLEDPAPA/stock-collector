@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>TRIPLE D PAPA</title>
+  <title>TRIPLE D PAPA 주식창</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -204,18 +204,6 @@
     let currentDeal = "ALL";
     let isDoubleOnly = false;
 
-    // 브라우저 로컬 스토리지에서 캐시된 데이터 즉시 로드 (지연 체감 제로)
-    try {
-      const cached = localStorage.getItem("TRIPLE_D_CACHE");
-      if (cached) {
-        allData = JSON.parse(cached);
-        if (allData.length > 0) {
-          renderStockList();
-          renderIndicesList();
-        }
-      }
-    } catch(e) {}
-
     function formatStockVol(val) {
       if (!val || val === 0) return "0";
       const sign = val > 0 ? "+" : "";
@@ -236,10 +224,10 @@
     }
 
     async function fetchData() {
-      // 캐시가 없을 때만 로딩바 표시 (캐시가 있으면 배경에서 조용히 갱신하여 지연 제로화)
-      if (allData.length === 0) {
-        document.getElementById("cardList").innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
-      }
+      // 새로고침 버튼을 누를 때 묵은 캐시와 로컬 저장소를 완전히 제거하여 최신 데이터가 무조건 강제 로드되도록 함
+      try { localStorage.removeItem("TRIPLE_D_CACHE"); } catch(e) {}
+
+      document.getElementById("cardList").innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
 
       try {
         const { data, error } = await supabaseClient
@@ -248,11 +236,7 @@
           .order("trade_amount", { ascending: false });
 
         if (error) throw error;
-        if (data && data.length > 0) {
-          allData = data;
-          // 로컬 캐시에 저장하여 다음 접속 시 즉시 표시
-          localStorage.setItem("TRIPLE_D_CACHE", JSON.stringify(allData));
-        }
+        allData = data || [];
 
         if (allData.length > 0) {
           const stockItem = allData.find(d => d.market !== 'INDEX' && d.date);
@@ -270,9 +254,7 @@
         renderStockList();
         renderIndicesList();
       } catch (err) {
-        if (allData.length === 0) {
-          document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #ef4444;">호출 실패: ${err.message}</div>`;
-        }
+        document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #ef4444;">호출 실패: ${err.message}</div>`;
       }
     }
 

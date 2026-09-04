@@ -1,4 +1,22 @@
-async function fetchLiveMarketData() {
+async function fetchWithProxy(targetUrl) {
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+      
+      // 5초 지나도 응답이 없으면 강제로 끊어버리는 타임아웃 설정
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const res = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        const json = await res.json();
+        return JSON.parse(json.contents);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    }
+
+    async function fetchLiveMarketData() {
       if (!isMarketOpen()) {
         document.getElementById("timerBadge").innerText = "⏳ 휴장일/장마감 (대기중)";
         countdown = 30;
@@ -40,7 +58,7 @@ async function fetchLiveMarketData() {
         }
 
         if (compiledStocks.length === 0) {
-          throw new Error("네이버 시세 데이터를 불러오지 못했습니다.");
+          throw new Error("프록시 응답 지연");
         }
 
         compiledStocks.sort((a, b) => b.trade_amount - a.trade_amount);
@@ -60,8 +78,11 @@ async function fetchLiveMarketData() {
         renderIndicesList();
 
       } catch (err) {
-        console.error(err);
-        document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #ef4444;">실시간 데이터 통신 원활함 확인 중... 잠시 후 재시도됩니다.</div>`;
+        console.warn("실시간 통신 지연으로 다음 주기를 기다립니다.", err);
+        // 화면이 멈추지 않도록 안내 문구 출력 후 다음 30초 타이머로 정상 진입
+        if (allData.length === 0) {
+          document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #f59e0b;">네트워크 응답 대기 중... 잠시 후 자동 재시도됩니다.</div>`;
+        }
       } finally {
         countdown = 30;
       }

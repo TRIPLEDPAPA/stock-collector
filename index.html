@@ -35,9 +35,10 @@
     .brand-date { font-size: 0.75rem; color: var(--text-sub); margin-top: 2px; }
     .header-actions { display: flex; align-items: center; gap: 6px; }
     
-    .auto-refresh-badge {
-      background-color: #1e293b; color: var(--text-sub); border: 1px solid #2d3748;
-      padding: 6px 10px; border-radius: 8px; font-size: 0.72rem; font-weight: 600; display: flex; align-items: center; gap: 5px;
+    .timer-badge {
+      background-color: #1e293b; color: #38bdf8; border: 1px solid #2d3748;
+      padding: 6px 10px; border-radius: 8px; font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; gap: 5px;
+      font-variant-numeric: tabular-nums;
     }
     .live-badge {
       background-color: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);
@@ -136,7 +137,7 @@
         <div class="brand-date" id="baseDate">기준일자: -</div>
       </div>
       <div class="header-actions">
-        <div class="auto-refresh-badge">⏳ 30초 자동갱신</div>
+        <div class="timer-badge" id="timerBadge">⏳ 30초 후 갱신</div>
         <div class="live-badge"><span class="live-dot"></span> LIVE</div>
       </div>
     </div>
@@ -203,6 +204,7 @@
     let currentTab = "ALL";
     let currentDeal = "ALL";
     let isDoubleOnly = false;
+    let countdown = 30; // 30초 타이머
 
     function formatStockVol(val) {
       if (!val || val === 0) return "0";
@@ -249,10 +251,12 @@
         renderStockList();
         renderIndicesList();
       } catch (err) {
-        // 첫 로딩 시에만 에러 표시 (백그라운드 갱신 시에는 기존 화면 유지)
         if (allData.length === 0) {
           document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #ef4444;">호출 실패: ${err.message}</div>`;
         }
+      } finally {
+        // 데이터 불러오기가 끝나면 타이머를 다시 30초로 리셋
+        countdown = 30;
       }
     }
 
@@ -416,9 +420,17 @@
       renderStockList();
     }
 
+    // 1초마다 타이머 숫자를 줄이고, 0이 되면 fetchData 실행
+    setInterval(() => {
+      countdown--;
+      if (countdown <= 0) {
+        fetchData();
+      } else {
+        document.getElementById("timerBadge").innerText = `⏳ ${countdown}초 후 갱신`;
+      }
+    }, 1000);
+
     window.addEventListener("DOMContentLoaded", fetchData);
-    // 30초마다 자동 갱신
-    setInterval(fetchData, 30000);
   </script>
 </body>
 </html>

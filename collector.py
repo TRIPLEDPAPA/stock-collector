@@ -9,7 +9,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://xnjnknhwezminpdmsrtm.supa
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 if not SUPABASE_KEY:
-    print("[ERROR] SUPABASE_KEY가 설정되지 않았습니다. GitHub Secrets 또는 환경변수를 등록해주세요.")
+    print("[ERROR] SUPABASE_KEY가 설정되지 않았습니다.")
     exit(1)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)

@@ -208,6 +208,56 @@
       "MSCI", "S&P", "나스닥", "NASDAQ", "다우", "금현물", "원유", "TR"
     ];
 
+    // 2026년 국내 증시 공식 휴장일 목록 (YYYY-MM-DD 형식)
+    const MARKET_HOLIDAYS_2026 = [
+      "2026-01-01", // 신정
+      "2026-02-16", // 설날
+      "2026-02-17", // 설날
+      "2026-02-18", // 설날
+      "2026-03-02", // 삼일절 대체공휴일
+      "2026-05-01", // 근로자의 날
+      "2026-05-05", // 어린이날
+      "2026-05-25", // 석가탄신일 대체공휴일
+      "2026-06-03", // 지방선거일
+      "2026-06-06", // 현충일 (토요일이지만 명시)
+      "2026-07-17", // 제헌절
+      "2026-08-17", // 광복절 대체공휴일
+      "2026-09-24", // 추석
+      "2026-09-25", // 추석
+      "2026-10-05", // 개천절 대체공휴일
+      "2026-10-09", // 한글날
+      "2026-12-25", // 크리스마스
+      "2026-12-31"  // 연말휴장일
+    ];
+
+    function isMarketOpen() {
+      const now = new Date();
+      const koreanTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+      
+      const year = koreanTime.getFullYear();
+      const month = String(koreanTime.getMonth() + 1).padStart(2, '0');
+      const day = String(koreanTime.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+
+      const dayOfWeek = koreanTime.getDay(); // 0: 일요일, 6: 토요일
+
+      // 주말이거나 2026년 휴장일 리스트에 포함되면 장 열리지 않음
+      if (dayOfWeek === 0 || dayOfWeek === 6 || MARKET_HOLIDAYS_2026.includes(dateStr)) {
+        return false;
+      }
+
+      // 시간 체크 (오전 8시 ~ 오후 3시 30분)
+      const hours = koreanTime.getHours();
+      const minutes = koreanTime.getMinutes();
+      const timeVal = hours * 60 + minutes;
+
+      if (timeVal < 480 || timeVal > 930) {
+        return false;
+      }
+
+      return true;
+    }
+
     function isPureStock(ticker, name) {
       if (!ticker.endsWith('0')) return false;
       if (name.endsWith(('우', '우B', '우C', '(우)'))) return false;
@@ -245,20 +295,17 @@
     }
 
     async function fetchLiveMarketData() {
-      // 한국 시간 기준 오전 8시 ~ 오후 3시 30분 체크 (주말 제외)
-      const now = new Date();
-      const koreanTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-      const day = koreanTime.getDay(); // 0: 일요일, 6: 토요일
-      const hours = koreanTime.getHours();
-      const minutes = koreanTime.getMinutes();
-      const timeVal = hours * 60 + minutes; // 분 단위 환산
-
-      // 장 운영 시간 (08:00 ~ 15:30) 이외에는 불필요한 트래픽 방지
-      if (day === 0 || day === 6 || timeVal < 480 || timeVal > 930) {
-        document.getElementById("timerBadge").innerText = "⏳ 장 마감 (자동대기중)";
+      // 장이 쉬는 날(주말, 공휴일, 휴장일, 장 마감 시간)이면 스크래핑을 건너뜀
+      if (!isMarketOpen()) {
+        document.getElementById("timerBadge").innerText = "⏳ 휴장일/장마감 (대기중)";
         countdown = 30;
         return;
       }
+
+      const now = new Date();
+      const koreanTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+      const hours = koreanTime.getHours();
+      const minutes = koreanTime.getMinutes();
 
       try {
         let compiledStocks = [];
@@ -482,8 +529,13 @@
       renderStockList();
     }
 
-    // 1초 단위 타이머 및 30초 주기 실시간 자동 갱신 제어
+    // 1초 단위 타이머 및 30초 주기 실시간 자동 갱신 제어 (휴장일 자동 판별 포함)
     setInterval(() => {
+      if (!isMarketOpen()) {
+        document.getElementById("timerBadge").innerText = "⏳ 휴장일/장마감 (대기중)";
+        return;
+      }
+
       countdown--;
       if (countdown <= 0) {
         fetchLiveMarketData();

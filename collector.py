@@ -5,11 +5,9 @@ import requests
 from datetime import datetime
 from supabase import create_client, Client
 
+# Supabase 접속 정보 (키가 Secrets에 없어도 직접 기본값으로 연동)
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://xnjnknhwezminpdmsrtm.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-
-if not SUPABASE_KEY:
-    raise ValueError("[CRITICAL] SUPABASE_KEY 환경변수가 비어있습니다. GitHub Secrets를 확인하세요.")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -23,7 +21,6 @@ NAVER_MOBILE_HEADERS = {
     "Referer": "https://m.stock.naver.com/"
 }
 
-# ETF, ETN, 스팩, 파생상품 필터링 키워드
 EXCLUDE_KEYWORDS = [
     "KODEX", "TIGER", "ACE", "SOL", "RISE", "PLUS", "KOSEF", "ARIRANG", 
     "TIMEFOLIO", "HANARO", "WOORI", "UNICORN", "KBSTAR", "WON", "HERO", "TRUSTON",
@@ -57,7 +54,6 @@ def parse_float_safe(val):
         return 0.0
 
 def get_investor_trend(ticker):
-    """외인/기관 당일 잠정 수급 조회"""
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
         res = requests.get(url, headers=NAVER_MOBILE_HEADERS, timeout=3)
@@ -74,27 +70,16 @@ def get_investor_trend(ticker):
     return 0, 0, 0
 
 def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won):
-    """9대 지표 판정 (거래대금 100억 기준)"""
     passed = []
-
-    # 1. 주가 등락률 (+3% ~ +18%)
     if 3.0 <= chg <= 18.0: passed.append("주가등락률")
-    
-    # 2. 거래대금 (100억 이상)
     if deal_won >= 10_000_000_000: passed.append("거래대금")
-    
-    # 3. 양봉 마감
     if close_p >= open_p and open_p > 0: passed.append("양봉마감")
-    
-    # 4. 고가 근접 (고가 대비 -5% 이내)
     if high_p > 0 and (close_p / high_p) >= 0.95: passed.append("고가근접")
 
-    # 5. 윗꼬리 비율 제한 (25% 이하)
     rng = high_p - low_p
     tail = high_p - close_p
     if rng > 0 and (tail / rng) <= 0.25: passed.append("윗꼬리제한")
 
-    # 6. 기술적 이평 및 추세 통과 처리
     if close_p > open_p and high_p > low_p:
         passed.append("20일이평선")
         passed.append("단기이평정배열")
@@ -104,16 +89,15 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won):
     return passed
 
 def fetch_market(market_type):
-    """다음 금융 거래대금 상위 REST API 호출"""
     url = f"https://finance.daum.net/api/trend/ranks?category=deal&market={market_type}&limit=60"
     try:
         res = requests.get(url, headers=DAUM_HEADERS, timeout=6)
         if res.status_code != 200:
-            print(f"[{market_type}] Daum API 오류 (상태코드: {res.status_code})")
+            print(f"[{market_type}] Daum API 오류: {res.status_code}")
             return []
         items = res.json().get("data", [])
     except Exception as e:
-        print(f"[{market_type}] 통신 예외 발생: {e}")
+        print(f"[{market_type}] 통신 예외: {e}")
         return []
 
     today_str = datetime.today().strftime("%Y-%m-%d")
@@ -128,7 +112,6 @@ def fetch_market(market_type):
             continue
 
         deal_won = parse_int_safe(item.get("accTradePrice", 0))
-        # 100억(10,000,000,000원) 미만 필터링
         if deal_won < 10_000_000_000:
             continue
 
@@ -191,7 +174,7 @@ def main():
 
         print("-> Supabase 최신 데이터 적재 중...")
         insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
-        print(f"★ [SUCCESS] 적재 대성공! 저장된 종목 수: {len(insert_res.data)}건")
+        print(f"★ [SUCCESS] 적재 완료! 총 {len(insert_res.data)}건 저장 성공")
 
     except Exception as e:
         print("★ [ERROR] Supabase 데이터 작업 실패:", e)

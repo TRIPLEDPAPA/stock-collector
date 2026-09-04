@@ -136,32 +136,46 @@ def get_deal_amount_label(deal_won):
         return "100억미만"
 
 def fetch_global_indices():
-    """네이버 금융 API를 활용한 글로벌 지수 및 원자재 크롤링"""
-    indices_map = []
+    """네이버 모바일 API를 통한 국내외 주요 지수 및 원자재 시세 크롤링"""
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    indices_data = []
+
+    # 네이버 주요 지수 API 대상 목록 (국내/해외/원자재)
     targets = [
-        ("KOSPI", "코스피", "KPI200"),
+        ("KOSPI", "코ส피", "KOSPI"),
         ("KOSDAQ", "코스닥", "KOSDAQ"),
-        ("SP500", "S&P 500", ".INX"),
-        ("NASDAQ", "나스닥", ".IXIC"),
-        ("DJI", "다우존스", ".DJI"),
-        ("N225", "니케이 225", ".N225"),
-        ("SSEC", "상해종합지수", ".SSEC"),
-        ("GOLD", "국제금시세", "GC=F"),
-        ("SILVER", "국제은시세", "SI=F"),
-        ("BRENT", "브렌트유", "BZ=F"),
-        ("WTI", "WTI 유", "CL=F"),
-        ("COPPER", "구리", "HG=F")
+        ("SP500", "S&P 500", "DJSI_US.SPI200"),
+        ("NASDAQ", "나스닥", "NAS@IXIC"),
+        ("DJI", "다우존스", "DJSI_US.DJI"),
+        ("N225", "니케이 225", "FSI_N225"),
+        ("SSEC", "상해종합지수", "CSI_000001"),
+        ("GOLD", "국제금시세", "FCOM_GC"),
+        ("SILVER", "국제은시세", "FCOM_SI"),
+        ("BRENT", "브렌트유", "FCOM_BZ"),
+        ("WTI", "WTI 유", "FCOM_CL"),
+        ("COPPER", "구리", "FCOM_HG")
     ]
-    # 임시 기본 지수 데이터 세트 생성 후 적재
-    for idx, (code, name, symbol) in enumerate(targets):
-        indices_map.append({
-            "date": datetime.today().strftime("%Y-%m-%d"),
+
+    for code, name, symbol in targets:
+        price, chg_rate = 0.0, 0.0
+        try:
+            url = f"https://m.stock.naver.com/api/index/{symbol}/basic"
+            res = session.get(url, headers=MOBILE_HEADERS, timeout=3)
+            if res.status_code == 200:
+                data = res.json()
+                price = parse_float_safe(data.get("closePrice", data.get("nowVal", 0)))
+                chg_rate = parse_float_safe(data.get("fluctuationsRatio", data.get("chgRate", 0.0)))
+        except Exception:
+            pass
+
+        indices_data.append({
+            "date": today_str,
             "ticker": f"IDX_{code}",
             "name": name,
             "market": "INDEX",
-            "close_price": 0,
+            "close_price": price,
             "open_price": 0,
-            "change_rate": 0.0,
+            "change_rate": chg_rate,
             "trade_amount": 0,
             "deal_tag": code,
             "volume": 0,
@@ -171,7 +185,8 @@ def fetch_global_indices():
             "rsi": 0.0,
             "passed_tags": f"INDEX,{code}"
         })
-    return indices_map
+
+    return indices_data
 
 def process_single_stock(item, market_type, today_str):
     try:
@@ -280,7 +295,7 @@ def fetch_market_naver_parallel(market_type):
     return results[:25]
 
 def main():
-    print("=== [고속 스크리너 + 지수 연동 가동] ===")
+    print("=== [지수 실시간 시세 연동 스크리너 가동] ===")
     kospi = fetch_market_naver_parallel("KOSPI")
     kosdaq = fetch_market_naver_parallel("KOSDAQ")
     indices = fetch_global_indices()
@@ -294,5 +309,4 @@ def main():
     except Exception as e:
         print("★ [ERROR] DB 저장 실패:", e)
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main"></script>

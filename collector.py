@@ -75,7 +75,7 @@ def get_recent_candles(ticker, count=25):
 
 def get_extra_stock_info(ticker):
     strength = 115.5
-    per, pbr, eps, roe = 0.0, 0.0, 0.0, 0.0
+    per, psr, pbr, eps, roe = 0.0, 0.0, 0.0, 0.0, 0.0
     frg, inst, retail = 0, 0, 0
     
     try:
@@ -87,11 +87,13 @@ def get_extra_stock_info(ticker):
                 code_key = str(info.get("code", "")).lower()
                 val = str(info.get("value", ""))
                 if "per" in code_key: per = parse_float_safe(val)
+                elif "psr" in code_key: psr = parse_float_safe(val)
                 elif "pbr" in code_key: pbr = parse_float_safe(val)
                 elif "eps" in code_key: eps = parse_float_safe(val)
+                elif "roe" in code_key: roe = parse_float_safe(val)
                 elif "chegyeol" in code_key or "strength" in code_key:
                     strength = parse_float_safe(val)
-            if per > 0 and pbr > 0:
+            if per > 0 and pbr > 0 and roe == 0.0:
                 roe = round((pbr / per) * 100.0, 2)
     except Exception:
         pass
@@ -109,7 +111,7 @@ def get_extra_stock_info(ticker):
     except Exception:
         pass
 
-    return strength if strength > 0 else 115.5, per, pbr, eps, roe, frg, inst, retail
+    return strength if strength > 0 else 115.5, per, psr, pbr, eps, roe, frg, inst, retail
 
 def get_deal_amount_label(deal_won):
     if deal_won > 50_000_000_000: return "500억이상"
@@ -120,10 +122,8 @@ def get_deal_amount_label(deal_won):
     else: return "100억미만"
 
 def fetch_global_indices():
-    """지수 및 원자재 실시간 시세 수집 (야후 파이낸스 활용)"""
     today_str = datetime.today().strftime("%Y-%m-%d")
     indices_data = []
-
     targets = [
         ("KOSPI", "코스피", "^KS11"),
         ("KOSDAQ", "코스닥", "^KQ11"),
@@ -152,9 +152,7 @@ def fetch_global_indices():
                 if prev_close > 0:
                     chg_rate = round(((price - prev_close) / prev_close) * 100.0, 2)
         except Exception:
-            # 실패 시 기본 샘플 시세 적용
-            price = 2580.40 if code == "KOSPI" else (732.15 if code == "KOSDAQ" else 100.0)
-            chg_rate = 0.5
+            price, chg_rate = 100.0, 0.5
 
         indices_data.append({
             "date": today_str,
@@ -169,12 +167,13 @@ def fetch_global_indices():
             "volume": 0,
             "vol_ratio": 0.0,
             "strength": 0.0,
-            "pbr": 0.0,
-            "roe": 0.0,
             "per": 0.0,
+            "psr": 0.0,
+            "pbr": 0.0,
+            "eps": 0.0,
+            "roe": 0.0,
             "passed_tags": f"INDEX,{code}"
         })
-
     return indices_data
 
 def process_single_stock(item, market_type, today_str):
@@ -204,7 +203,7 @@ def process_single_stock(item, market_type, today_str):
         prev_vol = candles[-2]["volume"] if len(candles) >= 2 else (candles[-1]["volume"] if candles else 0)
         vol_ratio = round((current_vol / prev_vol * 100.0), 1) if (prev_vol > 0 and current_vol > 0) else 0.0
 
-        strength, per, pbr, eps, roe, frg, inst, retail = get_extra_stock_info(ticker)
+        strength, per, psr, pbr, eps, roe, frg, inst, retail = get_extra_stock_info(ticker)
 
         passed_tags = []
         if chg > 0: passed_tags.append("주가등락률")
@@ -236,7 +235,9 @@ def process_single_stock(item, market_type, today_str):
             "vol_ratio": vol_ratio,
             "strength": strength,
             "per": per,
+            "psr": psr,
             "pbr": pbr,
+            "eps": eps,
             "roe": roe,
             "foreign_net_buy": frg,
             "inst_net_buy": inst,
@@ -276,7 +277,7 @@ def fetch_market_naver_parallel(market_type):
     return results[:25]
 
 def main():
-    print("=== [지수 + 종목 통합 스크리너 가동] ===")
+    print("=== [지수 + 재무지표 통합 스크리너 가동] ===")
     kospi = fetch_market_naver_parallel("KOSPI")
     kosdaq = fetch_market_naver_parallel("KOSDAQ")
     indices = fetch_global_indices()

@@ -2,8 +2,8 @@ name: Daily Stock Screener
 
 on:
   schedule:
-    - cron: '30 6 * * 1-5'
-  workflow_dispatch:
+    - cron: '30 6 * * 1-5' # 평일 한국시간 15:30 자동실행
+  workflow_dispatch:        # 수동 실행 버튼
 
 jobs:
   run-screener:
@@ -20,7 +20,7 @@ jobs:
 
       - name: 의존성 설치
         run: |
-          pip install requests supabase pandas finance-datareader
+          pip install requests supabase pandas
 
       - name: 스크리너 실행
         env:

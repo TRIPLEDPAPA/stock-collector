@@ -228,19 +228,20 @@
       cardListEl.innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
 
       try {
-        // [중요] 타임스탬프를 더해 Supabase 및 CDN이 캐시된 응답을 반환하지 못하도록 강제함
         const cacheBuster = new Date().getTime();
         const { data, error } = await supabaseClient
           .from("TRIPLE D PAPA")
           .select("*")
-          .neq("ticker", "FORCE_CACHE_" + cacheBuster)
-          .order("trade_amount", { ascending: false });
+          .neq("ticker", "FORCE_CACHE_" + cacheBuster);
 
         if (error) throw error;
         allData = data || [];
 
-        if (allData.length > 0 && allData[0].date) {
-          document.getElementById("baseDate").innerText = `기준일자: ${allData[0].date}`;
+        if (allData.length > 0) {
+          const stockItem = allData.find(d => d.market !== 'INDEX' && d.date);
+          if (stockItem) {
+            document.getElementById("baseDate").innerText = `기준일자: ${stockItem.date}`;
+          }
         }
         const now = new Date();
         document.getElementById("updatedTime").innerText = 
@@ -266,27 +267,27 @@
       const commCodes = ["GOLD", "SILVER", "BRENT", "WTI", "COPPER"];
 
       marketGrid.innerHTML = marketCodes.map(code => {
-        const item = indicesItems.find(d => (d.passed_tags || "").includes(code)) || { name: code, close_price: 0, change_rate: 0 };
+        const item = indicesItems.find(d => d.deal_tag === code || (d.passed_tags || "").includes(code)) || { name: code, close_price: 0, change_rate: 0 };
         const rate = item.change_rate || 0;
         const isUp = rate >= 0;
         return `
           <div class="index-card">
-            <span class="index-name">${item.name}</span>
-            <span class="index-val">${item.close_price ? item.close_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</span>
-            <span class="index-chg ${isUp ? 'rate-up' : 'rate-down'}">${isUp ? '+' : ''}${rate.toFixed(2)}%</span>
+            <span class="index-name">${item.name || code}</span>
+            <span class="index-val">${item.close_price ? Number(item.close_price).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</span>
+            <span class="index-chg ${isUp ? 'rate-up' : 'rate-down'}">${isUp ? '+' : ''}${Number(rate).toFixed(2)}%</span>
           </div>
         `;
       }).join("");
 
       commGrid.innerHTML = commCodes.map(code => {
-        const item = indicesItems.find(d => (d.passed_tags || "").includes(code)) || { name: code, close_price: 0, change_rate: 0 };
+        const item = indicesItems.find(d => d.deal_tag === code || (d.passed_tags || "").includes(code)) || { name: code, close_price: 0, change_rate: 0 };
         const rate = item.change_rate || 0;
         const isUp = rate >= 0;
         return `
           <div class="index-card">
-            <span class="index-name">${item.name}</span>
-            <span class="index-val">${item.close_price ? item.close_price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</span>
-            <span class="index-chg ${isUp ? 'rate-up' : 'rate-down'}">${isUp ? '+' : ''}${rate.toFixed(2)}%</span>
+            <span class="index-name">${item.name || code}</span>
+            <span class="index-val">${item.close_price ? Number(item.close_price).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</span>
+            <span class="index-chg ${isUp ? 'rate-up' : 'rate-down'}">${isUp ? '+' : ''}${Number(rate).toFixed(2)}%</span>
           </div>
         `;
       }).join("");
@@ -327,7 +328,7 @@
         const pbrVal = item.pbr ? `${Number(item.pbr).toFixed(2)}` : "-";
         const roeVal = item.roe ? `${Number(item.roe).toFixed(1)}%` : "-";
         const epsVal = item.eps ? `${Math.round(item.eps).toLocaleString()}원` : "-";
-        const strengthText = item.strength ? `${item.strength}%` : "-";
+        const strengthText = item.strength ? `${Number(item.strength).toFixed(1)}%` : "-";
 
         return `
           <div class="card">

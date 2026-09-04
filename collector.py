@@ -74,8 +74,7 @@ def get_recent_candles(ticker, count=25):
         return []
 
 def get_extra_stock_info(ticker):
-    """체결강도 및 추가 재무 정보 수집"""
-    strength = 100.0
+    strength = 115.5
     per, pbr, eps, roe = 0.0, 0.0, 0.0, 0.0
     frg, inst, retail = 0, 0, 0
     
@@ -120,6 +119,77 @@ def get_deal_amount_label(deal_won):
     elif deal_won >= 10_000_000_000: return "200억이하"
     else: return "100억미만"
 
+def fetch_index_from_yahoo(yahoo_symbol):
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}?interval=1d&range=2d"
+        res = session.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            meta = data["chart"]["result"][0]["meta"]
+            price = float(meta.get("regularMarketPrice", 0.0))
+            prev_close = float(meta.get("chartPreviousClose", meta.get("previousClose", price)))
+            chg_rate = round(((price - prev_close) / prev_close) * 100.0, 2) if prev_close > 0 else 0.0
+            if price > 0: return price, chg_rate
+    except Exception:
+        pass
+    return 0.0, 0.0
+
+def fetch_index_from_naver(naver_symbol):
+    try:
+        url = f"https://m.stock.naver.com/api/index/{naver_symbol}/basic"
+        res = session.get(url, headers=MOBILE_HEADERS, timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            price = parse_float_safe(data.get("closePrice", data.get("nowVal", 0)))
+            chg_rate = parse_float_safe(data.get("fluctuationsRatio", data.get("chgRate", 0.0)))
+            if price > 0: return price, chg_rate
+    except Exception:
+        pass
+    return 0.0, 0.0
+
+def fetch_global_indices():
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    indices_data = []
+    targets = [
+        ("KOSPI", "코스피", "^KS11", "KOSPI"),
+        ("KOSDAQ", "코스닥", "^KQ11", "KOSDAQ"),
+        ("SP500", "S&P 500", "^GSPC", "DJSI_US.SPI200"),
+        ("NASDAQ", "나스닥", "^IXIC", "NAS@IXIC"),
+        ("DJI", "다우존스", "^DJI", "DJSI_US.DJI"),
+        ("N225", "니케이 225", "^N225", "FSI_N225"),
+        ("SSEC", "상해종합지수", "000001.SS", "CSI_000001"),
+        ("GOLD", "국제금시세", "GC=F", "FCOM_GC"),
+        ("SILVER", "국제은시세", "SI=F", "FCOM_SI"),
+        ("BRENT", "브렌트유", "BZ=F", "FCOM_BZ"),
+        ("WTI", "WTI 유", "CL=F", "FCOM_CL"),
+        ("COPPER", "구리", "HG=F", "FCOM_HG")
+    ]
+
+    for code, name, y_sym, n_sym in targets:
+        price, chg_rate = fetch_index_from_yahoo(y_sym)
+        if price == 0.0:
+            price, chg_rate = fetch_index_from_naver(n_sym)
+
+        indices_data.append({
+            "date": today_str,
+            "ticker": f"IDX_{code}",
+            "name": name,
+            "market": "INDEX",
+            "close_price": price,
+            "open_price": 0,
+            "change_rate": chg_rate,
+            "trade_amount": 0,
+            "deal_tag": code,
+            "volume": 0,
+            "vol_ratio": 0.0,
+            "strength": 0.0,
+            "pbr": 0.0,
+            "roe": 0.0,
+            "per": 0.0,
+            "passed_tags": f"INDEX,{code}"
+        })
+    return indices_data
+
 def process_single_stock(item, market_type, today_str):
     try:
         name = item.get("stockName", "").strip()
@@ -129,7 +199,6 @@ def process_single_stock(item, market_type, today_str):
         close_p = parse_int_safe(item.get("closePrice", 0))
         open_p = parse_int_safe(item.get("openPrice", close_p))
         high_p = parse_int_safe(item.get("highPrice", close_p))
-        low_p = parse_int_safe(item.get("lowPrice", close_p))
         chg = parse_float_safe(item.get("fluctuationsRatio", 0.0))
 
         current_vol = parse_int_safe(item.get("accumulatedTradingVolume", 0))
@@ -150,24 +219,19 @@ def process_single_stock(item, market_type, today_str):
 
         strength, per, pbr, eps, roe, frg, inst, retail = get_extra_stock_info(ticker)
 
-        # 6대 조건 판정
         passed_tags = []
         if chg > 0: passed_tags.append("주가등락률")
         if deal_won >= 10_000_000_000: passed_tags.append("거래대금")
         if close_p > open_p: passed_tags.append("양봉마감")
-        
-        # 고가 근접 (고가 대비 종가 하락률이 2% 이내)
         if high_p > 0 and (high_p - close_p) / high_p <= 0.02: passed_tags.append("고가근접")
         
-        # 윗꼬리 제한 (윗꼬리 길이가 몸통의 1배 이내)
         body = abs(close_p - open_p) if close_p != open_p else 1
         upper_wick = high_p - max(close_p, open_p)
         if upper_wick <= body * 1.0: passed_tags.append("윗꼬리제한")
 
-        # 거래량 돌파 (전일 거래량 대비 200% 이상 폭증)
         if vol_ratio >= 200.0: passed_tags.append("거래량돌파")
-
         if frg > 0 and inst > 0: passed_tags.append("쌍끌이매수")
+        
         deal_label = get_deal_amount_label(deal_won)
 
         return {
@@ -182,8 +246,9 @@ def process_single_stock(item, market_type, today_str):
             "deal_tag": deal_label,
             "volume": current_vol,
             "prev_volume": prev_vol,
-            "vol_ratio": vol_ratio,          # 거래량 증가율 (%)
-            "strength": strength,            # 체결강도 (%)
+            "vol_ratio": vol_ratio,
+            "strength": strength,
+            "per": per,
             "pbr": pbr,
             "roe": roe,
             "foreign_net_buy": frg,
@@ -224,10 +289,12 @@ def fetch_market_naver_parallel(market_type):
     return results[:25]
 
 def main():
-    print("=== [스크리너 가동] ===")
+    print("=== [지수 + 종목 통합 고속 스크리너 가동] ===")
     kospi = fetch_market_naver_parallel("KOSPI")
     kosdaq = fetch_market_naver_parallel("KOSDAQ")
-    total = kospi + kosdaq
+    indices = fetch_global_indices()
+    
+    total = kospi + kosdaq + indices
 
     try:
         supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()

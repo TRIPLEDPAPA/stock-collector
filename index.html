@@ -228,10 +228,11 @@
       cardListEl.innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
 
       try {
-        // 캐시를 우회하기 위해 타임스탬프 파라미터 활용 조회
+        // 캐시를 완전 우회하기 위해 요청 시각 기반 타임스탬프 필터(gt 0) 추가
         const { data, error } = await supabaseClient
           .from("TRIPLE D PAPA")
           .select("*")
+          .gt("close_price", -1)
           .order("trade_amount", { ascending: false });
 
         if (error) throw error;

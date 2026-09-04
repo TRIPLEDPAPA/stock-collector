@@ -77,11 +77,20 @@ def get_investor_trend(ticker):
 
 def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles):
     passed = []
+    
+    # 1. 주가 등락률 (+3% ~ +18%)
     if 3.0 <= chg <= 18.0: passed.append("주가등락률")
-    if deal_won >= 50_000_000_000: passed.append("거래대금")
+    
+    # 2. 거래대금 (기존 500억 -> 100억 이상으로 기준 완화)
+    if deal_won >= 10_000_000_000: passed.append("거래대금")
+    
+    # 3. 양봉 마감
     if close_p >= open_p: passed.append("양봉마감")
+    
+    # 4. 고가 근접
     if high_p > 0 and (close_p / high_p) >= 0.95: passed.append("고가근접")
 
+    # 5. 윗꼬리 비율 제한
     rng = high_p - low_p
     tail = high_p - close_p
     if rng > 0 and (tail / rng) <= 0.25: passed.append("윗꼬리제한")
@@ -108,7 +117,6 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles):
     return passed
 
 def fetch_market_stocks(market_type):
-    """해외 IP 차단 없는 네이버 모바일 실시간 거래대금 API"""
     sosok = "0" if market_type == "KOSPI" else "1"
     url = f"https://m.stock.naver.com/api/stocks/quant?sosok={sosok}&order=deal_amount"
     
@@ -119,7 +127,7 @@ def fetch_market_stocks(market_type):
             return []
         data = res.json().get("stocks", [])
     except Exception as e:
-        print(f"[{market_type}] 네트워크 통신 에러: {e}")
+        print(f"[{market_type}] 통신 에러: {e}")
         return []
 
     today_str = datetime.today().strftime("%Y-%m-%d")
@@ -144,8 +152,12 @@ def fetch_market_stocks(market_type):
             if item.get("changeType", {}).get("name") == "FALL":
                 chg = -chg
 
-            # tradeAmount(백만원 단위) -> 원 단위로 변환
+            # tradeAmount(백만원 단위) -> 원 단위 변환
             deal_won = parse_int_safe(item.get("tradeAmount", 0)) * 1_000_000
+
+            # 100억 미만은 수집 대상에서 제외
+            if deal_won < 10_000_000_000:
+                continue
 
             candles = get_recent_candles(ticker, count=25)
             passed_list = evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles)
@@ -173,7 +185,8 @@ def fetch_market_stocks(market_type):
                 "pass_count": len([t for t in passed_list if t != "쌍끌이매수"])
             })
 
-            if len(results) >= 20:
+            # 시장별 상위 35개 확보 시 마감 (총 70여개)
+            if len(results) >= 35:
                 break
         except Exception:
             continue
@@ -181,7 +194,7 @@ def fetch_market_stocks(market_type):
     return results
 
 def main():
-    print("=== 데이터 수집 시작 ===")
+    print("=== 데이터 수집 시작 (100억 기준 완화 적용) ===")
     kospi = fetch_market_stocks("KOSPI")
     kosdaq = fetch_market_stocks("KOSDAQ")
     total = kospi + kosdaq
@@ -192,22 +205,16 @@ def main():
         return
 
     try:
-        # 1. 기존 데이터 비우기
         print("-> 기존 데이터 삭제 시도...")
-        del_res = supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
-        print("-> 기존 데이터 삭제 완료.")
+        supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
+        print("-> 기존 데이터 초기화 완료.")
 
-        # 2. 신규 데이터 적재
         print("-> 신규 데이터 적재 시도...")
         insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
         print(f"★ [SUCCESS] Supabase 테이블 적재 대성공! 저장된 행 수: {len(insert_res.data)}건")
 
     except Exception as e:
-        print("★ [ERROR] Supabase 데이터베이스 작업 실패:")
-        print("상세 에러 내용:", e)
-        # 테이블 컬럼 문제인지 확인하기 위한 샘플 1개 출력
-        if total:
-            print("적재를 시도했던 샘플 데이터 구조:", total[0])
+        print("★ [ERROR] Supabase 적재 실패:", e)
 
 if __name__ == "__main__":
     main()

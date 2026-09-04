@@ -56,7 +56,6 @@ def parse_float_safe(val):
         return 0.0
 
 def get_investor_trend(ticker):
-    """외인/기관 수급 조회 (네이버 모바일 API 사용, 장애 시 안전하게 0 반환)"""
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
         res = requests.get(url, headers=NAVER_MOBILE_HEADERS, timeout=3)
@@ -73,27 +72,16 @@ def get_investor_trend(ticker):
     return 0, 0, 0
 
 def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won):
-    """9대 지표 판정 (거래대금 100억 기준)"""
     passed = []
-
-    # 1. 주가 등락률 (+3% ~ +18%)
     if 3.0 <= chg <= 18.0: passed.append("주가등락률")
-    
-    # 2. 거래대금 (100억 이상)
     if deal_won >= 10_000_000_000: passed.append("거래대금")
-    
-    # 3. 양봉 마감
     if close_p >= open_p and open_p > 0: passed.append("양봉마감")
-    
-    # 4. 고가 근접 (고가 대비 -5% 이내)
     if high_p > 0 and (close_p / high_p) >= 0.95: passed.append("고가근접")
 
-    # 5. 윗꼬리 비율 제한 (25% 이하)
     rng = high_p - low_p
     tail = high_p - close_p
     if rng > 0 and (tail / rng) <= 0.25: passed.append("윗꼬리제한")
 
-    # 6. 상단 탄력성 기반 기술적 지표 통과 처리
     if close_p > open_p and high_p > low_p:
         passed.append("20일이평선")
         passed.append("단기이평정배열")
@@ -103,12 +91,11 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won):
     return passed
 
 def fetch_market(market_type):
-    """카카오/다음 금융 실시간 거래대금 상위 랭킹 API 호출"""
     url = f"https://finance.daum.net/api/trend/ranks?category=deal&market={market_type}&limit=50"
     try:
         res = requests.get(url, headers=DAUM_HEADERS, timeout=6)
         if res.status_code != 200:
-            print(f"[{market_type}] 다음 API 응답 비정상: {res.status_code}")
+            print(f"[{market_type}] 다음 API 응답 코드: {res.status_code}")
             return []
         items = res.json().get("data", [])
     except Exception as e:
@@ -127,7 +114,6 @@ def fetch_market(market_type):
             continue
 
         deal_won = parse_int_safe(item.get("accTradePrice", 0))
-        # 100억 미만 필터링
         if deal_won < 10_000_000_000:
             continue
 
@@ -185,7 +171,7 @@ def main():
         return
 
     try:
-        print("-> Supabase 기존 잔여 데이터 완전 삭제...")
+        print("-> Supabase 기존 데이터 정리...")
         supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
 
         print("-> Supabase 신규 데이터 적재...")
@@ -193,7 +179,7 @@ def main():
         print(f"★ [성공] 적재 완료! 총 {len(insert_res.data)}건 저장 성공")
 
     except Exception as e:
-        print("★ [에러] Supabase 통신 실패:", e)
+        print("★ [에러] Supabase 작업 실패:", e)
 
 if __name__ == "__main__":
     main()

@@ -6,9 +6,8 @@ from datetime import datetime
 from supabase import create_client, Client
 
 # Supabase 접속 정보 (키가 Secrets에 없어도 직접 기본값으로 연동)
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://xnjnknhwezminpdmsrtm.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
-
+SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
+SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 DAUM_HEADERS = {

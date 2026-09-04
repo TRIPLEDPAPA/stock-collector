@@ -204,6 +204,18 @@
     let currentDeal = "ALL";
     let isDoubleOnly = false;
 
+    // 브라우저 로컬 스토리지에서 캐시된 데이터 즉시 로드 (지연 체감 제로)
+    try {
+      const cached = localStorage.getItem("TRIPLE_D_CACHE");
+      if (cached) {
+        allData = JSON.parse(cached);
+        if (allData.length > 0) {
+          renderStockList();
+          renderIndicesList();
+        }
+      }
+    } catch(e) {}
+
     function formatStockVol(val) {
       if (!val || val === 0) return "0";
       const sign = val > 0 ? "+" : "";
@@ -224,18 +236,23 @@
     }
 
     async function fetchData() {
-      const cardListEl = document.getElementById("cardList");
-      cardListEl.innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
+      // 캐시가 없을 때만 로딩바 표시 (캐시가 있으면 배경에서 조용히 갱신하여 지연 제로화)
+      if (allData.length === 0) {
+        document.getElementById("cardList").innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
+      }
 
       try {
-        const cacheBuster = new Date().getTime();
         const { data, error } = await supabaseClient
           .from("TRIPLE D PAPA")
           .select("*")
-          .neq("ticker", "FORCE_CACHE_" + cacheBuster);
+          .order("trade_amount", { ascending: false });
 
         if (error) throw error;
-        allData = data || [];
+        if (data && data.length > 0) {
+          allData = data;
+          // 로컬 캐시에 저장하여 다음 접속 시 즉시 표시
+          localStorage.setItem("TRIPLE_D_CACHE", JSON.stringify(allData));
+        }
 
         if (allData.length > 0) {
           const stockItem = allData.find(d => d.market !== 'INDEX' && d.date);
@@ -253,7 +270,9 @@
         renderStockList();
         renderIndicesList();
       } catch (err) {
-        cardListEl.innerHTML = `<div class="loading-box" style="color: #ef4444;">호출 실패: ${err.message}</div>`;
+        if (allData.length === 0) {
+          document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #ef4444;">호출 실패: ${err.message}</div>`;
+        }
       }
     }
 

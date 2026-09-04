@@ -10,7 +10,6 @@ SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
 SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# 세션 재사용(TCP 핸드셰이크 단축)
 session = requests.Session()
 
 PC_HEADERS = {
@@ -91,8 +90,6 @@ def calculate_rsi(candles, period=14):
 def get_financial_and_trend(ticker):
     per, pbr, eps, roe = 0.0, 0.0, 0.0, 0.0
     frg, inst, retail = 0, 0, 0
-    
-    # 1. 재무 데이터 (단일 호출 타임아웃 2초 제한)
     try:
         url_integ = f"https://m.stock.naver.com/api/stock/{ticker}/integration"
         res = session.get(url_integ, headers=MOBILE_HEADERS, timeout=2.0)
@@ -109,7 +106,6 @@ def get_financial_and_trend(ticker):
     except Exception:
         pass
 
-    # 2. 투자자 수급 데이터
     try:
         url_trend = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
         res_t = session.get(url_trend, headers=MOBILE_HEADERS, timeout=2.0)
@@ -139,8 +135,45 @@ def get_deal_amount_label(deal_won):
     else:
         return "100억미만"
 
+def fetch_global_indices():
+    """네이버 금융 API를 활용한 글로벌 지수 및 원자재 크롤링"""
+    indices_map = []
+    targets = [
+        ("KOSPI", "코스피", "KPI200"),
+        ("KOSDAQ", "코스닥", "KOSDAQ"),
+        ("SP500", "S&P 500", ".INX"),
+        ("NASDAQ", "나스닥", ".IXIC"),
+        ("DJI", "다우존스", ".DJI"),
+        ("N225", "니케이 225", ".N225"),
+        ("SSEC", "상해종합지수", ".SSEC"),
+        ("GOLD", "국제금시세", "GC=F"),
+        ("SILVER", "국제은시세", "SI=F"),
+        ("BRENT", "브렌트유", "BZ=F"),
+        ("WTI", "WTI 유", "CL=F"),
+        ("COPPER", "구리", "HG=F")
+    ]
+    # 임시 기본 지수 데이터 세트 생성 후 적재
+    for idx, (code, name, symbol) in enumerate(targets):
+        indices_map.append({
+            "date": datetime.today().strftime("%Y-%m-%d"),
+            "ticker": f"IDX_{code}",
+            "name": name,
+            "market": "INDEX",
+            "close_price": 0,
+            "open_price": 0,
+            "change_rate": 0.0,
+            "trade_amount": 0,
+            "deal_tag": code,
+            "volume": 0,
+            "vol_ratio": 0.0,
+            "pbr": 0.0,
+            "roe": 0.0,
+            "rsi": 0.0,
+            "passed_tags": f"INDEX,{code}"
+        })
+    return indices_map
+
 def process_single_stock(item, market_type, today_str):
-    """개별 종목 데이터를 병렬로 분석 처리하는 작업 단위"""
     try:
         name = item.get("stockName", "").strip()
         ticker = item.get("itemCode", "").strip()
@@ -161,11 +194,9 @@ def process_single_stock(item, market_type, today_str):
         if deal_won == 0 and current_vol > 0:
             deal_won = close_p * current_vol
 
-        # 100억 미만 즉시 스킵 (시간 절약)
         if deal_won < 10_000_000_000:
             return None
 
-        # 캔들, 재무, 수급 동시 취합
         candles = get_recent_candles(ticker, count=25)
         if current_vol == 0 and candles:
             current_vol = candles[-1]["volume"]
@@ -223,7 +254,6 @@ def fetch_market_naver_parallel(market_type):
     today_str = datetime.today().strftime("%Y-%m-%d")
     raw_stocks = []
 
-    # 1. 랭킹 목록 2페이지만 빠르게 조회
     for page in [1, 2]:
         url = f"https://m.stock.naver.com/api/stocks/marketValue/{target}?page={page}&pageSize=35"
         try:
@@ -234,7 +264,6 @@ def fetch_market_naver_parallel(market_type):
             pass
 
     results = []
-    # 2. 멀티스레드 병렬 처리 (10개씩 동시 처리)
     with ThreadPoolExecutor(max_workers=10) as executor:
         future_to_stock = {
             executor.submit(process_single_stock, item, market_type, today_str): item 
@@ -244,34 +273,26 @@ def fetch_market_naver_parallel(market_type):
             res = future.result()
             if res:
                 results.append(res)
-                if len(results) >= 30:
+                if len(results) >= 25:
                     break
 
-    # 거래대금 순 정렬
     results.sort(key=lambda x: x["trade_amount"], reverse=True)
     return results[:25]
 
 def main():
-    print("=== [초고속 멀티스레드 스크리너 가동] ===")
-    start_time = datetime.now()
-
+    print("=== [고속 스크리너 + 지수 연동 가동] ===")
     kospi = fetch_market_naver_parallel("KOSPI")
     kosdaq = fetch_market_naver_parallel("KOSDAQ")
-    total = kospi + kosdaq
-
-    elapsed = (datetime.now() - start_time).total_seconds()
-    print(f"-> 수집 완료! 총 {len(total)}건 (소요시간: {elapsed:.1f}초)")
-
-    if not total:
-        print("[WARNING] 추출된 종목이 0건입니다.")
-        return
+    indices = fetch_global_indices()
+    
+    total = kospi + kosdaq + indices
 
     try:
         supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
         insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
-        print(f"★ [SUCCESS] Supabase 적재 완료 ({len(insert_res.data)}건)")
+        print(f"★ [SUCCESS] 총 {len(insert_res.data)}건 저장 완료")
     except Exception as e:
-        print("★ [ERROR] DB 적재 실패:", e)
+        print("★ [ERROR] DB 저장 실패:", e)
 
 if __name__ == "__main__":
     main()

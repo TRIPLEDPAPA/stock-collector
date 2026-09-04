@@ -229,7 +229,6 @@ def process_single_stock(item, market_type, today_str):
         upper_wick = high_p - max(close_p, open_p)
         if upper_wick <= body * 1.0: passed_tags.append("윗꼬리제한")
 
-        # 거래량 돌파 기준 150% 이상 완화 반영
         if vol_ratio >= 150.0: passed_tags.append("거래량돌파")
         if frg > 0 and inst > 0: passed_tags.append("쌍끌이매수")
         
@@ -292,7 +291,7 @@ def fetch_market_naver_parallel(market_type):
     return results[:25]
 
 def main():
-    print("=== [최종 통합 스크리너 가동] ===")
+    print("=== [지수 포함 최종 스크리너 가동] ===")
     kospi = fetch_market_naver_parallel("KOSPI")
     kosdaq = fetch_market_naver_parallel("KOSDAQ")
     indices = fetch_global_indices()
@@ -302,7 +301,7 @@ def main():
     try:
         supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
         insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
-        print(f"★ [SUCCESS] 총 {len(insert_res.data)}건 저장 완료")
+        print(f"★ [SUCCESS] 총 {len(insert_res.data)}건 저장 완료 (지수 {len(indices)}건 포함)")
     except Exception as e:
         print("★ [ERROR] DB 저장 실패:", e)
 

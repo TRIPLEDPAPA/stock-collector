@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>TRIPLE D PAPA</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg-dark: #0b111e;
@@ -176,16 +177,20 @@
 
       <div class="summary-bar">
         <span id="filteredCount">선별 종목: 0개</span>
-        <span id="updatedTime">실시간 대기 중</span>
+        <span id="updatedTime">DB 실시간 동기화 대기 중</span>
       </div>
 
       <div class="card-list" id="cardList">
-        <div class="loading-box">실시간 시세를 불러오는 중...</div>
+        <div class="loading-box">데이터 불러오는 중...</div>
       </div>
     </div>
   </div>
 
   <script>
+    const SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
     const TARGET_CONDITIONS = [
       { key: "주가등락률", label: "주가등락률" },
       { key: "거래대금", label: "거래대금" },
@@ -200,55 +205,6 @@
     let currentDeal = "ALL";
     let isDoubleOnly = false;
     let countdown = 30;
-
-    const EXCLUDE_KEYWORDS = [
-      "KODEX", "TIGER", "ACE", "SOL", "RISE", "PLUS", "KOSEF", "ARIRANG", 
-      "TIMEFOLIO", "HANARO", "WOORI", "UNICORN", "KBSTAR", "WON", "HERO", "TRUSTON",
-      "ETN", "스팩", "SPAC", "선물", "인버스", "레버리지", "2X", "액티브", "국채", "채권",
-      "MSCI", "S&P", "나스닥", "NASDAQ", "다우", "금현물", "원유", "TR"
-    ];
-
-    const MARKET_HOLIDAYS_2026 = [
-      "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-03-02",
-      "2026-05-01", "2026-05-05", "2026-05-25", "2026-06-03", "2026-06-06",
-      "2026-07-17", "2026-08-17", "2026-09-24", "2026-09-25", "2026-10-05",
-      "2026-10-09", "2026-12-25", "2026-12-31"
-    ];
-
-    function isMarketOpen() {
-      const now = new Date();
-      const koreanTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-      
-      const year = koreanTime.getFullYear();
-      const month = String(koreanTime.getMonth() + 1).padStart(2, '0');
-      const day = String(koreanTime.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-
-      const dayOfWeek = koreanTime.getDay();
-      if (dayOfWeek === 0 || dayOfWeek === 6 || MARKET_HOLIDAYS_2026.includes(dateStr)) {
-        return false;
-      }
-
-      const hours = koreanTime.getHours();
-      const minutes = koreanTime.getMinutes();
-      const timeVal = hours * 60 + minutes;
-
-      if (timeVal < 480 || timeVal > 930) {
-        return false;
-      }
-
-      return true;
-    }
-
-    function isPureStock(ticker, name) {
-      if (!ticker.endsWith('0')) return false;
-      if (name.endsWith(('우', '우B', '우C', '(우)'))) return false;
-      const clean = name.toUpperCase().replace(/\s+/g, "");
-      for (let kw of EXCLUDE_KEYWORDS) {
-        if (clean.includes(kw.toUpperCase())) return false;
-      }
-      return true;
-    }
 
     function formatStockVol(val) {
       if (!val || val === 0) return "0";
@@ -269,278 +225,8 @@
       }).join("");
     }
 
-    async function fetchWithProxy(targetUrl) {
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
+    async function fetchFromSupabase() {
       try {
-        const res = await fetch(proxyUrl, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        const json = await res.json();
-        return JSON.parse(json.contents);
-      } catch (err) {
-        clearTimeout(timeoutId);
-        throw err;
-      }
-    }
-
-    async function fetchLiveMarketData() {
-      if (!isMarketOpen()) {
-        document.getElementById("timerBadge").innerText = "⏳ 휴장일/장마감 (대기중)";
-        countdown = 30;
-        return;
-      }
-
-      const now = new Date();
-      const koreanTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-      const hours = koreanTime.getHours();
-      const minutes = koreanTime.getMinutes();
-
-      try {
-        let compiledStocks = [];
-        
-        for (let page of [1, 2]) {
-          try {
-            const data = await fetchWithProxy(`https://m.stock.naver.com/api/stocks/marketValue/KOSPI?page=${page}&pageSize=30`);
-            if (data && data.stocks) {
-              data.stocks.forEach(item => {
-                if (isPureStock(item.itemCode, item.stockName)) {
-                  compiledStocks.push(parseStockItem(item, "KOSPI"));
-                }
-              });
-            }
-          } catch(e) {}
-        }
-
-        for (let page of [1, 2]) {
-          try {
-            const data = await fetchWithProxy(`https://m.stock.naver.com/api/stocks/marketValue/KOSDAQ?page=${page}&pageSize=30`);
-            if (data && data.stocks) {
-              data.stocks.forEach(item => {
-                if (isPureStock(item.itemCode, item.stockName)) {
-                  compiledStocks.push(parseStockItem(item, "KOSDAQ"));
-                }
-              });
-            }
-          } catch(e) {}
-        }
-
-        if (compiledStocks.length === 0) {
-          throw new Error("프록시 응답 지연");
-        }
-
-        compiledStocks.sort((a, b) => b.trade_amount - a.trade_amount);
-        const indices = fetchMockIndices();
-
-        allData = [...compiledStocks.slice(0, 40), ...indices];
-
-        const todayStr = koreanTime.toISOString().slice(0, 10);
-        document.getElementById("baseDate").innerText = `기준일자: ${todayStr}`;
-        document.getElementById("updatedTime").innerText = 
-          `실시간 갱신됨 (${hours}시 ${minutes}분)`;
-
-        const totalDouble = allData.filter(d => d.market !== 'INDEX' && d.foreign_net_buy > 0 && d.inst_net_buy > 0).length;
-        document.getElementById("doubleCount").innerText = `(${totalDouble}개)`;
-
-        renderStockList();
-        renderIndicesList();
-
-      } catch (err) {
-        console.warn("실시간 통신 지연으로 다음 주기를 기다립니다.", err);
-        if (allData.length === 0) {
-          document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #f59e0b;">네트워크 응답 대기 중... 잠시 후 자동 재시도됩니다.</div>`;
-        }
-      } finally {
-        countdown = 30;
-      }
-    }
-
-    function parseStockItem(item, marketType) {
-      const close_p = Number(item.closePrice || 0);
-      const open_p = Number(item.openPrice || close_p);
-      const high_p = Number(item.highPrice || close_p);
-      const chg = Number(item.fluctuationsRatio || 0);
-      let deal_won = Number(item.tradePrice || 0);
-      let current_vol = Number(item.accumulatedTradingVolume || item.quant || 0);
-
-      if (deal_won > 0 && deal_won < 50000000) deal_won *= 1000000;
-      if (deal_won === 0 && current_vol > 0) deal_won = close_p * current_vol;
-
-      const passed_tags = [];
-      if (chg > 0) passed_tags.push("주가등락률");
-      if (deal_won >= 10000000000) passed_tags.push("거래대금");
-      if (close_p > open_p) passed_tags.push("양봉마감");
-      if (high_p > 0 && (high_p - close_p) / high_p <= 0.02) passed_tags.push("고가근접");
-      
-      const body = Math.abs(close_p - open_p) || 1;
-      const upper_wick = high_p - Math.max(close_p, open_p);
-      if (upper_wick <= body * 1.0) passed_tags.push("윗꼬리제한");
-      passed_tags.push("거래량돌파");
-
-      let deal_label = "100억미만";
-      if (deal_won > 50000000000) deal_label = "500억이상";
-      else if (deal_won > 40000000000) deal_label = "500억이하";
-      else if (deal_won > 30000000000) deal_label = "400억이하";
-      else if (deal_won > 20000000000) deal_label = "300억이하";
-      else if (deal_won >= 10000000000) deal_label = "200억이하";
-
-      return {
-        market: marketType,
-        ticker: item.itemCode,
-        name: item.stockName,
-        close_price: close_p,
-        open_price: open_p,
-        change_rate: chg,
-        trade_amount: deal_won,
-        deal_tag: deal_label,
-        volume: current_vol,
-        strength: 115.0,
-        per: 12.5,
-        pbr: 1.2,
-        roe: 10.0,
-        eps: 3500,
-        foreign_net_buy: 15000,
-        inst_net_buy: 12000,
-        retail_net_buy: -25000,
-        passed_tags: passed_tags.join(",")
-      };
-    }
-
-    function fetchMockIndices() {
-      return [
-        { market: "INDEX", name: "코스피", close_price: 2650.12, change_rate: 0.65, passed_tags: "INDEX,KOSPI" },
-        { market: "INDEX", name: "코스닥", close_price: 850.44, change_rate: 1.12, passed_tags: "INDEX,KOSDAQ" },
-        { market: "INDEX", name: "S&P 500", close_price: 5200.10, change_rate: 0.45, passed_tags: "INDEX,SP500" },
-        { market: "INDEX", name: "나스닥", close_price: 16400.20, change_rate: 0.85, passed_tags: "INDEX,NASDAQ" }
-      ];
-    }
-
-    function renderIndicesList() {
-      const marketGrid = document.getElementById("marketIndicesGrid");
-      const indicesItems = allData.filter(d => d.market === 'INDEX');
-      
-      marketGrid.innerHTML = indicesItems.map(item => {
-        const isUp = item.change_rate >= 0;
-        return `
-          <div class="index-card">
-            <span class="index-name">${item.name}</span>
-            <span class="index-val">${item.close_price.toLocaleString()}</span>
-            <span class="index-chg ${isUp ? 'rate-up' : 'rate-down'}">${isUp ? '+' : ''}${item.change_rate}%</span>
-          </div>
-        `;
-      }).join("");
-      document.getElementById("commodityIndicesGrid").innerHTML = "";
-    }
-
-    function renderStockList() {
-      const cardListEl = document.getElementById("cardList");
-      const filtered = allData.filter(item => {
-        if (item.market === 'INDEX') return false;
-        if (currentTab !== "ALL" && item.market !== currentTab) return false;
-        if (currentDeal !== "ALL") {
-          const tags = (item.passed_tags || "").split(",");
-          if (!tags.includes(currentDeal) && item.deal_tag !== currentDeal) return false;
-        }
-        if (isDoubleOnly && !(item.foreign_net_buy > 0 && item.inst_net_buy > 0)) return false;
-        return true;
-      });
-
-      document.getElementById("filteredCount").innerText = `선별 종목: ${filtered.length}개`;
-
-      if (filtered.length === 0) {
-        cardListEl.innerHTML = '<div class="loading-box">조건에 맞는 종목이 없습니다.</div>';
-        return;
-      }
-
-      cardListEl.innerHTML = filtered.map(item => {
-        const rateClass = item.change_rate > 0 ? "rate-up" : (item.change_rate < 0 ? "rate-down" : "");
-        const sign = item.change_rate > 0 ? "+" : "";
-        const dealInEok = Math.round(item.trade_amount / 100000000);
-
-        return `
-          <div class="card">
-            <div class="card-head">
-              <div class="stock-info">
-                <span class="market-tag ${item.market === 'KOSDAQ' ? 'kosdaq' : ''}">${item.market}</span>
-                <span class="stock-title">${item.name}</span>
-                ${item.foreign_net_buy > 0 && item.inst_net_buy > 0 ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
-              </div>
-              <div class="price-wrap">
-                <div class="current-price">${item.close_price.toLocaleString()}원</div>
-                <div class="rate-text ${rateClass}">${sign}${item.change_rate}%</div>
-              </div>
-            </div>
-
-            <div class="investor-row">
-              <span class="investor-chip chip-foreign">외인 ${formatStockVol(item.foreign_net_buy)}</span>
-              <span class="investor-chip chip-inst">기관 ${formatStockVol(item.inst_net_buy)}</span>
-              <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
-            </div>
-
-            <div class="conditions-grid">
-              ${renderBadges(item.passed_tags)}
-            </div>
-
-            <div class="metric-grid">
-              <div class="metric-item"><span class="metric-title">PER</span><span class="metric-val">${item.per}</span></div>
-              <div class="metric-item"><span class="metric-title">PBR</span><span class="metric-val val-highlight">${item.pbr}</span></div>
-              <div class="metric-item"><span class="metric-title">ROE</span><span class="metric-val val-warm">${item.roe}%</span></div>
-              <div class="metric-item"><span class="metric-title">EPS</span><span class="metric-val" style="font-size:0.68rem;">${item.eps.toLocaleString()}원</span></div>
-              <div class="metric-item"><span class="metric-title">체결강도</span><span class="metric-val" style="color: #34d399;">${item.strength}%</span></div>
-            </div>
-
-            <div class="card-footer">
-              <span class="open-price">시가 ${item.open_price.toLocaleString()}원</span>
-              <span class="trade-amount">거래대금 ${dealInEok.toLocaleString()}억</span>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    function setTab(tab, btn) {
-      currentTab = tab;
-      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      if (tab === "INDEX") {
-        document.getElementById("stockSection").style.display = "none";
-        document.getElementById("indicesSection").style.display = "block";
-      } else {
-        document.getElementById("indicesSection").style.display = "none";
-        document.getElementById("stockSection").style.display = "block";
-        renderStockList();
-      }
-    }
-
-    function setDeal(deal, btn) {
-      currentDeal = deal;
-      document.querySelectorAll(".filter-chip").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      renderStockList();
-    }
-
-    function toggleDoubleOnly() {
-      isDoubleOnly = !isDoubleOnly;
-      document.getElementById("doubleCheckbox").checked = isDoubleOnly;
-      renderStockList();
-    }
-
-    setInterval(() => {
-      if (!isMarketOpen()) {
-        document.getElementById("timerBadge").innerText = "⏳ 휴장일/장마감 (대기중)";
-        return;
-      }
-
-      countdown--;
-      if (countdown <= 0) {
-        fetchLiveMarketData();
-      } else {
-        document.getElementById("timerBadge").innerText = `⏳ ${countdown}초 후 갱신`;
-      }
-    }, 1000);
-
-    window.addEventListener("DOMContentLoaded", fetchLiveMarketData);
-  </script>
-</body>
-</html>
+        const { data, error } = await supabaseClient
+          .from("TRIPLE D PAPA")
+          .

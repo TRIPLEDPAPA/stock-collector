@@ -4,24 +4,26 @@ import requests
 from datetime import datetime
 from supabase import create_client, Client
 
-# Supabase 연동 정보
-SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
-SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
+# 환경변수에서만 안전하게 읽어옴 (하드코딩 키 완전 제거)
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://xnjnknhwezminpdmsrtm.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+if not SUPABASE_KEY:
+    print("[ERROR] SUPABASE_KEY가 설정되지 않았습니다. GitHub Secrets 또는 환경변수를 등록해주세요.")
+    exit(1)
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# 네이버 증권 접근용 PC 헤더
 PC_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Referer": "https://finance.naver.com/"
 }
 
-# 네이버 모바일 수급 API용 모바일 헤더
 MOBILE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
     "Referer": "https://m.stock.naver.com/"
 }
 
-# ETF, ETN, 스팩 등 파생 및 펀드 상품 제외 키워드
 EXCLUDE_KEYWORDS = [
     "KODEX", "TIGER", "ACE", "SOL", "RISE", "PLUS", "KOSEF", "ARIRANG", 
     "TIMEFOLIO", "HANARO", "WOORI", "UNICORN", "KBSTAR", "WON", "HERO", "TRUSTON",
@@ -30,7 +32,6 @@ EXCLUDE_KEYWORDS = [
 ]
 
 def is_pure_stock(ticker, name):
-    """보통주 단일 종목 필터링"""
     if not ticker.endswith('0'): return False
     if name.endswith(('우', '우B', '우C', '(우)')): return False
     clean = name.upper().replace(" ", "")
@@ -56,7 +57,6 @@ def parse_float_safe(val):
         return 0.0
 
 def get_recent_candles(ticker, count=25):
-    """네이버 fchart 일봉 캔들 조회"""
     url = f"https://fchart.stock.naver.com/sise.nhn?symbol={ticker}&timeframe=day&count={count}&requestType=0"
     try:
         res = requests.get(url, headers=PC_HEADERS, timeout=4)
@@ -76,7 +76,6 @@ def get_recent_candles(ticker, count=25):
         return []
 
 def get_investor_trend(ticker):
-    """네이버 모바일 증권 외인/기관 수급 잠정치 조회"""
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
         res = requests.get(url, headers=MOBILE_HEADERS, timeout=4)
@@ -93,45 +92,30 @@ def get_investor_trend(ticker):
     return 0, 0, 0
 
 def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles):
-    """9대 지표 판정 (거래대금 100억 기준 완화)"""
     passed = []
-
-    # 1. 주가 등락률 (+3% ~ +18%)
     if 3.0 <= chg <= 18.0: passed.append("주가등락률")
-    
-    # 2. 거래대금 (100억 이상)
     if deal_won >= 10_000_000_000: passed.append("거래대금")
-    
-    # 3. 양봉 마감 (종가 >= 시가)
     if close_p >= open_p and open_p > 0: passed.append("양봉마감")
-    
-    # 4. 고가 근접 (고가 대비 -5% 이내)
     if high_p > 0 and (close_p / high_p) >= 0.95: passed.append("고가근접")
 
-    # 5. 윗꼬리 비율 제한 (25% 이하)
     rng = high_p - low_p
     tail = high_p - close_p
     if rng > 0 and (tail / rng) <= 0.25: passed.append("윗꼬리제한")
 
-    # 과거 일봉 기반 기술적 지표 (이동평균선, 주가 위치 등)
     if len(candles) >= 19:
         closes = [c["close"] for c in candles[-19:]] + [close_p]
         highs = [c["high"] for c in candles[-19:]] + [high_p]
         lows = [c["low"] for c in candles[-19:]] + [low_p]
 
-        # 6. 20일 이동평균선 상회
         ma20 = sum(closes) / 20.0
         if close_p >= ma20: passed.append("20일이평선")
 
-        # 7. 단기 이평 정배열 (종가 >= 5일선 >= 20일선)
         ma5 = sum(closes[-5:]) / 5.0
         if close_p >= ma5 and ma5 >= ma20: passed.append("단기이평정배열")
 
-        # 8. 최근 20일 고저 범위 내 주가 위치 (상위 70% 이상)
         mx, mn = max(highs), min(lows)
         if mx > mn and ((close_p - mn) / (mx - mn)) >= 0.70: passed.append("주가위치")
 
-        # 9. 거래량 비율 (전일 대비 150% 이상)
         prev_vol = candles[-1]["volume"]
         if prev_vol > 0:
             passed.append("거래량비율")
@@ -139,7 +123,6 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles):
     return passed
 
 def fetch_market_stocks(market_type):
-    """네이버 금융 공식 시세 테이블(sise_quant.naver) 연동"""
     sosok = "0" if market_type == "KOSPI" else "1"
     url = f"https://finance.naver.com/sise/sise_quant.naver?sosok={sosok}"
     
@@ -152,8 +135,6 @@ def fetch_market_stocks(market_type):
         return []
 
     tr_list = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL)
-    print(f"[{market_type}] 원천 행(TR) 수신: {len(tr_list)}개")
-
     today_str = datetime.today().strftime("%Y-%m-%d")
     results = []
 
@@ -177,16 +158,11 @@ def fetch_market_stocks(market_type):
         if "nv01" in tr or "하락" in tr or "-" in td_numbers[2]:
             if chg > 0: chg = -chg
 
-        # 거래대금: 백만원 단위 -> 원 단위 환산
         deal_won = parse_int_safe(td_numbers[-1]) * 1_000_000
-
-        # [필터] 거래대금 100억 미만 제외
         if deal_won < 10_000_000_000:
             continue
 
-        # 과거 일봉 캔들 데이터 조회
         candles = get_recent_candles(ticker, count=25)
-        
         open_p = close_p
         high_p = close_p
         low_p = close_p

@@ -20,7 +20,7 @@ jobs:
 
       - name: 의존성 설치
         run: |
-          pip install requests supabase pandas
+          pip install requests supabase
 
       - name: 스크리너 실행
         env:

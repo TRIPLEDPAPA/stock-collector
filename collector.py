@@ -5,14 +5,16 @@ import requests
 from datetime import datetime
 from supabase import create_client, Client
 
-# Supabase 연동 (기본 키 내장으로 Secrets 누락 에러 원천 방지)
+# Supabase 연동 (환경변수 또는 기본키 적용)
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://xnjnknhwezminpdmsrtm.supabase.co")
 ENV_KEY = os.environ.get("SUPABASE_KEY")
 FALLBACK_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
 SUPABASE_KEY = ENV_KEY if (ENV_KEY and len(ENV_KEY.strip()) > 0) else FALLBACK_KEY
 
+print(f"-> Supabase 연동 초기화 (키 상태: {'Secrets 키 적용' if ENV_KEY else 'Fallback 기본키 적용'})")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# 해외 클라우드 IP 차단 없는 Daum 금융 헤더
 DAUM_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Referer": "https://finance.daum.net/"
@@ -23,7 +25,7 @@ NAVER_MOBILE_HEADERS = {
     "Referer": "https://m.stock.naver.com/"
 }
 
-# 파생상품, ETF, ETN, 스팩 제외 키워드
+# 제외 대상 (ETF, ETN, 스팩, 펀드 등)
 EXCLUDE_KEYWORDS = [
     "KODEX", "TIGER", "ACE", "SOL", "RISE", "PLUS", "KOSEF", "ARIRANG", 
     "TIMEFOLIO", "HANARO", "WOORI", "UNICORN", "KBSTAR", "WON", "HERO", "TRUSTON",
@@ -32,6 +34,7 @@ EXCLUDE_KEYWORDS = [
 ]
 
 def is_pure_stock(ticker, name):
+    """보통주 단일 종목 필터링"""
     if not ticker.endswith('0'): return False
     if name.endswith(('우', '우B', '우C', '(우)')): return False
     clean = name.upper().replace(" ", "")
@@ -57,7 +60,7 @@ def parse_float_safe(val):
         return 0.0
 
 def get_investor_trend(ticker):
-    """외인/기관 수급 조회 (모바일 API 사용, 오류 시 안전하게 0 반환)"""
+    """외인/기관 수급 조회"""
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
         res = requests.get(url, headers=NAVER_MOBILE_HEADERS, timeout=3)
@@ -94,7 +97,7 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won):
     tail = high_p - close_p
     if rng > 0 and (tail / rng) <= 0.25: passed.append("윗꼬리제한")
 
-    # 6. 기술적 이평 및 추세 지표
+    # 6. 추세 및 탄력성 지표
     if close_p > open_p and high_p > low_p:
         passed.append("20일이평선")
         passed.append("단기이평정배열")
@@ -104,7 +107,7 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won):
     return passed
 
 def fetch_market(market_type):
-    """해외 클라우드 IP에서도 차단 없는 Daum 금융 실시간 거래대금 상위 REST API"""
+    """해외 IP 차단 없는 Daum 금융 실시간 거래대금 상위 REST API"""
     url = f"https://finance.daum.net/api/trend/ranks?category=deal&market={market_type}&limit=60"
     try:
         res = requests.get(url, headers=DAUM_HEADERS, timeout=6)
@@ -127,7 +130,7 @@ def fetch_market(market_type):
             continue
 
         deal_won = parse_int_safe(item.get("accTradePrice", 0))
-        # 거래대금 100억 미만 필터링
+        # 거래대금 100억 미만 제외
         if deal_won < 10_000_000_000:
             continue
 
@@ -173,7 +176,7 @@ def fetch_market(market_type):
     return results
 
 def main():
-    print("=== 실시간 주식 스크리너 가동 (100억 기준) ===")
+    print("=== Daum API 기반 스크리너 가동 (100억 기준) ===")
     kospi = fetch_market("KOSPI")
     kosdaq = fetch_market("KOSDAQ")
     total = kospi + kosdaq
@@ -184,7 +187,7 @@ def main():
         return
 
     try:
-        print("-> Supabase 이전 데이터 정리...")
+        print("-> Supabase 기존 잔여 데이터 정리...")
         supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
 
         print("-> Supabase 최신 데이터 적재...")

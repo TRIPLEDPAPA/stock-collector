@@ -41,7 +41,7 @@
     }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
-    /* 상단 탭 */
+    /* 탭 */
     .market-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
     .tab-btn {
       background-color: #1e293b; color: var(--text-sub); border: none; padding: 10px 0;
@@ -125,7 +125,6 @@
 <body>
 
   <div class="container">
-    <!-- 헤더 -->
     <div class="header-bar">
       <div>
         <div class="brand-title">TRIPLE D PAPA</div>
@@ -148,14 +147,10 @@
     <!-- 지수 전용 화면 -->
     <div id="indicesSection" class="indices-section">
       <div class="index-group-title">🌐 글로벌 핵심 주가지수</div>
-      <div class="index-grid" id="marketIndicesGrid">
-        <div class="loading-box" style="grid-column: span 2; padding: 20px 0;">실시간 지수 불러오는 중...</div>
-      </div>
+      <div class="index-grid" id="marketIndicesGrid"></div>
 
       <div class="index-group-title">🛢️ 핵심 원자재 & 귀금속</div>
-      <div class="index-grid" id="commodityIndicesGrid">
-        <div class="loading-box" style="grid-column: span 2; padding: 20px 0;">실시간 원자재 불러오는 중...</div>
-      </div>
+      <div class="index-grid" id="commodityIndicesGrid"></div>
     </div>
 
     <!-- 종목 스크리너 화면 -->
@@ -198,80 +193,6 @@
     let currentDeal = "ALL";
     let isDoubleOnly = false;
 
-    // 야후 파이낸스 티커 심볼 매핑 (지수 및 원자재)
-    const INDICES_CONFIG = [
-      { id: "KOSPI", name: "코스피", symbol: "^KS11" },
-      { id: "KOSDAQ", name: "코스닥", symbol: "^KQ11" },
-      { id: "SP500", name: "S&P 500", symbol: "^GSPC" },
-      { id: "NASDAQ", name: "나스닥", symbol: "^IXIC" },
-      { id: "DJI", name: "다우존스", symbol: "^DJI" },
-      { id: "N225", name: "니케이 225", symbol: "^N225" },
-      { id: "SSEC", name: "상해종합지수", symbol: "000001.SS" }
-    ];
-
-    const COMMODITIES_CONFIG = [
-      { id: "GOLD", name: "국제금시세", symbol: "GC=F", unit: "$/oz" },
-      { id: "SILVER", name: "국제은시세", symbol: "SI=F", unit: "$/oz" },
-      { id: "BRENT", name: "브렌트유", symbol: "BZ=F", unit: "$/bbl" },
-      { id: "WTI", name: "WTI 유", symbol: "CL=F", unit: "$/bbl" },
-      { id: "COPPER", name: "구리", symbol: "HG=F", unit: "$/lb" }
-    ];
-
-    // 실시간 지수/원자재 API 호출 함수 (CORS 우회 프록시 활용)
-    async function fetchLiveIndices() {
-      const marketGrid = document.getElementById("marketIndicesGrid");
-      const commGrid = document.getElementById("commodityIndicesGrid");
-
-      async function getQuote(symbol) {
-        try {
-          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
-          const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-          const res = await fetch(proxyUrl);
-          const json = await res.json();
-          const data = JSON.parse(json.contents);
-          const meta = data.chart.result[0].meta;
-          const currentPrice = meta.regularMarketPrice;
-          const prevClose = meta.chartPreviousClose || meta.previousClose;
-          const diff = currentPrice - prevClose;
-          const rate = (diff / prevClose) * 100;
-
-          return {
-            price: currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-            rateStr: `${rate >= 0 ? '+' : ''}${rate.toFixed(2)}%`,
-            isUp: rate >= 0
-          };
-        } catch (e) {
-          return { price: "조회 불가", rateStr: "-", isUp: true };
-        }
-      }
-
-      // 주가지수 동시 로딩
-      const marketHTML = await Promise.all(INDICES_CONFIG.map(async item => {
-        const res = await getQuote(item.symbol);
-        return `
-          <div class="index-card">
-            <span class="index-name">${item.name}</span>
-            <span class="index-val">${res.price}</span>
-            <span class="index-chg ${res.isUp ? 'rate-up' : 'rate-down'}">${res.rateStr}</span>
-          </div>
-        `;
-      }));
-      marketGrid.innerHTML = marketHTML.join("");
-
-      // 원자재 동시 로딩
-      const commHTML = await Promise.all(COMMODITIES_CONFIG.map(async item => {
-        const res = await getQuote(item.symbol);
-        return `
-          <div class="index-card">
-            <span class="index-name">${item.name} <small style="font-size:0.65rem; color:#64748b;">(${item.unit})</small></span>
-            <span class="index-val">${res.price}</span>
-            <span class="index-chg ${res.isUp ? 'rate-up' : 'rate-down'}">${res.rateStr}</span>
-          </div>
-        `;
-      }));
-      commGrid.innerHTML = commHTML.join("");
-    }
-
     function formatStockVol(val) {
       if (!val || val === 0) return "0";
       const sign = val > 0 ? "+" : "";
@@ -288,7 +209,7 @@
 
     async function fetchData() {
       const cardListEl = document.getElementById("cardList");
-      cardListEl.innerHTML = '<div class="loading-box">최신 종목 데이터를 갱신 중...</div>';
+      cardListEl.innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
 
       try {
         const { data, error } = await supabaseClient
@@ -306,20 +227,54 @@
         document.getElementById("updatedTime").innerText = 
           `방금 갱신됨 (${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초)`;
 
-        const totalDouble = allData.filter(d => (d.foreign_net_buy > 0 && d.inst_net_buy > 0) || (d.passed_tags || "").includes("쌍끌이매수")).length;
+        const totalDouble = allData.filter(d => (d.market !== 'INDEX') && ((d.foreign_net_buy > 0 && d.inst_net_buy > 0) || (d.passed_tags || "").includes("쌍끌이매수"))).length;
         document.getElementById("doubleCount").innerText = `(${totalDouble}개)`;
 
         renderStockList();
-        fetchLiveIndices();
+        renderIndicesList();
       } catch (err) {
         cardListEl.innerHTML = `<div class="loading-box" style="color: #ef4444;">호출 실패: ${err.message}</div>`;
       }
+    }
+
+    // Supabase에서 지수 데이터 렌더링
+    function renderIndicesList() {
+      const marketGrid = document.getElementById("marketIndicesGrid");
+      const commGrid = document.getElementById("commodityIndicesGrid");
+
+      const indicesItems = allData.filter(d => d.market === 'INDEX');
+      
+      const marketCodes = ["KOSPI", "KOSDAQ", "SP500", "NASDAQ", "DJI", "N225", "SSEC"];
+      const commCodes = ["GOLD", "SILVER", "BRENT", "WTI", "COPPER"];
+
+      marketGrid.innerHTML = marketCodes.map(code => {
+        const item = indicesItems.find(d => (d.passed_tags || "").includes(code)) || { name: code, close_price: 0, change_rate: 0 };
+        return `
+          <div class="index-card">
+            <span class="index-name">${item.name}</span>
+            <span class="index-val">${item.close_price ? item.close_price.toLocaleString() : '확인 중'}</span>
+            <span class="index-chg rate-up">+0.00%</span>
+          </div>
+        `;
+      }).join("");
+
+      commGrid.innerHTML = commCodes.map(code => {
+        const item = indicesItems.find(d => (d.passed_tags || "").includes(code)) || { name: code, close_price: 0, change_rate: 0 };
+        return `
+          <div class="index-card">
+            <span class="index-name">${item.name}</span>
+            <span class="index-val">${item.close_price ? item.close_price.toLocaleString() : '확인 중'}</span>
+            <span class="index-chg rate-up">+0.00%</span>
+          </div>
+        `;
+      }).join("");
     }
 
     function renderStockList() {
       const cardListEl = document.getElementById("cardList");
 
       const filtered = allData.filter(item => {
+        if (item.market === 'INDEX') return false;
         if (currentTab !== "ALL" && item.market !== currentTab) return false;
         if (currentDeal !== "ALL") {
           const tags = (item.passed_tags || "").split(",");
@@ -410,7 +365,6 @@
       if (tab === "INDEX") {
         stockSection.style.display = "none";
         indicesSection.style.display = "block";
-        fetchLiveIndices();
       } else {
         indicesSection.style.display = "none";
         stockSection.style.display = "block";

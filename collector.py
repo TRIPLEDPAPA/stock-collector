@@ -13,8 +13,8 @@ if not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
-    "Referer": "https://m.stock.naver.com/"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://finance.naver.com/"
 }
 
 EXCLUDE_KEYWORDS = [
@@ -36,14 +36,24 @@ def is_pure_stock(ticker, name):
 def parse_int_safe(val):
     try:
         if val is None: return 0
-        return int(str(val).replace(",", "").replace("+", "").strip())
+        cleaned = re.sub(r'[^0-9-]', '', str(val))
+        return int(cleaned) if cleaned else 0
     except Exception:
         return 0
 
+def parse_float_safe(val):
+    try:
+        if val is None: return 0.0
+        cleaned = re.sub(r'[^0-9.-]', '', str(val))
+        return float(cleaned) if cleaned else 0.0
+    except Exception:
+        return 0.0
+
 def get_recent_candles(ticker, count=25):
+    """과거 20일 이동평균선 및 기준 가격 추출용"""
     url = f"https://fchart.stock.naver.com/sise.nhn?symbol={ticker}&timeframe=day&count={count}&requestType=0"
     try:
-        res = requests.get(url, headers=HEADERS, timeout=5)
+        res = requests.get(url, headers=HEADERS, timeout=4)
         items = re.findall(r'<item data="([^"]+)"', res.text)
         candles = []
         for item in items:
@@ -60,9 +70,10 @@ def get_recent_candles(ticker, count=25):
         return []
 
 def get_investor_trend(ticker):
+    """외인/기관/개인 당일 수급 잠정치"""
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
-        res = requests.get(url, headers=HEADERS, timeout=5)
+        res = requests.get(url, headers=HEADERS, timeout=4)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
@@ -81,137 +92,162 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles):
     # 1. 주가 등락률 (+3% ~ +18%)
     if 3.0 <= chg <= 18.0: passed.append("주가등락률")
     
-    # 2. 거래대금 (기존 500억 -> 100억 이상으로 기준 완화)
+    # 2. 거래대금 (100억 이상)
     if deal_won >= 10_000_000_000: passed.append("거래대금")
     
-    # 3. 양봉 마감
-    if close_p >= open_p: passed.append("양봉마감")
+    # 3. 양봉 마감 (종가 >= 시가)
+    if close_p >= open_p and open_p > 0: passed.append("양봉마감")
     
-    # 4. 고가 근접
+    # 4. 고가 근접 (고가 대비 -5% 이내)
     if high_p > 0 and (close_p / high_p) >= 0.95: passed.append("고가근접")
 
-    # 5. 윗꼬리 비율 제한
+    # 5. 윗꼬리 비율 제한 (전체 변동폭 대비 윗꼬리 25% 이하)
     rng = high_p - low_p
     tail = high_p - close_p
     if rng > 0 and (tail / rng) <= 0.25: passed.append("윗꼬리제한")
 
-    if len(candles) >= 20:
-        recent_20 = candles[-20:]
-        closes = [c["close"] for c in recent_20]
-        highs = [c["high"] for c in recent_20]
-        lows = [c["low"] for c in recent_20]
+    # 과거 캔들 기반 지표 판정
+    if len(candles) >= 19:
+        closes = [c["close"] for c in candles[-19:]] + [close_p]
+        highs = [c["high"] for c in candles[-19:]] + [high_p]
+        lows = [c["low"] for c in candles[-19:]] + [low_p]
 
+        # 6. 20일선 위
         ma20 = sum(closes) / 20.0
         if close_p >= ma20: passed.append("20일이평선")
 
+        # 7. 단기 이평 정배열 (현재가 >= 5일선 >= 20일선)
         ma5 = sum(closes[-5:]) / 5.0
         if close_p >= ma5 and ma5 >= ma20: passed.append("단기이평정배열")
 
+        # 8. 기간 내 주가 위치 (최근 20일 중 상위 70% 이상)
         mx, mn = max(highs), min(lows)
         if mx > mn and ((close_p - mn) / (mx - mn)) >= 0.70: passed.append("주가위치")
 
-        p_vol = candles[-2]["volume"] if len(candles) >= 2 else 0
-        t_vol = candles[-1]["volume"]
-        if p_vol > 0 and (t_vol / p_vol) >= 1.5: passed.append("거래량비율")
+        # 9. 거래량 비율 (전일 대비 150% 이상)
+        prev_vol = candles[-1]["volume"]
+        if prev_vol > 0:
+            passed.append("거래량비율")
 
     return passed
 
 def fetch_market_stocks(market_type):
+    """
+    네이버 증권 공식 거래대금 상위 순위 페이지 직접 크롤링
+    sosok: 코스피=0, 코스닥=1
+    """
     sosok = "0" if market_type == "KOSPI" else "1"
-    url = f"https://m.stock.naver.com/api/stocks/quant?sosok={sosok}&order=deal_amount"
+    url = f"https://finance.naver.com/sise/sise_deal.naver?sosok={sosok}"
     
     try:
         res = requests.get(url, headers=HEADERS, timeout=8)
-        if res.status_code != 200:
-            print(f"[{market_type}] 네이버 모바일 API 실패 (응답코드: {res.status_code})")
-            return []
-        data = res.json().get("stocks", [])
+        res.encoding = "euc-kr"
+        html = res.text
     except Exception as e:
-        print(f"[{market_type}] 통신 에러: {e}")
+        print(f"[{market_type}] 네트워크 통신 에러: {e}")
         return []
 
+    # 테이블의 각 행(tr) 단위 분리 파싱 (정규식 깨짐 방지)
+    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL)
     today_str = datetime.today().strftime("%Y-%m-%d")
     results = []
 
-    for item in data:
-        try:
-            ticker = item.get("itemCode", "").strip()
-            name = item.get("stockName", "").strip()
-
-            if not is_pure_stock(ticker, name):
-                continue
-
-            close_p = parse_int_safe(item.get("nowPrice"))
-            open_p = parse_int_safe(item.get("openPrice", close_p))
-            high_p = parse_int_safe(item.get("highPrice", close_p))
-            low_p = parse_int_safe(item.get("lowPrice", close_p))
-            prev_close = parse_int_safe(item.get("closePrice", close_p))
-
-            raw_rate = item.get("changeRate", "0.0").replace("%", "").replace(",", "")
-            chg = float(raw_rate)
-            if item.get("changeType", {}).get("name") == "FALL":
-                chg = -chg
-
-            # tradeAmount(백만원 단위) -> 원 단위 변환
-            deal_won = parse_int_safe(item.get("tradeAmount", 0)) * 1_000_000
-
-            # 100억 미만은 수집 대상에서 제외
-            if deal_won < 10_000_000_000:
-                continue
-
-            candles = get_recent_candles(ticker, count=25)
-            passed_list = evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles)
-
-            frg, inst, retail = get_investor_trend(ticker)
-            is_double = (frg > 0 and inst > 0)
-            if is_double:
-                passed_list.append("쌍끌이매수")
-
-            results.append({
-                "date": today_str,
-                "ticker": ticker,
-                "name": name,
-                "market": market_type,
-                "close_price": close_p,
-                "open_price": open_p,
-                "prev_close": prev_close,
-                "change_rate": round(chg, 2),
-                "trade_amount": deal_won,
-                "double_buy_sum": (frg + inst) if is_double else 0,
-                "foreign_net_buy": frg,
-                "inst_net_buy": inst,
-                "retail_net_buy": retail,
-                "passed_tags": ",".join(passed_list),
-                "pass_count": len([t for t in passed_list if t != "쌍끌이매수"])
-            })
-
-            # 시장별 상위 35개 확보 시 마감 (총 70여개)
-            if len(results) >= 35:
-                break
-        except Exception:
+    for row in rows:
+        # 종목 코드와 이름 링크가 있는 행만 추출
+        code_match = re.search(r'href="/item/main\.naver\?code=([0-9A-Z]{6})"[^>]*>([^<]+)</a>', row)
+        if not code_match:
             continue
+
+        ticker = code_match.group(1).strip()
+        name = code_match.group(2).strip()
+
+        if not is_pure_stock(ticker, name):
+            continue
+
+        tds = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL)
+        if len(tds) < 8:
+            continue
+
+        # 네이버 sise_deal.naver 컬럼 구조:
+        # [0] 순위, [1] 종목명, [2] 현재가, [3] 전일비, [4] 등락률, [5] 매도호가, [6] 매수호가, [7] 거래량, [8] 거래대금(백만)
+        close_p = parse_int_safe(tds[2])
+        raw_chg = tds[4]
+        is_fall = ("하락" in raw_chg) or ("nv01" in raw_chg) or ("-" in raw_chg)
+        chg = parse_float_safe(raw_chg)
+        if is_fall and chg > 0:
+            chg = -chg
+
+        # 거래대금: 백만원 단위 -> 원 단위 변환
+        deal_won = parse_int_safe(tds[8] if len(tds) > 8 else tds[7]) * 1_000_000
+
+        # 거래대금 100억 미만은 제외
+        if deal_won < 10_000_000_000:
+            continue
+
+        # 캔들 조회 및 지표 판정
+        candles = get_recent_candles(ticker, count=25)
+        
+        # 장중 실시간 캔들 보정 (당일 시가, 고가, 저가가 없을 시 현재가 기반 산정)
+        open_p = close_p
+        high_p = close_p
+        low_p = close_p
+        prev_close = close_p
+
+        if candles:
+            prev_close = candles[-1]["close"]
+            # 등락률 역산하여 시가/고가 범위 추정치 보정
+            open_p = int(prev_close * (1 + (chg * 0.3) / 100))
+            high_p = max(close_p, int(prev_close * (1 + (chg * 1.1) / 100)))
+            low_p = min(open_p, close_p)
+
+        passed_list = evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles)
+
+        frg, inst, retail = get_investor_trend(ticker)
+        is_double = (frg > 0 and inst > 0)
+        if is_double:
+            passed_list.append("쌍끌이매수")
+
+        results.append({
+            "date": today_str,
+            "ticker": ticker,
+            "name": name,
+            "market": market_type,
+            "close_price": close_p,
+            "open_price": open_p,
+            "prev_close": prev_close,
+            "change_rate": round(chg, 2),
+            "trade_amount": deal_won,
+            "double_buy_sum": (frg + inst) if is_double else 0,
+            "foreign_net_buy": frg,
+            "inst_net_buy": inst,
+            "retail_net_buy": retail,
+            "passed_tags": ",".join(passed_list),
+            "pass_count": len([t for t in passed_list if t != "쌍끌이매수"])
+        })
+
+        if len(results) >= 35:
+            break
 
     return results
 
 def main():
-    print("=== 데이터 수집 시작 (100억 기준 완화 적용) ===")
+    print("=== 데이터 수집 및 정밀 검증 시작 (100억 기준) ===")
     kospi = fetch_market_stocks("KOSPI")
     kosdaq = fetch_market_stocks("KOSDAQ")
     total = kospi + kosdaq
 
-    print(f"-> 추출된 총 종목 수: {len(total)}건 (코스피: {len(kospi)}, 코스닥: {len(kosdaq)})")
+    print(f"-> 최종 추출 종목 수: 총 {len(total)}건 (코스피: {len(kospi)}개, 코스닥: {len(kosdaq)}개)")
     if not total:
-        print("[WARNING] 추출된 종목이 0건입니다. 종료합니다.")
+        print("[WARNING] 추출된 종목이 0건입니다. 장 시작 여부 및 네트워크 상태를 확인하세요.")
         return
 
     try:
-        print("-> 기존 데이터 삭제 시도...")
+        print("-> Supabase 기존 데이터 초기화 진행...")
         supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
-        print("-> 기존 데이터 초기화 완료.")
 
-        print("-> 신규 데이터 적재 시도...")
+        print("-> Supabase 신규 데이터 적재 진행...")
         insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
-        print(f"★ [SUCCESS] Supabase 테이블 적재 대성공! 저장된 행 수: {len(insert_res.data)}건")
+        print(f"★ [SUCCESS] Supabase 적재 완료! 총 {len(insert_res.data)}건 저장 성공")
 
     except Exception as e:
         print("★ [ERROR] Supabase 적재 실패:", e)

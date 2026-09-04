@@ -1,8 +1,17 @@
+import os
 import re
 import requests
 from datetime import datetime
 from supabase import create_client, Client
 
+# 환경변수(GitHub Secrets)에서 안전하게 로드
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://xnjnknhwezminpdmsrtm.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+if not SUPABASE_KEY:
+    raise ValueError("SUPABASE_KEY 환경변수가 설정되지 않았습니다.")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Supabase 연결 설정
 SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
 SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"

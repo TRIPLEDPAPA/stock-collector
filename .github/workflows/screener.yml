@@ -20,7 +20,7 @@ jobs:
 
       - name: 의존성 라이브러리 설치
         run: |
-          pip install requests supabase pandas finance-datareader
+          pip install requests supabase
 
       - name: 스크리너 실행 (오픈소스 엔진)
         env:

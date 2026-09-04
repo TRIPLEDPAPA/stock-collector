@@ -9,13 +9,9 @@ SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
 SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-DAUM_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Referer": "https://finance.daum.net/"
-}
-
-NAVER_MOBILE_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+# 네이버 모바일 전용 헤더 (해외 클라우드에서도 200 OK)
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
     "Referer": "https://m.stock.naver.com/"
 }
 
@@ -54,7 +50,7 @@ def parse_float_safe(val):
 def get_investor_trend(ticker):
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
-        res = requests.get(url, headers=NAVER_MOBILE_HEADERS, timeout=3)
+        res = requests.get(url, headers=HEADERS, timeout=3)
         if res.status_code == 200:
             data = res.json()
             if isinstance(data, list) and len(data) > 0:
@@ -86,78 +82,93 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won):
 
     return passed
 
-def fetch_market(market_type):
-    # 해외 클라우드 서버에서도 403 차단 없이 동작하는 REST API (거래대금 상위 60개)
-    url = f"https://finance.daum.net/api/trend/ranks?category=deal&market={market_type}&limit=60"
-    try:
-        res = requests.get(url, headers=DAUM_HEADERS, timeout=6)
-        if res.status_code != 200:
-            print(f"[{market_type}] API 응답 상태: {res.status_code}")
-            return []
-        items = res.json().get("data", [])
-    except Exception as e:
-        print(f"[{market_type}] 호출 에러: {e}")
-        return []
-
-    today_str = datetime.today().strftime("%Y-%m-%d")
+def fetch_market_naver(market_type):
+    """네이버 모바일 실시간 거래대금 랭킹 JSON API"""
+    target = "KOSPI" if market_type == "KOSPI" else "KOSDAQ"
+    # 1페이지당 40건씩 2페이지(총 80개) 호출
     results = []
+    today_str = datetime.today().strftime("%Y-%m-%d")
 
-    for item in items:
-        name = item.get("name", "").strip()
-        ticker = item.get("symbolCode", "").replace("A", "").strip()
+    for page in [1, 2]:
+        url = f"https://m.stock.naver.com/api/stocks/marketValue/{target}?page={page}&pageSize=40"
+        try:
+            res = requests.get(url, headers=HEADERS, timeout=6)
+            if res.status_code != 200:
+                print(f"[{market_type}] P.{page} 응답 상태: {res.status_code}")
+                continue
 
-        if not is_pure_stock(ticker, name):
-            continue
+            data = res.json()
+            # 네이버 모바일 API 데이터 규격 추출
+            stocks = data.get("stocks", [])
+            if not stocks and isinstance(data, list):
+                stocks = data
 
-        deal_won = parse_int_safe(item.get("accTradePrice", 0))
-        # [핵심] 100억 원(10,000,000,000원) 이상 필터링
-        if deal_won < 10_000_000_000:
-            continue
+            for item in stocks:
+                name = item.get("stockName", item.get("itemname", "")).strip()
+                ticker = item.get("itemCode", item.get("stockCode", item.get("reutersCode", ""))).strip()
 
-        close_p = parse_int_safe(item.get("tradePrice", 0))
-        open_p = parse_int_safe(item.get("openingPrice", close_p))
-        high_p = parse_int_safe(item.get("highPrice", close_p))
-        low_p = parse_int_safe(item.get("lowPrice", close_p))
-        prev_close = parse_int_safe(item.get("prevClosingPrice", close_p))
+                if not is_pure_stock(ticker, name):
+                    continue
 
-        raw_chg = parse_float_safe(item.get("changeRate", 0.0)) * 100.0
-        if item.get("change") == "FALL":
-            raw_chg = -raw_chg
-        chg = round(raw_chg, 2)
+                # 거래대금 추출 (단위: 원)
+                deal_won = parse_int_safe(item.get("tradePrice", item.get("tradingValue", 0)))
+                # 거래대금 정보가 백만원 단위로 넘어오는 경우 보정
+                if 0 < deal_won < 50_000_000:
+                    deal_won *= 1_000_000
 
-        passed_list = evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won)
-        frg, inst, retail = get_investor_trend(ticker)
-        is_double = (frg > 0 and inst > 0)
-        if is_double:
-            passed_list.append("쌍끌이매수")
+                close_p = parse_int_safe(item.get("closePrice", item.get("nowVal", 0)))
+                open_p = parse_int_safe(item.get("openPrice", close_p))
+                high_p = parse_int_safe(item.get("highPrice", close_p))
+                low_p = parse_int_safe(item.get("lowPrice", close_p))
+                
+                # 거래대금이 0이면 현재가 x 누적거래량으로 산출
+                if deal_won == 0:
+                    vol = parse_int_safe(item.get("accumulatedTradingVolume", item.get("quant", 0)))
+                    deal_won = close_p * vol
 
-        results.append({
-            "date": today_str,
-            "ticker": ticker,
-            "name": name,
-            "market": market_type,
-            "close_price": close_p,
-            "open_price": open_p,
-            "prev_close": prev_close,
-            "change_rate": chg,
-            "trade_amount": deal_won,
-            "double_buy_sum": (frg + inst) if is_double else 0,
-            "foreign_net_buy": frg,
-            "inst_net_buy": inst,
-            "retail_net_buy": retail,
-            "passed_tags": ",".join(passed_list),
-            "pass_count": len([t for t in passed_list if t != "쌍끌이매수"])
-        })
+                # [필터] 거래대금 100억 미만 제외
+                if deal_won < 10_000_000_000:
+                    continue
 
-        if len(results) >= 40:
-            break
+                chg = parse_float_safe(item.get("fluctuationsRatio", item.get("chgRate", 0.0)))
+                prev_close = parse_int_safe(item.get("compareToPreviousClosePrice", close_p))
+
+                passed_list = evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won)
+                frg, inst, retail = get_investor_trend(ticker)
+                is_double = (frg > 0 and inst > 0)
+                if is_double:
+                    passed_list.append("쌍끌이매수")
+
+                results.append({
+                    "date": today_str,
+                    "ticker": ticker,
+                    "name": name,
+                    "market": market_type,
+                    "close_price": close_p,
+                    "open_price": open_p,
+                    "prev_close": prev_close,
+                    "change_rate": round(chg, 2),
+                    "trade_amount": deal_won,
+                    "double_buy_sum": (frg + inst) if is_double else 0,
+                    "foreign_net_buy": frg,
+                    "inst_net_buy": inst,
+                    "retail_net_buy": retail,
+                    "passed_tags": ",".join(passed_list),
+                    "pass_count": len([t for t in passed_list if t != "쌍끌이매수"])
+                })
+
+                if len(results) >= 35:
+                    break
+
+        except Exception as e:
+            print(f"[{market_type}] 파싱 오류: {e}")
 
     return results
 
 def main():
-    print("=== [100억 기준] 실시간 거래대금 수집기 가동 ===")
-    kospi = fetch_market("KOSPI")
-    kosdaq = fetch_market("KOSDAQ")
+    print("=== 네이버 모바일 직결 스크리너 (100억 기준) ===")
+    kospi = fetch_market_naver("KOSPI")
+    kosdaq = fetch_market_naver("KOSDAQ")
     total = kospi + kosdaq
 
     print(f"-> 수집 결과: 총 {len(total)}건 (코스피: {len(kospi)}개, 코스닥: {len(kosdaq)}개)")
@@ -166,12 +177,14 @@ def main():
         return
 
     try:
-        print("-> Supabase 초기화 및 저장 시작...")
+        print("-> Supabase 기존 데이터 정리 중...")
         supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_ALL").execute()
+
+        print("-> Supabase 신규 데이터 적재 중...")
         insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
-        print(f"★ [SUCCESS] 적재 성공! 총 {len(insert_res.data)}건이 Supabase에 저장되었습니다.")
+        print(f"★ [SUCCESS] 적재 성공! 총 {len(insert_res.data)}건 저장 완료")
     except Exception as e:
-        print("★ [ERROR] DB 저장 실패:", e)
+        print("★ [ERROR] Supabase 데이터 작업 실패:", e)
 
 if __name__ == "__main__":
     main()

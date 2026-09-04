@@ -23,8 +23,5 @@ jobs:
           pip install requests supabase
 
       - name: 스크리너 실행
-        env:
-          SUPABASE_URL: "https://xnjnknhwezminpdmsrtm.supabase.co"
-          SUPABASE_KEY: "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
         run: |
           python collector.py

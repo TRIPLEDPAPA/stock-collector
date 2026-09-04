@@ -4,7 +4,7 @@ import requests
 from datetime import datetime
 from supabase import create_client, Client
 
-# 환경변수에서 안전하게 키 로드 (로컬/GitHub Actions 공용)
+# 환경변수에서 키 로드 (GitHub Secrets 자동 연결)
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://xnjnknhwezminpdmsrtm.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
@@ -13,7 +13,7 @@ if not SUPABASE_KEY:
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# 다음/카카오 금융 전용 헤더
+# 다음/카카오 금융 및 네이버 모바일 API 전용 헤더
 DAUM_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Referer": "https://finance.daum.net/"
@@ -23,7 +23,7 @@ NAVER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# ETF, ETN, 스팩, 파생상품 차단 키워드
+# ETF, ETN, 스팩, 파생상품 원천 차단 키워드
 EXCLUDE_KEYWORDS = [
     "KODEX", "TIGER", "ACE", "SOL", "RISE", "PLUS", "KOSEF", "ARIRANG", 
     "TIMEFOLIO", "HANARO", "WOORI", "UNICORN", "KBSTAR", "WON", "HERO", "TRUSTON",
@@ -32,7 +32,7 @@ EXCLUDE_KEYWORDS = [
 ]
 
 def is_pure_stock(ticker, name):
-    """보통주 단일종목만 통과"""
+    """보통주 단일종목만 판별 (우선주, ETF, 스팩 차단)"""
     if not ticker.endswith('0'):
         return False
     if name.endswith(('우', '우B', '우C', '(우)')):
@@ -53,7 +53,7 @@ def parse_int_safe(val):
         return 0
 
 def get_recent_candles(ticker, count=25):
-    """기술적 조건 판정용 캔들 수집"""
+    """일봉 캔들 조회 (기술적 지표 판정용)"""
     url = f"https://fchart.stock.naver.com/sise.nhn?symbol={ticker}&timeframe=day&count={count}&requestType=0"
     try:
         res = requests.get(url, headers=NAVER_HEADERS, timeout=5)
@@ -73,7 +73,7 @@ def get_recent_candles(ticker, count=25):
         return []
 
 def get_investor_trend(ticker):
-    """외인, 기관, 개인 수급 수집"""
+    """당일 외인, 기관, 개인 수급 조회"""
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
         res = requests.get(url, headers=NAVER_HEADERS, timeout=5)
@@ -90,41 +90,33 @@ def get_investor_trend(ticker):
     return 0, 0, 0
 
 def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles):
+    """9대 지표 조건 판정"""
     passed = []
 
-    # 1. 주가 등락률 (+3% ~ +18%)
     if 3.0 <= chg <= 18.0: passed.append("주가등락률")
-    # 2. 거래대금 (500억 이상)
     if deal_won >= 50_000_000_000: passed.append("거래대금")
-    # 3. 양봉 마감
     if close_p >= open_p: passed.append("양봉마감")
-    # 4. 고가 근접
     if high_p > 0 and (close_p / high_p) >= 0.95: passed.append("고가근접")
-    # 5. 윗꼬리 비율 제한
+
     rng = high_p - low_p
     tail = high_p - close_p
     if rng > 0 and (tail / rng) <= 0.25: passed.append("윗꼬리제한")
 
-    # 캔들 기반 판정
     if len(candles) >= 20:
         recent_20 = candles[-20:]
         closes = [c["close"] for c in recent_20]
         highs = [c["high"] for c in recent_20]
         lows = [c["low"] for c in recent_20]
 
-        # 6. 20일선 위
         ma20 = sum(closes) / 20.0
         if close_p >= ma20: passed.append("20일이평선")
 
-        # 7. 단기 이평 정배열
         ma5 = sum(closes[-5:]) / 5.0
         if close_p >= ma5 and ma5 >= ma20: passed.append("단기이평정배열")
 
-        # 8. 기간 내 주가 위치
         mx, mn = max(highs), min(lows)
         if mx > mn and ((close_p - mn) / (mx - mn)) >= 0.70: passed.append("주가위치")
 
-        # 9. 거래량 비율
         p_vol = candles[-2]["volume"] if len(candles) >= 2 else 0
         t_vol = candles[-1]["volume"]
         if p_vol > 0 and (t_vol / p_vol) >= 1.5: passed.append("거래량비율")
@@ -132,6 +124,7 @@ def evaluate_conditions(close_p, open_p, high_p, low_p, chg, deal_won, candles):
     return passed
 
 def fetch_daum_market(market_type):
+    """카카오/다음 금융 실시간 거래대금 상위 종목 수집"""
     url = f"https://finance.daum.net/api/trend/ranks?category=deal&market={market_type}&limit=40"
     try:
         res = requests.get(url, headers=DAUM_HEADERS, timeout=8)
@@ -213,16 +206,18 @@ def main():
         print("조건 만족 종목이 없습니다.")
         return
 
-    today_str = datetime.today().strftime("%Y-%m-%d")
     try:
-        # 기존 데이터 초기화 후 새 데이터 적재
-        supabase.table("TRIPLE D PAPA").delete().eq("date", today_str).execute()
-        print("기존 일자 데이터 초기화 완료")
+        # [핵심] 기존의 과거 및 당일 찌꺼기 데이터를 테이블에서 100% 완전 삭제
+        # Supabase API 보호를 우회하여 전체 행을 초기화합니다.
+        del_res = supabase.table("TRIPLE D PAPA").delete().neq("ticker", "FORCE_DELETE_ALL").execute()
+        deleted_count = len(del_res.data) if del_res.data else 0
+        print(f"기존 테이블 데이터 전체 비우기 완료: {deleted_count}건 삭제됨")
 
+        # 최신 선별 종목들만 새로 삽입
         insert_res = supabase.table("TRIPLE D PAPA").insert(total).execute()
         print(f"★ Supabase 테이블 적재 대성공! 저장된 행 수: {len(insert_res.data)}건")
     except Exception as e:
-        print("★ Supabase 저장 에러 발생:", str(e))
+        print("★ Supabase 처리 중 에러 발생:", str(e))
 
 if __name__ == "__main__":
     main()

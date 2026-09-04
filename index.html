@@ -24,19 +24,23 @@
     .status-badge { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; background-color: rgba(56, 189, 248, 0.15); color: var(--accent); padding: 3px 8px; border-radius: 999px; font-weight: 600; }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
-    /* 탭 필터: 전체, 코스피, 코스닥, 쌍끌이 */
-    .market-tab-bar { display: flex; gap: 6px; margin-bottom: 14px; }
-    .tab-btn { flex: 1; padding: 8px 0; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-sub); font-size: 0.8rem; font-weight: 700; cursor: pointer; text-align: center; }
+    /* 코스피 / 코스닥 / 전체 선택 바 (3개만 유지) */
+    .market-tab-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+    .tab-btn { flex: 1; padding: 9px 0; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-sub); font-size: 0.85rem; font-weight: 700; cursor: pointer; text-align: center; }
     .tab-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
-    .tab-btn.tab-double.active { background: var(--orange); color: #fff; border-color: var(--orange); }
+
+    /* 쌍끌이 필터 토글 바 */
+    .filter-ctrl-bar { display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.7); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px; }
+    .toggle-label { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 600; color: #cbd5e1; cursor: pointer; user-select: none; }
+    .toggle-checkbox { width: 16px; height: 16px; accent-color: var(--orange); cursor: pointer; }
 
     .summary-bar { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-sub); margin-bottom: 12px; }
     .stock-list { display: flex; flex-direction: column; gap: 10px; }
     .stock-card { background-color: var(--card-bg); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); cursor: pointer; }
-    .stock-card.card-double-border { border: 1px solid rgba(249, 115, 22, 0.4); }
+    .stock-card.card-double-border { border: 1px solid rgba(249, 115, 22, 0.5); }
     
     .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
-    .stock-title-row { display: flex; align-items: center; gap: 6px; }
+    .stock-title-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .stock-name { font-size: 1.05rem; font-weight: 700; }
     .stock-market { font-size: 0.68rem; padding: 2px 5px; border-radius: 4px; font-weight: 600; }
     .market-KOSPI { background: #3b82f6; color: #fff; }
@@ -55,6 +59,7 @@
     .stock-price { font-size: 1.1rem; font-weight: 700; color: #fff; }
     .stock-rate { font-size: 0.82rem; font-weight: 700; color: var(--red); }
 
+    /* 9대 조건 통과 칩 */
     .chips-box { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 6px; border-top: 1px dashed var(--border); }
     .chip { font-size: 0.65rem; padding: 2px 5px; border-radius: 4px; font-weight: 500; }
     .chip-pass { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
@@ -78,12 +83,20 @@
     </div>
   </header>
 
-  <!-- 탭 메뉴: 전체 / 코스피 / 코스닥 / 쌍끌이 -->
+  <!-- 1. 코스피 / 코스닥 / 전체 선택 탭 (쌍끌이 탭 제거) -->
   <div class="market-tab-bar">
-    <button class="tab-btn active" onclick="setTabFilter('ALL')">전체</button>
-    <button class="tab-btn" onclick="setTabFilter('KOSPI')">코스피</button>
-    <button class="tab-btn" onclick="setTabFilter('KOSDAQ')">코스닥</button>
-    <button class="tab-btn tab-double" onclick="setTabFilter('DOUBLE')">🔥 쌍끌이</button>
+    <button class="tab-btn active" onclick="setMarketFilter('ALL')">전체</button>
+    <button class="tab-btn" onclick="setMarketFilter('KOSPI')">코스피</button>
+    <button class="tab-btn" onclick="setMarketFilter('KOSDAQ')">코스닥</button>
+  </div>
+
+  <!-- 2. 쌍끌이 필터링 토글 스위치 -->
+  <div class="filter-ctrl-bar">
+    <label class="toggle-label" for="double-buy-toggle">
+      <input type="checkbox" id="double-buy-toggle" class="toggle-checkbox" onchange="toggleDoubleBuyFilter()">
+      <span>🔥 외인+기관 쌍끌이만 필터링</span>
+    </label>
+    <span id="double-count-info" style="font-size: 0.72rem; color: #fb923c; font-weight: 600;"></span>
   </div>
 
   <div class="summary-bar">
@@ -102,7 +115,8 @@
 
     const ALL_CONDS = ["주가등락률", "거래대금", "거래량비율", "20일이평선", "주가위치", "양봉마감", "고가근접", "윗꼬리제한", "단기이평정배열"];
     let allStocks = [];
-    let currentTab = 'ALL';
+    let currentMarket = 'ALL';
+    let onlyDoubleBuy = false;
 
     function renderBadge(label, vol) {
       if (!vol || vol === 0) return `<span class="badge-inv inv-zero">${label} 0</span>`;
@@ -131,27 +145,39 @@
       } catch (e) {}
     }
 
-    function setTabFilter(tab) {
-      currentTab = tab;
+    function setMarketFilter(market) {
+      currentMarket = market;
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       event.target.classList.add('active');
+      renderList();
+    }
+
+    function toggleDoubleBuyFilter() {
+      const checkbox = document.getElementById("double-buy-toggle");
+      onlyDoubleBuy = checkbox.checked;
       renderList();
     }
 
     function renderList() {
       const container = document.getElementById("stock-container");
       
-      let filtered = allStocks;
-      if (currentTab === 'KOSPI') {
-        filtered = allStocks.filter(s => s.market === 'KOSPI');
-      } else if (currentTab === 'KOSDAQ') {
-        filtered = allStocks.filter(s => s.market === 'KOSDAQ');
-      } else if (currentTab === 'DOUBLE') {
-        // 외인 > 0 AND 기관 > 0 (쌍끌이 매수)
-        filtered = allStocks.filter(s => (s.foreign_net_buy > 0 && s.inst_net_buy > 0));
+      // 1. 코스피 / 코스닥 / 전체 기본 분류
+      let filtered = currentMarket === 'ALL' 
+        ? allStocks 
+        : allStocks.filter(s => s.market === currentMarket);
+
+      // 2. 현재 선택된 시장 내 쌍끌이 종목 수 집계
+      const doubleCount = filtered.filter(s => s.foreign_net_buy > 0 && s.inst_net_buy > 0).length;
+      document.getElementById("double-count-info").innerText = doubleCount > 0 ? `(${doubleCount}개 종목)` : `(0개)`;
+
+      // 3. 쌍끌이 토글 체크 시 필터 적용
+      if (onlyDoubleBuy) {
+        filtered = filtered.filter(s => s.foreign_net_buy > 0 && s.inst_net_buy > 0);
       }
 
-      document.getElementById("summary-count").innerText = `총 ${filtered.length}개 종목`;
+      document.getElementById("summary-count").innerText = onlyDoubleBuy 
+        ? `🔥 쌍끌이 필터 적용: ${filtered.length}개` 
+        : `총 ${filtered.length}개 종목`;
 
       if (filtered.length === 0) {
         container.innerHTML = '<div class="empty">해당 조건의 종목이 없습니다.</div>';

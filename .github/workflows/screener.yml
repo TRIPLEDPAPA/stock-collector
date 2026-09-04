@@ -1,0 +1,26 @@
+name: Daily Stock Screener
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 6 * * 1-5' # 평일 15:30 KST (UTC 06:30)
+
+jobs:
+  run-screener:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests supabase
+
+      - name: Run Screener
+        run: |
+          python collector.py

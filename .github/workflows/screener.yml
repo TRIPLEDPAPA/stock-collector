@@ -1,0 +1,30 @@
+name: Daily Stock Screener
+
+on:
+  schedule:
+    - cron: '30 6 * * 1-5' # 한국시간 기준 평일 15시 30분 장마감 후 자동 실행
+  workflow_dispatch:        # 필요할 때 Actions 탭에서 버튼으로 수동 실행 가능
+
+jobs:
+  run-screener:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: 의존성 라이브러리 설치
+        run: |
+          pip install requests supabase
+
+      - name: 스크리너 실행 (비밀키 안전 주입)
+        env:
+          SUPABASE_URL: "https://xnjnknhwezminpdmsrtm.supabase.co"
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python collector.py

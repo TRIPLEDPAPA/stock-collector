@@ -228,11 +228,12 @@
       cardListEl.innerHTML = '<div class="loading-box">데이터 로딩 중...</div>';
 
       try {
-        // 캐시를 완전 우회하기 위해 요청 시각 기반 타임스탬프 필터(gt 0) 추가
+        // [중요] 타임스탬프를 더해 Supabase 및 CDN이 캐시된 응답을 반환하지 못하도록 강제함
+        const cacheBuster = new Date().getTime();
         const { data, error } = await supabaseClient
           .from("TRIPLE D PAPA")
           .select("*")
-          .gt("close_price", -1)
+          .neq("ticker", "FORCE_CACHE_" + cacheBuster)
           .order("trade_amount", { ascending: false });
 
         if (error) throw error;

@@ -44,7 +44,6 @@
     }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
-    /* 4단 탭 (지수 / 전체 / 코스피 / 코스닥) */
     .market-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
     .tab-btn {
       background-color: #1e293b; color: var(--text-sub); border: none; padding: 10px 0;
@@ -89,20 +88,21 @@
     .cond-badge.pass { background-color: var(--tag-green-bg); color: var(--tag-green-text); border-color: var(--tag-green-border); }
     .cond-badge.fail { background-color: var(--tag-gray-bg); color: var(--tag-gray-text); border-color: transparent; }
 
+    /* 재무 및 체결강도 5열 수치 그리드 */
     .metric-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
       background-color: rgba(11, 17, 30, 0.65);
       border: 1px solid #1f2d42;
       border-radius: 8px;
-      padding: 8px;
+      padding: 8px 4px;
       margin-bottom: 10px;
       text-align: center;
     }
     .metric-item { display: flex; flex-direction: column; gap: 2px; }
-    .metric-title { font-size: 0.62rem; color: #94a3b8; font-weight: 600; }
-    .metric-val { font-size: 0.8rem; font-weight: 800; color: #f8fafc; }
+    .metric-title { font-size: 0.58rem; color: #94a3b8; font-weight: 600; }
+    .metric-val { font-size: 0.75rem; font-weight: 800; color: #f8fafc; }
     .val-highlight { color: #38bdf8; }
     .val-warm { color: #f59e0b; }
 
@@ -110,7 +110,6 @@
     .open-price { color: var(--text-sub); }
     .trade-amount { color: #f59e0b; font-weight: 700; }
 
-    /* 지수 대시보드 화면 */
     .indices-section { display: none; }
     .index-group-title {
       font-size: 0.9rem; font-weight: 700; color: #38bdf8;
@@ -142,7 +141,6 @@
       </div>
     </div>
 
-    <!-- 4단 탭 (지수 / 전체 / 코스피 / 코스닥) -->
     <div class="market-tabs">
       <button class="tab-btn" onclick="setTab('INDEX', this)">📈 지수</button>
       <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
@@ -150,7 +148,6 @@
       <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
     </div>
 
-    <!-- 지수 전용 화면 -->
     <div id="indicesSection" class="indices-section">
       <div class="index-group-title">🌐 글로벌 핵심 주가지수</div>
       <div class="index-grid" id="marketIndicesGrid"></div>
@@ -159,7 +156,6 @@
       <div class="index-grid" id="commodityIndicesGrid"></div>
     </div>
 
-    <!-- 종목 스크리너 화면 -->
     <div id="stockSection" class="stock-filter-area">
       <div class="deal-filters">
         <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
@@ -324,9 +320,10 @@
         const sign = rate > 0 ? "+" : "";
         const dealInEok = Math.round((item.trade_amount || 0) / 100000000);
 
-        const perVal = item.per ? `${Number(item.per).toFixed(1)}배` : "-";
+        const perVal = item.per ? `${Number(item.per).toFixed(1)}` : "-";
         const pbrVal = item.pbr ? `${Number(item.pbr).toFixed(2)}` : "-";
-        const volRatioText = item.vol_ratio ? `+${item.vol_ratio}%` : "-";
+        const roeVal = item.roe ? `${Number(item.roe).toFixed(1)}%` : "-";
+        const epsVal = item.eps ? `${Math.round(item.eps).toLocaleString()}원` : "-";
         const strengthText = item.strength ? `${item.strength}%` : "-";
 
         return `
@@ -353,6 +350,7 @@
               ${renderBadges(item.passed_tags)}
             </div>
 
+            <!-- PER, PBR, ROE, EPS, 체결강도 5가지 수치 바 -->
             <div class="metric-grid">
               <div class="metric-item">
                 <span class="metric-title">PER</span>
@@ -363,8 +361,12 @@
                 <span class="metric-val val-highlight">${pbrVal}</span>
               </div>
               <div class="metric-item">
-                <span class="metric-title">거래량증가</span>
-                <span class="metric-val val-warm">${volRatioText}</span>
+                <span class="metric-title">ROE</span>
+                <span class="metric-val val-warm">${roeVal}</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-title">EPS</span>
+                <span class="metric-val" style="font-size:0.68rem;">${epsVal}</span>
               </div>
               <div class="metric-item">
                 <span class="metric-title">체결강도</span>

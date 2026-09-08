@@ -1,10 +1,10 @@
 {
   "base_date": "2026-09-08",
-  "last_updated": "2026-09-08 11:30:40",
+  "last_updated": "2026-09-08 11:36:14",
   "status": "09시 분석 완료",
   "summary": {
     "total_count": 2,
-    "conditions": "시가 > 전일 종가, 5>10>20일 정배열, 거래량 50만주+, PER/PBR/ROE 충족"
+    "conditions": "시가 > 전일 종가, 5>10>20일선 정배열, 거래량 50만주+, PER/PBR/ROE 충족"
   },
   "items": [
     {

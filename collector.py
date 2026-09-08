@@ -18,7 +18,7 @@ def clean_float(val):
         return 0.0
     if isinstance(val, (int, float)):
         return float(val)
-    # 문자열에 쉼표가 포함되어 있으면 제거 후 변환
+    # 문자열에 포함된 쉼표 및 공백 제거 후 안전하게 변환
     cleaned = str(val).replace(",", "").strip()
     try:
         return float(cleaned)
@@ -37,12 +37,12 @@ def is_pure_stock(ticker, name):
     return True
 
 def parse_stock_item(item, market_type, today_str):
-    close_p = clean_float(item.get("closePrice", 0))
-    open_p = clean_float(item.get("openPrice", close_p))
-    high_p = clean_float(item.get("highPrice", close_p))
-    chg = clean_float(item.get("fluctuationsRatio", 0))
-    deal_won = clean_float(item.get("tradePrice", 0))
-    current_vol = clean_float(item.get("accumulatedTradingVolume", item.get("quant", 0)))
+    close_p = clean_float(item.get("closePrice") or item.get("nowPrice") or 0)
+    open_p = clean_float(item.get("openPrice") or close_p)
+    high_p = clean_float(item.get("highPrice") or close_p)
+    chg = clean_float(item.get("fluctuationsRatio") or item.get("changeRate") or 0)
+    deal_won = clean_float(item.get("tradePrice") or item.get("accumulatedTradingValue") or 0)
+    current_vol = clean_float(item.get("accumulatedTradingVolume") or item.get("quant") or 0)
 
     if 0 < deal_won < 50000000:
         deal_won *= 1000000
@@ -57,8 +57,8 @@ def parse_stock_item(item, market_type, today_str):
 
     return {
         "market": market_type,
-        "ticker": str(item.get("itemCode")),
-        "name": str(item.get("stockName")),
+        "ticker": str(item.get("itemCode") or item.get("code") or ""),
+        "name": str(item.get("stockName") or item.get("name") or ""),
         "close_price": close_p,
         "open_price": open_p,
         "change_rate": chg,
@@ -92,10 +92,19 @@ def collect_market_data():
                 url = f"https://m.stock.naver.com/api/stocks/marketValue/{market}?page={page}&pageSize=30"
                 res = requests.get(url, headers=headers, timeout=5)
                 data = res.json()
-                if "stocks" in data:
-                    for item in data["stocks"]:
-                        if is_pure_stock(item.get("itemCode", ""), item.get("stockName", "")):
-                            compiled_stocks.append(parse_stock_item(item, market, today_str))
+                
+                # API 구조에 따라 'stocks' 또는 리스트 형태로 올 때 모두 대응
+                stocks_list = []
+                if isinstance(data, list):
+                    stocks_list = data
+                elif isinstance(data, dict):
+                    stocks_list = data.get("stocks", data.get("result", []))
+
+                for item in stocks_list:
+                    ticker = str(item.get("itemCode") or item.get("code") or "")
+                    name = str(item.get("stockName") or item.get("name") or "")
+                    if is_pure_stock(ticker, name):
+                        compiled_stocks.append(parse_stock_item(item, market, today_str))
             except Exception as e:
                 print(f"{market} 페이지 {page} 수집 중 오류: {e}")
 

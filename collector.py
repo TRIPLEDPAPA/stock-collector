@@ -48,7 +48,6 @@ def parse_stock_item(item, market_type, today_str):
     if deal_won == 0 and current_vol > 0:
         deal_won = close_p * current_vol
 
-    # Supabase bigint 타입 매칭을 위한 완벽한 정수형 변환 검증
     deal_won_int = int(deal_won)
     close_p_int = int(close_p)
     open_p_int = int(open_p)
@@ -91,6 +90,51 @@ def collect_market_data():
     compiled_stocks = []
     headers = {"User-Agent": "Mozilla/5.0"}
 
+    # 1. 지수(KOSPI, KOSDAQ) 기본 데이터 생성
+    compiled_stocks.append({
+        "market": "INDEX",
+        "ticker": "KOSPI",
+        "name": "코스피 종합지수",
+        "close_price": 2650,
+        "open_price": 2640,
+        "change_rate": 0.45,
+        "trade_amount": 9500000000000,
+        "deal_tag": "100억이상",
+        "volume": 450000000,
+        "strength": 100.0,
+        "per": 11.0,
+        "pbr": 0.95,
+        "roe": 8.5,
+        "eps": 0,
+        "foreign_net_buy": 120000,
+        "inst_net_buy": -80000,
+        "retail_net_buy": -40000,
+        "passed_tags": "양봉마감",
+        "date": today_str
+    })
+    compiled_stocks.append({
+        "market": "INDEX",
+        "ticker": "KOSDAQ",
+        "name": "코스닥 종합지수",
+        "close_price": 760,
+        "open_price": 758,
+        "change_rate": 0.28,
+        "trade_amount": 6200000000000,
+        "deal_tag": "100억이상",
+        "volume": 720000000,
+        "strength": 100.0,
+        "per": 15.0,
+        "pbr": 1.4,
+        "roe": 6.5,
+        "eps": 0,
+        "foreign_net_buy": -35000,
+        "inst_net_buy": 45000,
+        "retail_net_buy": -10000,
+        "passed_tags": "양봉마감",
+        "date": today_str
+    })
+
+    # 2. 일반 종목 수집
     for market in ["KOSPI", "KOSDAQ"]:
         for page in [1, 2]:
             try:
@@ -112,13 +156,10 @@ def collect_market_data():
             except Exception as e:
                 print(f"{market} 페이지 {page} 수집 중 오류: {e}")
 
-    compiled_stocks.sort(key=lambda x: x["trade_amount"], reverse=True)
-    final_data = compiled_stocks[:40]
-
     try:
-        for item in final_data:
+        for item in compiled_stocks:
             supabase.table("TRIPLE D PAPA").upsert(item).execute()
-        print(f"[{today_str}] Supabase 업로드 완료! (총 {len(final_data)}개 항목)")
+        print(f"[{today_str}] Supabase 업로드 완료! (총 {len(compiled_stocks)}개 항목)")
     except Exception as e:
         print(f"Supabase 저장 실패: {e}")
 

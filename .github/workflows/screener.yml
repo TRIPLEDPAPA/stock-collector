@@ -1,4 +1,4 @@
-name: TRIPLE D PAPA Auto Collector
+name: TRIPLE D PAPA Auto Screener
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch: # GitHub Actions 탭에서 수동으로 즉시 실행 가능
 
 jobs:
-  run-collector:
+  run-screener:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

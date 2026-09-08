@@ -98,7 +98,7 @@ def get_indices_data(today_str):
 def collect_market_data():
     now_utc = datetime.datetime.utcnow()
     korea_time = now_utc + datetime.timedelta(hours=9)
-    today_str = korean_time.strftime("%Y-%m-%d")
+    today_str = korea_time.strftime("%Y-%m-%d")
     
     print(f"[{today_str}] 데이터 수집 시작...")
     compiled_stocks = []

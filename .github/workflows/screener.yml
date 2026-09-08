@@ -2,11 +2,11 @@ name: Stock Screener & Collector
 
 on:
   schedule:
-    # 1. 한국시간(KST) 매일 00:00 (UTC 15:00) -> 자정 기준일자 리셋
+    # 1. 한국시간 매일 00:00 (UTC 15:00) -> 자정 기준일자 리셋
     - cron: '0 15 * * *'
-    # 2. 한국시간(KST) 평일 09:00 (UTC 00:00) -> 09시 전체 스크리너 재실행
+    # 2. 한국시간 평일 09:00 (UTC 00:00) -> 09시 전체 수집 및 분석 재실행
     - cron: '0 0 * * 1-5'
-  workflow_dispatch: # GitHub 웹 Actions 탭에서 수동 실행 지원
+  workflow_dispatch: # Actions 탭에서 수동 즉시 실행
 
 permissions:
   contents: write
@@ -38,6 +38,27 @@ jobs:
             pip install pytz requests pandas websockets
           fi
 
+      - name: Ensure Initial data.json Exists
+        run: |
+          # data.json이 없어서 생기는 웹 404 에러를 원천 차단
+          if [ ! -f data.json ]; then
+            echo "Creating initial data.json fallback..."
+            CURRENT_DATE=$(TZ='Asia/Seoul' date +'%Y-%m-%d')
+            CURRENT_TIME=$(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')
+            cat <<EOF > data.json
+          {
+            "base_date": "$CURRENT_DATE",
+            "last_updated": "$CURRENT_TIME",
+            "status": "초기 데이터 대기 중",
+            "summary": {
+              "total_count": 0,
+              "conditions": "시가 > 전일 종가, 5>10>20일 정배열"
+            },
+            "items": []
+          }
+          EOF
+          fi
+
       - name: Run Screener (KST Time Based)
         env:
           TZ: 'Asia/Seoul'
@@ -51,7 +72,7 @@ jobs:
           echo "현재 한국 시간(시): ${KST_HOUR}시"
           echo "=========================================="
 
-          # 00시~01시면 reset 모드, 그 외(09시/수동)면 full 모드 실행
+          # 00시~01시면 reset 모드, 그 외(09시 또는 수동실행)면 full 모드
           if [ "$KST_HOUR" -eq "00" ] || [ "$KST_HOUR" -eq "01" ]; then
             EXEC_MODE="reset"
           else
@@ -65,7 +86,7 @@ jobs:
           elif [ -f main.py ]; then
             python main.py --mode $EXEC_MODE
           else
-            echo "실행할 파이썬 파일을 찾지 못했습니다."
+            echo "파이썬 실행 스크립트가 없습니다. 기본 data.json으로 계속 진행합니다."
           fi
 
       - name: Commit and Push Updated Data

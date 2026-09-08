@@ -19,10 +19,10 @@ def safe_float(val, default=0.0):
     if isinstance(val, (int, float)):
         return float(val)
     try:
-        # 쉼표(,) 및 공백을 완벽히 제거 후 실수형태로 변환
+        # 문자열 내의 쉼표, 공백 등을 완전히 제거 후 실수로 변환
         cleaned = str(val).replace(",", "").strip()
         return float(cleaned)
-    except (ValueError, TypeError):
+    except Exception:
         return default
 
 def is_pure_stock(ticker, name):
@@ -37,7 +37,6 @@ def is_pure_stock(ticker, name):
     return True
 
 def parse_stock_item(item, market_type, today_str):
-    # 모든 주요 필드에 safe_float을 적용하여 쉼표 문자열 에러 원천 차단
     close_p = safe_float(item.get("closePrice") or item.get("nowPrice") or item.get("price"))
     open_p = safe_float(item.get("openPrice"), close_p)
     high_p = safe_float(item.get("highPrice"), close_p)

@@ -54,13 +54,13 @@
     }
     .tab-btn.active { background-color: #38bdf8; color: #0f172a; font-weight: 800; }
 
-    /* 지수 하위 서브 탭 */
+    /* 지수 서브 카테고리 칩 */
     .index-sub-tabs { display: none; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
     .index-sub-tabs::-webkit-scrollbar { display: none; }
     .sub-chip { background-color: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 7px 13px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; flex-shrink: 0; }
     .sub-chip.active { background-color: #0284c7; border-color: #38bdf8; color: #ffffff; }
 
-    /* 거래대금 필터 */
+    /* 일반 대금 필터 */
     .deal-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
     .deal-filters::-webkit-scrollbar { display: none; }
     .filter-chip { background-color: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 8px 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; flex-shrink: 0; }
@@ -83,7 +83,7 @@
     .card-list { display: flex; flex-direction: column; gap: 10px; }
     .card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 13px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); }
     
-    /* 지수/원자재 카드 */
+    /* 지수/원자재 전용 카드 스타일 */
     .idx-row-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
     .idx-title-wrap { display: flex; align-items: center; gap: 6px; }
     .idx-cat-badge { font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; background-color: #334155; color: #cbd5e1; }
@@ -95,7 +95,7 @@
 
     .idx-sub-data { display: flex; justify-content: space-between; align-items: center; font-size: 0.77rem; color: var(--text-sub); padding-top: 6px; border-top: 1px dashed rgba(255, 255, 255, 0.08); margin-top: 6px; }
 
-    /* 일반 주식 카드 */
+    /* 일반 주식 전용 카드 스타일 */
     .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
     .stock-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .market-tag { background-color: #2563eb; color: #ffffff; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
@@ -139,7 +139,7 @@
       </div>
     </div>
 
-    <!-- 시장 탭 -->
+    <!-- 메인 시장 탭 -->
     <div class="market-tabs">
       <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
       <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -147,7 +147,7 @@
       <button class="tab-btn" onclick="setTab('INDEX', this)">지수</button>
     </div>
 
-    <!-- 지수 서브 탭 (환율 제외, 전체/지수/원자재/금속/에너지) -->
+    <!-- 지수 서브 카테고리 칩 -->
     <div class="index-sub-tabs" id="indexSubTabs">
       <button class="sub-chip active" onclick="setIndexCategory('ALL', this)">전체</button>
       <button class="sub-chip" onclick="setIndexCategory('지수', this)">지수</button>
@@ -156,7 +156,7 @@
       <button class="sub-chip" onclick="setIndexCategory('에너지', this)">에너지</button>
     </div>
 
-    <!-- 대금 필터 -->
+    <!-- 거래대금 필터 -->
     <div class="deal-filters" id="dealFilters">
       <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
       <button class="filter-chip" onclick="setDeal('100억이상', this)">100억 이상</button>
@@ -189,26 +189,28 @@
     const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 지수 및 원자재 메타 정보 (환율 삭제됨)
+    // 원자재(금, 은, 구리, WTI유, 브렌트유)는 달러($), 환율은 원, 지수는 포인트(p)
     const INDEX_META = {
-      "코스피": { cat: "지수", group: "한국", unit: "p" },
-      "코스닥": { cat: "지수", group: "한국", unit: "p" },
-      "S&P 500": { cat: "지수", group: "미국", unit: "p" },
-      "다우존스": { cat: "지수", group: "미국", unit: "p" },
-      "나스닥 100": { cat: "지수", group: "미국", unit: "p" },
-      "코스피200 선물 (F)": { cat: "지수", group: "지수선물", unit: "p" },
-      "Dow Jones (선물)": { cat: "지수", group: "지수선물", unit: "p" },
-      "S&P 500 (선물)": { cat: "지수", group: "지수선물", unit: "p" },
-      "나스닥 100 (선물)": { cat: "지수", group: "지수선물", unit: "p" },
-      "금": { cat: "금속", group: "금속", unit: "원" },
-      "은": { cat: "금속", group: "금속", unit: "원" },
-      "구리": { cat: "금속", group: "금속", unit: "원" },
-      "WTI유": { cat: "에너지", group: "에너지", unit: "원" },
-      "브렌트유": { cat: "에너지", group: "에너지", unit: "원" }
+      "원/달러 환율": { cat: "환율", group: "환율", unit: "원", isDollar: false },
+      "코스피": { cat: "지수", group: "한국", unit: "p", isDollar: false },
+      "코스닥": { cat: "지수", group: "한국", unit: "p", isDollar: false },
+      "S&P 500": { cat: "지수", group: "미국", unit: "p", isDollar: false },
+      "다우존스": { cat: "지수", group: "미국", unit: "p", isDollar: false },
+      "나스닥 100": { cat: "지수", group: "미국", unit: "p", isDollar: false },
+      "코스피200 선물 (F)": { cat: "지수", group: "지수선물", unit: "p", isDollar: false },
+      "Dow Jones (선물)": { cat: "지수", group: "지수선물", unit: "p", isDollar: false },
+      "S&P 500 (선물)": { cat: "지수", group: "지수선물", unit: "p", isDollar: false },
+      "나스닥 100 (선물)": { cat: "지수", group: "지수선물", unit: "p", isDollar: false },
+      "금": { cat: "금속", group: "금속", unit: "$", isDollar: true },
+      "은": { cat: "금속", group: "금속", unit: "$", isDollar: true },
+      "구리": { cat: "금속", group: "금속", unit: "$", isDollar: true },
+      "WTI유": { cat: "에너지", group: "에너지", unit: "$", isDollar: true },
+      "브렌트유": { cat: "에너지", group: "에너지", unit: "$", isDollar: true }
     };
 
-    // 정렬 순서 (환율 삭제)
+    // 정렬 우선순위
     const DISPLAY_ORDER = [
+      "원/달러 환율",
       "코스피", "코스닥", 
       "S&P 500", "다우존스", "나스닥 100", 
       "코스피200 선물 (F)", "Dow Jones (선물)", "S&P 500 (선물)", "나스닥 100 (선물)", 
@@ -239,6 +241,15 @@
       const sign = val > 0 ? "+" : "";
       if (Math.abs(val) >= 10000) return `${sign}${(val / 10000).toFixed(1)}만`;
       return `${sign}${val.toLocaleString()}`;
+    }
+
+    function formatPrice(val, isDollar) {
+      if (val === null || val === undefined) return "0";
+      const num = Number(val);
+      if (isDollar) {
+        return num.toLocaleString(undefined, { minimumFractionDigits: num % 1 !== 0 ? 2 : 0, maximumFractionDigits: 2 });
+      }
+      return num.toLocaleString();
     }
 
     function renderBadges(tagString) {
@@ -274,13 +285,11 @@
         const latestDate = rawData[0].date;
         document.getElementById("baseDate").innerText = `기준일자: ${latestDate}`;
 
+        // 고유 식별키 기준 최신 레코드 1개씩 유지
         const seenKeys = new Set();
         const uniqueData = [];
 
         for (const item of rawData) {
-          // 환율 항목은 완벽 배제
-          if (item.name === "원/달러 환율" || item.ticker === "IDX_USDKRW") continue;
-
           const uniqueKey = `${item.market}_${item.name || item.ticker}`;
           if (!seenKeys.has(uniqueKey)) {
             seenKeys.add(uniqueKey);
@@ -326,21 +335,26 @@
       }
     }
 
-    // 지수 및 원자재/에너지 렌더링
+    // 1. 지수/원자재 탭 렌더링
     function renderIndexTab(container) {
       let filtered = allData.filter(d => d.market === "INDEX");
 
-      // 서브 카테고리 필터
-      if (currentIndexCat !== "ALL") {
-        filtered = filtered.filter(d => {
-          const meta = INDEX_META[d.name];
-          if (!meta) return false;
-          if (currentIndexCat === "원자재") {
-            return meta.cat === "원자재" || meta.cat === "금속" || meta.cat === "에너지";
-          }
-          return meta.cat === currentIndexCat;
-        });
-      }
+      // 서브 카테고리 필터링: 원/달러 환율은 currentIndexCat === 'ALL' (전체탭)에만 노출
+      filtered = filtered.filter(d => {
+        const meta = INDEX_META[d.name];
+        if (!meta) return false;
+
+        // 원/달러 환율은 '전체'탭에서만 표기
+        if (d.name === "원/달러 환율") {
+          return currentIndexCat === "ALL";
+        }
+
+        if (currentIndexCat === "ALL") return true;
+        if (currentIndexCat === "원자재") {
+          return meta.cat === "원자재" || meta.cat === "금속" || meta.cat === "에너지";
+        }
+        return meta.cat === currentIndexCat;
+      });
 
       filtered.sort((a, b) => {
         const idxA = DISPLAY_ORDER.indexOf(a.name);
@@ -359,26 +373,33 @@
       let lastGroup = "";
 
       filtered.forEach(item => {
-        const meta = INDEX_META[item.name] || { cat: "기타", group: "기타", unit: "p" };
+        const meta = INDEX_META[item.name] || { cat: "기타", group: "기타", unit: "p", isDollar: false };
         const unit = meta.unit;
+        const isDollar = meta.isDollar;
 
         if (currentIndexCat === "ALL" && meta.group !== lastGroup) {
           lastGroup = meta.group;
           html += `<div class="index-group-title">▪ ${lastGroup}</div>`;
         }
 
-        const curr = item.close_price || 0;
-        const rate = item.change_rate || 0;
+        const curr = Number(item.close_price) || 0;
+        const rate = Number(item.change_rate) || 0;
         
-        let prev = item.open_price || 0;
+        let prev = Number(item.open_price) || 0;
         if (!prev && rate !== -100 && curr > 0) {
-          prev = Math.round(curr / (1 + rate / 100));
+          prev = curr / (1 + rate / 100);
+          if (!isDollar) prev = Math.round(prev);
         }
         const diff = curr - prev;
 
         const rateClass = rate > 0 ? "rate-up" : (rate < 0 ? "rate-down" : "");
         const sign = rate > 0 ? "+" : "";
         const diffSign = diff > 0 ? "+" : "";
+
+        // 달러 표기 접두어/접미어 처리
+        const currDisplay = isDollar ? `$${formatPrice(curr, true)}` : `${formatPrice(curr, false)}${unit}`;
+        const diffDisplay = isDollar ? `${diffSign}$${formatPrice(Math.abs(diff), true)}` : `${diffSign}${formatPrice(diff, false)}${unit}`;
+        const prevDisplay = isDollar ? `$${formatPrice(prev, true)}` : `${formatPrice(prev, false)}${unit}`;
 
         html += `
           <div class="card">
@@ -388,16 +409,16 @@
                 <span class="idx-name">${item.name}</span>
               </div>
               <div class="idx-price-wrap">
-                <div class="idx-curr-price">${curr.toLocaleString()}${unit}</div>
+                <div class="idx-curr-price">${currDisplay}</div>
                 <div class="idx-change-wrap ${rateClass}">
-                  <span>${diffSign}${diff.toLocaleString()}${unit}</span>
+                  <span>${diffDisplay}</span>
                   <span>(${sign}${rate}%)</span>
                 </div>
               </div>
             </div>
             <div class="idx-sub-data">
-              <span>전일종가: ${prev.toLocaleString()}${unit}</span>
-              <span>${item.trade_amount > 0 ? `거래대금: ${Math.round(item.trade_amount/100000000).toLocaleString()}억` : '원화 기준 환산'}</span>
+              <span>전일종가: ${prevDisplay}</span>
+              <span>${item.trade_amount > 0 ? `거래대금: ${Math.round(item.trade_amount/100000000).toLocaleString()}억` : (isDollar ? '국제 시세 (USD)' : '실시간 지수')}</span>
             </div>
           </div>
         `;
@@ -406,7 +427,7 @@
       container.innerHTML = html;
     }
 
-    // 일반 주식 렌더링
+    // 2. 일반 주식 탭 렌더링
     function renderStockTab(container) {
       const filtered = allData.filter(item => {
         if (item.market === "INDEX") return false;

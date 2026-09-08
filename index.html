@@ -46,8 +46,8 @@
     }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
-    /* 탭 메뉴 */
-    .market-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+    /* 시장 탭: 전체, 코스피, 코스닥, 지수 4개 */
+    .market-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
     .tab-btn {
       background-color: #1e293b; color: var(--text-sub); border: none; padding: 10px 0;
       border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; text-align: center;
@@ -74,6 +74,7 @@
     .stock-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .market-tag { background-color: #2563eb; color: #ffffff; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
     .market-tag.kosdaq { background-color: #0d9488; }
+    .market-tag.index { background-color: #8b5cf6; }
     .stock-title { font-size: 1.05rem; font-weight: 800; color: #ffffff; }
     .double-badge { background-color: #78350f; color: #f59e0b; border: 1px solid #b45309; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
     .score-badge { background-color: #1e293b; color: #38bdf8; border: 1px solid #2d3748; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
@@ -116,13 +117,16 @@
       </div>
     </div>
 
+    <!-- 4분할 시장 탭 -->
     <div class="market-tabs">
       <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
       <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
       <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
+      <button class="tab-btn" onclick="setTab('INDEX', this)">지수</button>
     </div>
 
-    <div class="deal-filters">
+    <!-- 대금 필터 -->
+    <div class="deal-filters" id="dealFilters">
       <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
       <button class="filter-chip" onclick="setDeal('100억이상', this)">100억 이상</button>
       <button class="filter-chip" onclick="setDeal('200억이상', this)">200억 이상</button>
@@ -130,7 +134,8 @@
       <button class="filter-chip" onclick="setDeal('400억이상', this)">400억 이상</button>
     </div>
 
-    <div class="double-box" onclick="toggleDoubleOnly()">
+    <!-- 쌍끌이 토글 바 -->
+    <div class="double-box" id="doubleBox" onclick="toggleDoubleOnly()">
       <div class="double-box-label">
         <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 16px; height: 16px; pointer-events: none;" />
         <span>🔥 외인+기관 쌍끌이만 보기</span>
@@ -200,7 +205,7 @@
         allData = data || [];
 
         if (allData.length > 0) {
-          const stockItem = allData.find(d => d.market !== 'INDEX' && d.date);
+          const stockItem = allData.find(d => d.date);
           if (stockItem) {
             document.getElementById("baseDate").innerText = `기준일자: ${stockItem.date}`;
           }
@@ -226,8 +231,24 @@
     function renderStockList() {
       const cardListEl = document.getElementById("cardList");
 
+      // 지수 탭일 때는 대금 필터와 쌍끌이 토글 바 숨김
+      const dealFiltersEl = document.getElementById("dealFilters");
+      const doubleBoxEl = document.getElementById("doubleBox");
+      if (currentTab === "INDEX") {
+        dealFiltersEl.style.display = "none";
+        doubleBoxEl.style.display = "none";
+      } else {
+        dealFiltersEl.style.display = "flex";
+        doubleBoxEl.style.display = "flex";
+      }
+
       const filtered = allData.filter(item => {
-        if (item.market === 'INDEX') return false;
+        if (currentTab === "INDEX") {
+          return item.market === "INDEX";
+        }
+        
+        // 지수 탭이 아닐 경우 일반 종목만 필터링
+        if (item.market === "INDEX") return false;
         if (currentTab !== "ALL" && item.market !== currentTab) return false;
         
         if (currentDeal !== "ALL") {
@@ -245,15 +266,17 @@
         return true;
       });
 
-      document.getElementById("filteredCount").innerText = `선별 종목: ${filtered.length}개`;
+      const labelText = currentTab === "INDEX" ? "지수 종목" : "선별 종목";
+      document.getElementById("filteredCount").innerText = `${labelText}: ${filtered.length}개`;
 
       if (filtered.length === 0) {
-        cardListEl.innerHTML = '<div class="loading-box">조건에 맞는 종목이 없습니다.</div>';
+        cardListEl.innerHTML = '<div class="loading-box">표시할 데이터가 없습니다.</div>';
         return;
       }
 
       cardListEl.innerHTML = filtered.map(item => {
-        const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
+        const isIndex = item.market === "INDEX";
+        const isDouble = !isIndex && ((item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이"));
         const rate = item.change_rate || 0;
         const rateClass = rate > 0 ? "rate-up" : (rate < 0 ? "rate-down" : "");
         const sign = rate > 0 ? "+" : "";
@@ -266,10 +289,10 @@
           <div class="card">
             <div class="card-head">
               <div class="stock-info">
-                <span class="market-tag ${item.market === 'KOSDAQ' ? 'kosdaq' : ''}">${item.market}</span>
+                <span class="market-tag ${isIndex ? 'index' : (item.market === 'KOSDAQ' ? 'kosdaq' : '')}">${item.market}</span>
                 <span class="stock-title">${item.name}</span>
                 ${isDouble ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
-                <span class="score-badge">${passCount}/9</span>
+                ${!isIndex ? `<span class="score-badge">${passCount}/9</span>` : ''}
               </div>
               <div class="price-wrap">
                 <div class="current-price">${(item.close_price || 0).toLocaleString()}원</div>
@@ -283,9 +306,11 @@
               <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
             </div>
 
+            ${!isIndex ? `
             <div class="conditions-grid">
               ${renderBadges(item.passed_tags)}
             </div>
+            ` : ''}
 
             <div class="card-footer">
               <span class="open-price">시가 ${(item.open_price || 0).toLocaleString()}원</span>

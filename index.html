@@ -30,7 +30,6 @@
     }
     .container { max-width: 540px; margin: 0 auto; }
 
-    /* 헤더 */
     .header-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
     .brand-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; }
     .brand-date { font-size: 0.75rem; color: var(--text-sub); margin-top: 2px; }
@@ -46,7 +45,6 @@
     }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
-    /* 시장 탭: 전체, 코스피, 코스닥, 지수 4개 */
     .market-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
     .tab-btn {
       background-color: #1e293b; color: var(--text-sub); border: none; padding: 10px 0;
@@ -54,20 +52,17 @@
     }
     .tab-btn.active { background-color: #38bdf8; color: #0f172a; font-weight: 800; }
 
-    /* 대금 필터 */
     .deal-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
     .deal-filters::-webkit-scrollbar { display: none; }
     .filter-chip { background-color: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 8px 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; flex-shrink: 0; }
     .filter-chip.active { background-color: #d97706; border-color: #f59e0b; color: #ffffff; }
 
-    /* 쌍끌이 토글 바 */
     .double-box { background-color: #141e30; border: 1px solid #253347; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; cursor: pointer; user-select: none; }
     .double-box-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; }
     .double-box-count { color: #f59e0b; font-size: 0.85rem; font-weight: 700; }
     
     .summary-bar { display: flex; justify-content: space-between; font-size: 0.78rem; color: #94a3b8; margin-bottom: 10px; padding: 0 2px; }
 
-    /* 카드 리스트 */
     .card-list { display: flex; flex-direction: column; gap: 12px; }
     .card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); }
     .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
@@ -117,7 +112,6 @@
       </div>
     </div>
 
-    <!-- 4분할 시장 탭 -->
     <div class="market-tabs">
       <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
       <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -125,7 +119,6 @@
       <button class="tab-btn" onclick="setTab('INDEX', this)">지수</button>
     </div>
 
-    <!-- 대금 필터 -->
     <div class="deal-filters" id="dealFilters">
       <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
       <button class="filter-chip" onclick="setDeal('100억이상', this)">100억 이상</button>
@@ -134,7 +127,6 @@
       <button class="filter-chip" onclick="setDeal('400억이상', this)">400억 이상</button>
     </div>
 
-    <!-- 쌍끌이 토글 바 -->
     <div class="double-box" id="doubleBox" onclick="toggleDoubleOnly()">
       <div class="double-box-label">
         <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 16px; height: 16px; pointer-events: none;" />
@@ -230,10 +222,9 @@
 
     function renderStockList() {
       const cardListEl = document.getElementById("cardList");
-
-      // 지수 탭일 때는 대금 필터와 쌍끌이 토글 바 숨김
       const dealFiltersEl = document.getElementById("dealFilters");
       const doubleBoxEl = document.getElementById("doubleBox");
+
       if (currentTab === "INDEX") {
         dealFiltersEl.style.display = "none";
         doubleBoxEl.style.display = "none";
@@ -243,11 +234,7 @@
       }
 
       const filtered = allData.filter(item => {
-        if (currentTab === "INDEX") {
-          return item.market === "INDEX";
-        }
-        
-        // 지수 탭이 아닐 경우 일반 종목만 필터링
+        if (currentTab === "INDEX") return item.market === "INDEX";
         if (item.market === "INDEX") return false;
         if (currentTab !== "ALL" && item.market !== currentTab) return false;
         
@@ -267,7 +254,7 @@
       });
 
       const labelText = currentTab === "INDEX" ? "지수 종목" : "선별 종목";
-      document.getElementById("filteredCount").innerText = `${labelText}: ${filtered.length}개`;
+      document.getElementById("filteredCount").innerText = `${labelText}:${filtered.length}개`;
 
       if (filtered.length === 0) {
         cardListEl.innerHTML = '<div class="loading-box">표시할 데이터가 없습니다.</div>';
@@ -290,8 +277,7 @@
             <div class="card-head">
               <div class="stock-info">
                 <span class="market-tag ${isIndex ? 'index' : (item.market === 'KOSDAQ' ? 'kosdaq' : '')}">${item.market}</span>
-                <span class="stock-title">${item.name}</span>
-                ${isDouble ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
+                <span class="stock-title">${item.name}</span>${isDouble ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
                 ${!isIndex ? `<span class="score-badge">${passCount}/9</span>` : ''}
               </div>
               <div class="price-wrap">

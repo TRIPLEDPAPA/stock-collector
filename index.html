@@ -101,6 +101,7 @@
       margin-right: 4px;
     }
 
+    /* 메인 4분할 탭 */
     .market-tabs {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -124,6 +125,7 @@
       color: #0f172a;
     }
 
+    /* 지수 서브 탭 */
     .index-sub-tabs {
       display: none;
       gap: 6px;
@@ -134,8 +136,7 @@
       scrollbar-width: none;
     }
 
-    .sub-chip,
-    .filter-chip {
+    .sub-chip {
       background: #182234;
       border: 1px solid #283548;
       color: var(--text-sub);
@@ -153,7 +154,8 @@
       color: #fff;
     }
 
-    .deal-filters {
+    /* 점수제 등급 필터 칩 */
+    .score-filters {
       display: flex;
       gap: 6px;
       overflow-x: auto;
@@ -162,13 +164,27 @@
       padding-bottom: 4px;
       scrollbar-width: none;
     }
+    .score-filters::-webkit-scrollbar { display: none; }
 
-    .filter-chip.active {
+    .score-filter-chip {
+      background: #182234;
+      border: 1px solid #283548;
+      color: var(--text-sub);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .score-filter-chip.active {
       background: #d97706;
       border-color: #f59e0b;
       color: #fff;
     }
 
+    /* 상단 토글 필터 (쌍끌이 / 강한 매수세) */
     .filter-toggle-group {
       display: flex;
       gap: 8px;
@@ -588,6 +604,7 @@
     </div>
   </div>
 
+  <!-- 메인 시장 탭 -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -595,6 +612,7 @@
     <button class="tab-btn" onclick="setTab('INDEX', this)">지수</button>
   </div>
 
+  <!-- 지수 서브 탭 -->
   <div class="index-sub-tabs" id="indexSubTabs">
     <button class="sub-chip active" onclick="setIndexCategory('ALL', this)">전체</button>
     <button class="sub-chip" onclick="setIndexCategory('지수', this)">지수</button>
@@ -603,16 +621,17 @@
     <button class="sub-chip" onclick="setIndexCategory('에너지', this)">에너지</button>
   </div>
 
-  <div class="deal-filters" id="dealFilters">
-    <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
-    <button class="filter-chip" onclick="setDeal('100억이상', this)">100억 이상</button>
-    <button class="filter-chip" onclick="setDeal('200억이상', this)">200억 이상</button>
-    <button class="filter-chip" onclick="setDeal('300억이상', this)">300억 이상</button>
-    <button class="filter-chip" onclick="setDeal('400억이상', this)">400억 이상</button>
+  <!-- 점수제 등급 필터 (거래대금 필터 대체) -->
+  <div class="score-filters" id="scoreFilters">
+    <button class="score-filter-chip active" onclick="setScoreGrade('ALL', this)">전체 점수</button>
+    <button class="score-filter-chip" onclick="setScoreGrade('S', this)">🔴 S 최강 모멘텀 (90~100)</button>
+    <button class="score-filter-chip" onclick="setScoreGrade('A_PLUS', this)">🔴 A+ 강력한 상승 후보 (80~89)</button>
+    <button class="score-filter-chip" onclick="setScoreGrade('A', this)">🟠 A 상승 추세 (70~79)</button>
+    <button class="score-filter-chip" onclick="setScoreGrade('B_PLUS', this)">🟡 B+ 관심 (60~69)</button>
   </div>
 
+  <!-- 상단 토글 필터 (쌍끌이 / 강한 매수세) -->
   <div class="filter-toggle-group" id="filterToggleGroup">
-
     <div class="toggle-card" id="doubleToggle" onclick="toggleDoubleOnly()">
       <div class="toggle-card-label">
         <input type="checkbox" id="doubleCheckbox"
@@ -630,7 +649,6 @@
       </div>
       <div class="toggle-card-count" id="strongBuyCount">(0)</div>
     </div>
-
   </div>
 
   <div class="summary-bar">
@@ -645,21 +663,19 @@
 </div>
 
 <script>
-
   // ==========================================================
-  // Supabase
+  // Supabase 클라이언트 설정
   // ==========================================================
   const SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co";
-  const SUPABASE_KEY = "YOUR_SUPABASE_PUBLISHABLE_KEY";
+  const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
 
   const supabaseClient = supabase.createClient(
     SUPABASE_URL,
     SUPABASE_KEY
   );
 
-
   // ==========================================================
-  // 20개 지표
+  // 20개 지표 목록
   // ==========================================================
   const INDICATORS = [
     ["score_01", "주가등락률", 7],
@@ -685,41 +701,16 @@
   ];
 
   const SIX_CATEGORIES = [
-    {
-      key: "가격",
-      tags: ["주가등락률", "양봉마감", "고가근접", "윗꼬리제한"]
-    },
-    {
-      key: "거래",
-      tags: ["거래대금", "거래량비율"]
-    },
-    {
-      key: "수급",
-      tags: ["외국인순매수", "기관순매수", "순매수비율"]
-    },
-    {
-      key: "추세",
-      tags: [
-        "5일이평선",
-        "20일이평선",
-        "60일이평선",
-        "120일이평선",
-        "단기이평정배열"
-      ]
-    },
-    {
-      key: "돌파",
-      tags: ["52주신고가", "전고점돌파", "주가위치"]
-    },
-    {
-      key: "과열/모멘텀",
-      tags: ["RSI(14)", "이격도", "MACD"]
-    }
+    { key: "가격", tags: ["주가등락률", "양봉마감", "고가근접", "윗꼬리제한"] },
+    { key: "거래", tags: ["거래대금", "거래량비율"] },
+    { key: "수급", tags: ["외국인순매수", "기관순매수", "순매수비율"] },
+    { key: "추세", tags: ["5일이평선", "20일이평선", "60일이평선", "120일이평선", "단기이평정배열"] },
+    { key: "돌파", tags: ["52주신고가", "전고점돌파", "주가위치"] },
+    { key: "과열/모멘텀", tags: ["RSI(14)", "이격도", "MACD"] }
   ];
 
-
   // ==========================================================
-  // 지수
+  // 지수 메타데이터
   // ==========================================================
   const INDEX_META = {
     "원/달러 환율": { cat:"환율", group:"환율", unit:"원", isDollar:false },
@@ -740,35 +731,18 @@
   };
 
   const DISPLAY_ORDER = [
-    "원/달러 환율",
-    "코스피",
-    "코스닥",
-    "S&P 500",
-    "다우존스",
-    "나스닥 100",
-    "코스피200 선물 (F)",
-    "Dow Jones (선물)",
-    "S&P 500 (선물)",
-    "나스닥 100 (선물)",
-    "금",
-    "은",
-    "구리",
-    "WTI유",
-    "브렌트유"
+    "원/달러 환율", "코스피", "코스닥", "S&P 500", "다우존스", "나스닥 100",
+    "코스피200 선물 (F)", "Dow Jones (선물)", "S&P 500 (선물)", "나스닥 100 (선물)",
+    "금", "은", "구리", "WTI유", "브렌트유"
   ];
-
 
   let allData = [];
   let currentTab = "ALL";
   let currentIndexCat = "ALL";
-  let currentDeal = "ALL";
+  let currentScoreGrade = "ALL"; // 점수 등급 필터 상태
   let isDoubleOnly = false;
   let isStrongBuyOnly = false;
 
-
-  // ==========================================================
-  // 포맷
-  // ==========================================================
   function num(v) {
     return Number(v || 0);
   }
@@ -777,24 +751,20 @@
     const value = num(v);
     if (!value) return "0";
     const sign = value > 0 ? "+" : "";
-
     if (Math.abs(value) >= 10000) {
       return `${sign}${(value / 10000).toFixed(1)}만`;
     }
-
     return `${sign}${value.toLocaleString()}`;
   }
 
   function formatPrice(v, dollar=false) {
     const value = num(v);
-
     if (dollar) {
       return value.toLocaleString(undefined, {
         minimumFractionDigits: value % 1 !== 0 ? 2 : 0,
         maximumFractionDigits: 2
       });
     }
-
     return Math.round(value).toLocaleString();
   }
 
@@ -807,60 +777,33 @@
       .replaceAll("'", "&#039;");
   }
 
-
-  // ==========================================================
-  // 등급
-  // ==========================================================
   function gradeClass(score) {
     if (score >= 80) return "score-high";
     return "";
   }
 
-
-  // ==========================================================
-  // 6대 영역
-  // ==========================================================
   function renderCategoryBadges(item) {
-
-    const passedList =
-      String(item.passed_tags || "")
-        .split(",")
-        .filter(Boolean);
-
+    const passedList = String(item.passed_tags || "").split(",").filter(Boolean);
     return SIX_CATEGORIES.map(cat => {
-
-      const isPass = cat.tags.some(
-        tag => passedList.includes(tag)
-      );
-
+      const isPass = cat.tags.some(tag => passedList.includes(tag));
       return `
         <span class="cond-badge ${isPass ? "pass" : "fail"}">
           ${isPass ? "✓ " : ""}${cat.key}
         </span>
       `;
-
     }).join("");
   }
 
-
-  // ==========================================================
-  // 20개 상세 점수
-  // ==========================================================
   function renderScoreDetails(item) {
-
     const scoreHtml = INDICATORS.map(([key, label, max]) => {
-
       const value = num(item[key]);
-
       return `
         <div class="score-item">
           <span class="score-item-name">${label}</span>
           <span class="score-item-value">${value}/${max}</span>
         </div>
       `;
-
     }).join("");
-
 
     const techHtml = [
       ["거래량비율", `${num(item.volume_ratio).toFixed(1)}%`],
@@ -882,146 +825,86 @@
       </div>
     `).join("");
 
-
     return `
-      <div class="score-grid">
-        ${scoreHtml}
-      </div>
-
-      <div class="tech-grid">
-        ${techHtml}
-      </div>
+      <div class="score-grid">${scoreHtml}</div>
+      <div class="tech-grid">${techHtml}</div>
     `;
   }
 
-
   function toggleDetail(ticker) {
-
-    const panel = document.getElementById(
-      `detail-${ticker}`
-    );
-
+    const panel = document.getElementById(`detail-${ticker}`);
     if (!panel) return;
-
     panel.classList.toggle("open");
-
-    const button = document.querySelector(
-      `[data-detail-btn="${ticker}"]`
-    );
-
+    const button = document.querySelector(`[data-detail-btn="${ticker}"]`);
     if (button) {
-      button.innerText =
-        panel.classList.contains("open")
-          ? "▲ 20개 지표 접기"
-          : "▼ 20개 지표 상세보기";
+      button.innerText = panel.classList.contains("open") ? "▲ 20개 지표 접기" : "▼ 20개 지표 상세보기";
     }
   }
 
-
-  // ==========================================================
-  // Supabase
-  // ==========================================================
   async function fetchFromSupabase() {
-
     const list = document.getElementById("cardList");
-
-    list.innerHTML =
-      `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
+    list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
 
     try {
-
-      const { data, error } =
-        await supabaseClient
-          .from("TRIPLE D PAPA")
-          .select("*")
-          .order("date", { ascending:false })
-          .order("created_at", { ascending:false })
-          .order("trade_amount", { ascending:false });
+      const { data, error } = await supabaseClient
+        .from("TRIPLE D PAPA")
+        .select("*")
+        .order("date", { ascending:false })
+        .order("created_at", { ascending:false })
+        .order("trade_amount", { ascending:false });
 
       if (error) throw error;
-
       const rawData = data || [];
 
       if (!rawData.length) {
-
         allData = [];
-
-        document.getElementById("baseDate").innerText =
-          "기준일자: 데이터 없음";
-
+        document.getElementById("baseDate").innerText = "기준일자: 데이터 없음";
         renderList();
         return;
       }
 
-
       const latestDate = rawData[0].date;
+      document.getElementById("baseDate").innerText = `기준일자: ${latestDate}`;
 
-      document.getElementById("baseDate").innerText =
-        `기준일자: ${latestDate}`;
-
-
-      // 날짜 + market + ticker 기준 중복 제거
       const seen = new Set();
       const unique = [];
 
       for (const item of rawData) {
-
-        const key =
-          `${item.date}_${item.market}_${item.ticker}`;
-
+        const key = `${item.date}_${item.market}_${item.ticker}`;
         if (seen.has(key)) continue;
-
         seen.add(key);
         unique.push(item);
       }
 
       allData = unique;
-
-
       const now = new Date();
-
       document.getElementById("updatedTime").innerText =
         `방금 갱신됨 (${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초)`;
-
 
       updateCounts();
       renderList();
 
     } catch (err) {
-
       console.error(err);
-
       list.innerHTML = `
         <div class="error-box">
           데이터 로드 실패<br>
-          Supabase 테이블/권한/컬럼을 확인하세요.<br>
           <small>${escapeHtml(err.message || err)}</small>
         </div>
       `;
     }
   }
 
-
-  // ==========================================================
-  // 카운트
-  // ==========================================================
   function isDouble(item) {
-
     if (item.market === "INDEX") return false;
-
     return Boolean(
       item.double_buy ||
-      (
-        num(item.foreign_net_buy) > 0 &&
-        num(item.inst_net_buy) > 0
-      ) ||
+      (num(item.foreign_net_buy) > 0 && num(item.inst_net_buy) > 0) ||
       String(item.passed_tags || "").includes("쌍끌이")
     );
   }
 
-
   function isStrongBuy(item) {
-
     return (
       item.market !== "INDEX" &&
       num(item.total_score) >= 80 &&
@@ -1029,590 +912,264 @@
     );
   }
 
-
   function updateCounts() {
+    const stocks = allData.filter(x => x.market !== "INDEX");
+    const doubleCount = stocks.filter(isDouble).length;
+    const strongCount = stocks.filter(isStrongBuy).length;
 
-    const stocks =
-      allData.filter(x => x.market !== "INDEX");
+    document.getElementById("doubleCount").innerText = `(${doubleCount})`;
+    document.getElementById("strongBuyCount").innerText = `(${strongCount})`;
 
-    const doubleCount =
-      stocks.filter(isDouble).length;
+    document.getElementById("doubleCheckbox").checked = isDoubleOnly;
+    document.getElementById("strongBuyCheckbox").checked = isStrongBuyOnly;
 
-    const strongCount =
-      stocks.filter(isStrongBuy).length;
-
-    document.getElementById("doubleCount").innerText =
-      `(${doubleCount})`;
-
-    document.getElementById("strongBuyCount").innerText =
-      `(${strongCount})`;
-
-    document.getElementById("doubleCheckbox").checked =
-      isDoubleOnly;
-
-    document.getElementById("strongBuyCheckbox").checked =
-      isStrongBuyOnly;
-
-    document.getElementById("doubleToggle")
-      .classList.toggle("on", isDoubleOnly);
-
-    document.getElementById("strongToggle")
-      .classList.toggle("on", isStrongBuyOnly);
+    document.getElementById("doubleToggle").classList.toggle("on", isDoubleOnly);
+    document.getElementById("strongToggle").classList.toggle("on", isStrongBuyOnly);
   }
 
-
-  // ==========================================================
-  // 렌더
-  // ==========================================================
   function renderList() {
-
-    const cardListEl =
-      document.getElementById("cardList");
-
-    const dealFiltersEl =
-      document.getElementById("dealFilters");
-
-    const toggleGroupEl =
-      document.getElementById("filterToggleGroup");
-
-    const indexSubTabsEl =
-      document.getElementById("indexSubTabs");
-
+    const cardListEl = document.getElementById("cardList");
+    const scoreFiltersEl = document.getElementById("scoreFilters");
+    const toggleGroupEl = document.getElementById("filterToggleGroup");
+    const indexSubTabsEl = document.getElementById("indexSubTabs");
 
     if (currentTab === "INDEX") {
-
       indexSubTabsEl.style.display = "flex";
-      dealFiltersEl.style.display = "none";
+      scoreFiltersEl.style.display = "none";
       toggleGroupEl.style.display = "none";
-
       renderIndexTab(cardListEl);
-
     } else {
-
       indexSubTabsEl.style.display = "none";
-      dealFiltersEl.style.display = "flex";
+      scoreFiltersEl.style.display = "flex";
       toggleGroupEl.style.display = "flex";
-
       renderStockTab(cardListEl);
     }
   }
 
-
-  // ==========================================================
-  // 지수
-  // ==========================================================
   function renderIndexTab(container) {
-
-    let filtered =
-      allData.filter(d => d.market === "INDEX");
-
+    let filtered = allData.filter(d => d.market === "INDEX");
 
     filtered = filtered.filter(d => {
-
       const meta = INDEX_META[d.name];
-
       if (!meta) return false;
-
       if (currentIndexCat === "ALL") return true;
-
-      if (d.name === "원/달러 환율") {
-        return currentIndexCat === "환율";
-      }
-
+      if (d.name === "원/달러 환율") return currentIndexCat === "환율";
       if (currentIndexCat === "원자재") {
-        return (
-          meta.cat === "원자재" ||
-          meta.cat === "금속" ||
-          meta.cat === "에너지"
-        );
+        return meta.cat === "원자재" || meta.cat === "금속" || meta.cat === "에너지";
       }
-
       return meta.cat === currentIndexCat;
     });
 
-
     filtered.sort((a,b) => {
-
-      const ia =
-        DISPLAY_ORDER.indexOf(a.name);
-
-      const ib =
-        DISPLAY_ORDER.indexOf(b.name);
-
-      return (
-        (ia < 0 ? 999 : ia) -
-        (ib < 0 ? 999 : ib)
-      );
+      const ia = DISPLAY_ORDER.indexOf(a.name);
+      const ib = DISPLAY_ORDER.indexOf(b.name);
+      return ((ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib));
     });
 
-
-    document.getElementById("filteredCount").innerText =
-      `지수/원자재: ${filtered.length}개`;
-
+    document.getElementById("filteredCount").innerText = `지수/원자재: ${filtered.length}개`;
 
     if (!filtered.length) {
-
-      container.innerHTML =
-        `<div class="loading-box">데이터가 없습니다.</div>`;
-
+      container.innerHTML = `<div class="loading-box">데이터가 없습니다.</div>`;
       return;
     }
-
 
     let html = "";
     let lastGroup = "";
 
-
     filtered.forEach(item => {
+      const meta = INDEX_META[item.name] || { cat:"기타", group:"기타", unit:"p", isDollar:false };
 
-      const meta =
-        INDEX_META[item.name] ||
-        {
-          cat:"기타",
-          group:"기타",
-          unit:"p",
-          isDollar:false
-        };
-
-
-      if (
-        currentIndexCat === "ALL" &&
-        meta.group !== lastGroup
-      ) {
-
+      if (currentIndexCat === "ALL" && meta.group !== lastGroup) {
         lastGroup = meta.group;
-
-        html +=
-          `<div class="index-group-title">▪ ${meta.group}</div>`;
+        html += `<div class="index-group-title">▪ ${meta.group}</div>`;
       }
-
 
       const curr = num(item.close_price);
       const rate = num(item.change_rate);
-
-      let prev =
-        num(item.prev_close) ||
-        num(item.open_price);
+      let prev = num(item.prev_close) || num(item.open_price);
 
       if (!prev && rate !== -100 && curr > 0) {
-        prev =
-          curr / (1 + rate / 100);
+        prev = curr / (1 + rate / 100);
       }
 
-
       const diff = curr - prev;
+      const rateClass = rate > 0 ? "rate-up" : rate < 0 ? "rate-down" : "";
+      const sign = rate > 0 ? "+" : "";
+      const diffSign = diff > 0 ? "+" : "";
 
-      const rateClass =
-        rate > 0
-          ? "rate-up"
-          : rate < 0
-            ? "rate-down"
-            : "";
-
-      const sign =
-        rate > 0 ? "+" : "";
-
-      const diffSign =
-        diff > 0 ? "+" : "";
-
-
-      const currDisplay =
-        meta.isDollar
-          ? `$${formatPrice(curr,true)}`
-          : `${formatPrice(curr,false)}${meta.unit}`;
-
-
-      const diffDisplay =
-        meta.isDollar
-          ? `${diffSign}$${formatPrice(Math.abs(diff),true)}`
-          : `${diffSign}${formatPrice(diff,false)}${meta.unit}`;
-
-
-      const prevDisplay =
-        meta.isDollar
-          ? `$${formatPrice(prev,true)}`
-          : `${formatPrice(prev,false)}${meta.unit}`;
-
+      const currDisplay = meta.isDollar ? `$${formatPrice(curr,true)}` : `${formatPrice(curr,false)}${meta.unit}`;
+      const diffDisplay = meta.isDollar ? `${diffSign}$${formatPrice(Math.abs(diff),true)}` : `${diffSign}${formatPrice(diff,false)}${meta.unit}`;
+      const prevDisplay = meta.isDollar ? `$${formatPrice(prev,true)}` : `${formatPrice(prev,false)}${meta.unit}`;
 
       html += `
         <div class="card">
-
           <div class="idx-row-head">
-
             <div class="idx-title-wrap">
-              <span class="idx-cat-badge">
-                ${meta.cat}
-              </span>
-
-              <span class="idx-name">
-                ${escapeHtml(item.name)}
-              </span>
+              <span class="idx-cat-badge">${meta.cat}</span>
+              <span class="idx-name">${escapeHtml(item.name)}</span>
             </div>
-
             <div class="idx-price-wrap">
-
-              <div class="idx-curr-price">
-                ${currDisplay}
-              </div>
-
+              <div class="idx-curr-price">${currDisplay}</div>
               <div class="idx-change-wrap ${rateClass}">
-                ${diffDisplay}
-                (${sign}${rate.toFixed(2)}%)
+                ${diffDisplay} (${sign}${rate.toFixed(2)}%)
               </div>
-
             </div>
-
           </div>
-
           <div class="idx-sub-data">
             <span>전일종가: ${prevDisplay}</span>
-
             <span>
               ${item.trade_amount > 0
                 ? `거래대금: ${Math.round(num(item.trade_amount)/100000000).toLocaleString()}억`
-                : meta.isDollar
-                  ? "국제 시세 (USD)"
-                  : "실시간 지수"}
+                : meta.isDollar ? "국제 시세 (USD)" : "실시간 지수"}
             </span>
           </div>
-
         </div>
       `;
     });
 
-
     container.innerHTML = html;
   }
 
-
-  // ==========================================================
-  // 일반 종목
-  // ==========================================================
   function renderStockTab(container) {
+    let filtered = allData.filter(item => {
+      if (item.market === "INDEX") return false;
+      if (currentTab !== "ALL" && item.market !== currentTab) return false;
 
-    let filtered =
-      allData.filter(item => {
+      // 점수제 등급 필터 적용
+      const score = num(item.total_score);
+      if (currentScoreGrade === "S" && (score < 90 || score > 100)) return false;
+      if (currentScoreGrade === "A_PLUS" && (score < 80 || score > 89)) return false;
+      if (currentScoreGrade === "A" && (score < 70 || score > 79)) return false;
+      if (currentScoreGrade === "B_PLUS" && (score < 60 || score > 69)) return false;
 
-        if (item.market === "INDEX") {
-          return false;
-        }
+      if (isDoubleOnly && !isDouble(item)) return false;
+      if (isStrongBuyOnly && !isStrongBuy(item)) return false;
 
-        if (
-          currentTab !== "ALL" &&
-          item.market !== currentTab
-        ) {
-          return false;
-        }
-
-
-        const dealVal =
-          num(item.trade_amount);
-
-
-        if (
-          currentDeal === "100억이상" &&
-          dealVal < 10_000_000_000
-        ) return false;
-
-        if (
-          currentDeal === "200억이상" &&
-          dealVal < 20_000_000_000
-        ) return false;
-
-        if (
-          currentDeal === "300억이상" &&
-          dealVal < 30_000_000_000
-        ) return false;
-
-        if (
-          currentDeal === "400억이상" &&
-          dealVal < 40_000_000_000
-        ) return false;
-
-
-        if (isDoubleOnly && !isDouble(item)) {
-          return false;
-        }
-
-        if (isStrongBuyOnly && !isStrongBuy(item)) {
-          return false;
-        }
-
-
-        return true;
-      });
-
-
-    // 강한 매수세 / 점수 / 거래대금 순
-    filtered.sort((a,b) => {
-
-      const strongDiff =
-        Number(isStrongBuy(b)) -
-        Number(isStrongBuy(a));
-
-      if (strongDiff !== 0) {
-        return strongDiff;
-      }
-
-      const scoreDiff =
-        num(b.total_score) -
-        num(a.total_score);
-
-      if (scoreDiff !== 0) {
-        return scoreDiff;
-      }
-
-      return (
-        num(b.trade_amount) -
-        num(a.trade_amount)
-      );
+      return true;
     });
 
+    // 강한 매수세 / 총점 / 거래대금 순 정렬
+    filtered.sort((a,b) => {
+      const strongDiff = Number(isStrongBuy(b)) - Number(isStrongBuy(a));
+      if (strongDiff !== 0) return strongDiff;
 
-    document.getElementById("filteredCount").innerText =
-      `선별 종목: ${filtered.length}개`;
+      const scoreDiff = num(b.total_score) - num(a.total_score);
+      if (scoreDiff !== 0) return scoreDiff;
 
+      return (num(b.trade_amount) - num(a.trade_amount));
+    });
+
+    document.getElementById("filteredCount").innerText = `선별 종목: ${filtered.length}개`;
 
     if (!filtered.length) {
-
-      container.innerHTML =
-        `<div class="loading-box">조건에 맞는 종목이 없습니다.</div>`;
-
+      container.innerHTML = `<div class="loading-box">조건에 맞는 종목이 없습니다.</div>`;
       return;
     }
 
-
-    container.innerHTML =
-      filtered.map(renderStockCard).join("");
+    container.innerHTML = filtered.map(renderStockCard).join("");
   }
 
-
   function renderStockCard(item) {
+    const closeP = num(item.close_price);
+    const rate = num(item.change_rate);
+    const score = num(item.total_score);
+    const strong = isStrongBuy(item);
+    const double = isDouble(item);
 
-    const closeP =
-      num(item.close_price);
+    const prevClose = num(item.prev_close) || (rate !== -100 && closeP > 0 ? closeP / (1 + rate / 100) : 0);
+    const rateClass = rate > 0 ? "rate-up" : rate < 0 ? "rate-down" : "";
+    const sign = rate > 0 ? "+" : "";
+    const dealInEok = Math.round(num(item.trade_amount) / 100000000);
 
-    const rate =
-      num(item.change_rate);
+    const badgeHtml = strong
+      ? `<span class="strong-badge">👑 강한 매수세</span>`
+      : double
+        ? `<span class="double-badge">🔥 쌍끌이</span>`
+        : "";
 
-    const score =
-      num(item.total_score);
-
-    const strong =
-      isStrongBuy(item);
-
-    const double =
-      isDouble(item);
-
-
-    const prevClose =
-      num(item.prev_close) ||
-      (
-        rate !== -100 && closeP > 0
-          ? closeP / (1 + rate / 100)
-          : 0
-      );
-
-
-    const rateClass =
-      rate > 0
-        ? "rate-up"
-        : rate < 0
-          ? "rate-down"
-          : "";
-
-
-    const sign =
-      rate > 0 ? "+" : "";
-
-
-    const dealInEok =
-      Math.round(
-        num(item.trade_amount) / 100000000
-      );
-
-
-    const badgeHtml =
-      strong
-        ? `<span class="strong-badge">👑 강한 매수세</span>`
-        : double
-          ? `<span class="double-badge">🔥 쌍끌이</span>`
-          : "";
-
-
-    const ticker =
-      String(item.ticker || "")
-        .replace(/[^a-zA-Z0-9_-]/g, "");
-
+    const ticker = String(item.ticker || "").replace(/[^a-zA-Z0-9_-]/g, "");
 
     return `
       <div class="card ${strong ? "strong-buy-card" : ""}">
-
         <div class="card-head">
-
           <div class="stock-info">
-
             <span class="market-tag ${item.market === "KOSDAQ" ? "kosdaq" : ""}">
               ${escapeHtml(item.market)}
             </span>
-
-            <span class="stock-title">
-              ${escapeHtml(item.name)}
-            </span>
-
+            <span class="stock-title">${escapeHtml(item.name)}</span>
             ${badgeHtml}
-
             <span class="score-badge ${gradeClass(score)}">
               ${score}점 ${escapeHtml(item.grade || "")}
             </span>
-
           </div>
-
-
           <div class="price-wrap">
-
-            <div class="current-price">
-              ${Math.round(closeP).toLocaleString()}원
-            </div>
-
-            <div class="rate-text ${rateClass}">
-              ${sign}${rate.toFixed(2)}%
-            </div>
-
+            <div class="current-price">${Math.round(closeP).toLocaleString()}원</div>
+            <div class="rate-text ${rateClass}">${sign}${rate.toFixed(2)}%</div>
           </div>
-
         </div>
-
 
         <div class="investor-row">
-
-          <span class="investor-chip chip-foreign">
-            외인 ${formatStockVol(item.foreign_net_buy)}
-          </span>
-
-          <span class="investor-chip chip-inst">
-            기관 ${formatStockVol(item.inst_net_buy)}
-          </span>
-
-          <span class="investor-chip chip-retail">
-            개인 ${formatStockVol(item.retail_net_buy)}
-          </span>
-
+          <span class="investor-chip chip-foreign">외인 ${formatStockVol(item.foreign_net_buy)}</span>
+          <span class="investor-chip chip-inst">기관 ${formatStockVol(item.inst_net_buy)}</span>
+          <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
         </div>
-
 
         <div class="conditions-grid">
           ${renderCategoryBadges(item)}
         </div>
 
-
         <div class="card-footer">
-
-          <span class="prev-close-price">
-            전일종가 ${Math.round(prevClose).toLocaleString()}원
-          </span>
-
-          <span class="trade-amount">
-            거래대금 ${dealInEok.toLocaleString()}억
-          </span>
-
+          <span class="prev-close-price">전일종가 ${Math.round(prevClose).toLocaleString()}원</span>
+          <span class="trade-amount">거래대금 ${dealInEok.toLocaleString()}억</span>
         </div>
 
-
-        <button
-          class="detail-btn"
-          data-detail-btn="${ticker}"
-          onclick="toggleDetail('${ticker}')">
+        <button class="detail-btn" data-detail-btn="${ticker}" onclick="toggleDetail('${ticker}')">
           ▼ 20개 지표 상세보기
         </button>
 
-
-        <div
-          class="detail-panel"
-          id="detail-${ticker}">
-
+        <div class="detail-panel" id="detail-${ticker}">
           ${renderScoreDetails(item)}
-
         </div>
-
       </div>
     `;
   }
 
-
-  // ==========================================================
-  // 탭 / 필터
-  // ==========================================================
   function setTab(tab, btn) {
-
     currentTab = tab;
-
-    document
-      .querySelectorAll(".market-tabs .tab-btn")
-      .forEach(b => b.classList.remove("active"));
-
+    document.querySelectorAll(".market-tabs .tab-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-
     renderList();
   }
-
 
   function setIndexCategory(cat, btn) {
-
     currentIndexCat = cat;
-
-    document
-      .querySelectorAll(".index-sub-tabs .sub-chip")
-      .forEach(b => b.classList.remove("active"));
-
+    document.querySelectorAll(".index-sub-tabs .sub-chip").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-
     renderList();
   }
 
-
-  function setDeal(deal, btn) {
-
-    currentDeal = deal;
-
-    document
-      .querySelectorAll(".deal-filters .filter-chip")
-      .forEach(b => b.classList.remove("active"));
-
+  // 점수 등급 선택 핸들러
+  function setScoreGrade(grade, btn) {
+    currentScoreGrade = grade;
+    document.querySelectorAll(".score-filters .score-filter-chip").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-
     renderList();
   }
-
 
   function toggleDoubleOnly() {
-
     isDoubleOnly = !isDoubleOnly;
-
     updateCounts();
     renderList();
   }
-
 
   function toggleStrongBuyOnly() {
-
     isStrongBuyOnly = !isStrongBuyOnly;
-
     updateCounts();
     renderList();
   }
 
-
-  // ==========================================================
-  // 자동 갱신
-  // ==========================================================
   setInterval(fetchFromSupabase, 30000);
-
-  window.addEventListener(
-    "DOMContentLoaded",
-    fetchFromSupabase
-  );
-
+  window.addEventListener("DOMContentLoaded", fetchFromSupabase);
 </script>
 
 </body>

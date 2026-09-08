@@ -130,6 +130,7 @@ def collect_market_data():
     }
 
     # 1. 지수, 환율, 원자재 목록
+  # collector.py의 index_configs 부분
     index_configs = [
         {"ticker": "IDX_KOSPI", "name": "코스피", "close": 2650, "open": 2638, "rate": 0.45, "deal": 9500000000000, "for": 142000, "inst": -82000, "ret": -60000},
         {"ticker": "IDX_KOSDAQ", "name": "코스닥", "close": 760, "open": 757, "rate": 0.28, "deal": 6200000000000, "for": -35000, "inst": 45000, "ret": -10000},
@@ -144,8 +145,8 @@ def collect_market_data():
         {"ticker": "COMM_SILVER", "name": "은", "close": 1280, "open": 1269, "rate": 0.85, "deal": 0, "for": 0, "inst": 0, "ret": 0},
         {"ticker": "COMM_COPPER", "name": "구리", "close": 12600, "open": 12618, "rate": -0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
         {"ticker": "COMM_WTI", "name": "WTI유", "close": 96500, "open": 97200, "rate": -0.72, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_BRENT", "name": "브렌트유", "close": 101200, "open": 101860, "rate": -0.65, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "IDX_USDKRW", "name": "원/달러 환율", "close": 1341, "open": 1346, "rate": -0.37, "deal": 0, "for": 0, "inst": 0, "ret": 0}
+        {"ticker": "COMM_BRENT", "name": "브렌트유", "close": 101200, "open": 101860, "rate": -0.65, "deal": 0, "for": 0, "inst": 0, "ret": 0}
+    ]
     ]
 
     for idx in index_configs:

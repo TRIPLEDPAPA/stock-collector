@@ -101,7 +101,7 @@
       margin-right: 4px;
     }
 
-    /* 메인 5분할 탭 (설명서 탭 추가) */
+    /* 5분할 메인 탭 */
     .market-tabs {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -156,7 +156,7 @@
       color: #fff;
     }
 
-    /* 4단계 점수 이상 필터 칩 */
+    /* 4단계 점수 필터 칩 */
     .score-filters {
       display: flex;
       gap: 6px;
@@ -675,7 +675,7 @@
     </div>
   </div>
 
-  <!-- 5분할 메인 탭 (전체/코스피/코스닥/지수/설명서) -->
+  <!-- 5분할 메인 탭 -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -702,7 +702,7 @@
     <button class="score-filter-chip" onclick="setMinScore(50, this)">⚪ 50점 이상</button>
   </div>
 
-  <!-- 상단 토글 필터 (쌍끌이 / 강한 매수세) -->
+  <!-- 상단 토글 필터 -->
   <div class="filter-toggle-group" id="filterToggleGroup">
     <div class="toggle-card" id="doubleToggle" onclick="toggleDoubleOnly()">
       <div class="toggle-card-label">
@@ -728,7 +728,7 @@
     <span id="updatedTime">방금 갱신됨 (-)</span>
   </div>
 
-  <!-- 메인 카드 및 설명서 출력 영역 -->
+  <!-- 메인 카드 및 설명서 컨테이너 -->
   <div class="card-list" id="cardList">
     <div class="loading-box">데이터를 불러오는 중입니다...</div>
   </div>
@@ -765,15 +765,6 @@
     ["score_18", "RSI(14)", 4],
     ["score_19", "이격도", 4],
     ["score_20", "MACD", 3]
-  ];
-
-  const SIX_CATEGORIES = [
-    { key: "가격", tags: ["주가등락률", "양봉마감", "고가근접", "윗꼬리제한"] },
-    { key: "거래", tags: ["거래대금", "거래량비율"] },
-    { key: "수급", tags: ["외국인순매수", "기관순매수", "순매수비율"] },
-    { key: "추세", tags: ["5일이평선", "20일이평선", "60일이평선", "120일이평선", "단기이평정배열"] },
-    { key: "돌파", tags: ["52주신고가", "전고점돌파", "주가위치"] },
-    { key: "과열/모멘텀", tags: ["RSI(14)", "이격도", "MACD"] }
   ];
 
   const INDEX_META = {
@@ -846,16 +837,42 @@
     return "";
   }
 
+  // 6대 영역 엄격 판정 함수
   function renderCategoryBadges(item) {
     const passedList = String(item.passed_tags || "").split(",").filter(Boolean);
-    return SIX_CATEGORIES.map(cat => {
-      const isPass = cat.tags.some(tag => passedList.includes(tag));
-      return `
-        <span class="cond-badge ${isPass ? "pass" : "fail"}">
-          ${isPass ? "✓ " : ""}${cat.key}
-        </span>
-      `;
-    }).join("");
+
+    const checks = [
+      {
+        key: "가격",
+        pass: passedList.includes("주가등락률") && passedList.includes("양봉마감")
+      },
+      {
+        key: "거래",
+        pass: num(item.trade_amount) >= 30000000000 || num(item.volume_ratio) >= 150
+      },
+      {
+        key: "수급",
+        pass: num(item.foreign_net_buy) > 0 || num(item.inst_net_buy) > 0
+      },
+      {
+        key: "추세",
+        pass: passedList.includes("단기이평정배열")
+      },
+      {
+        key: "돌파",
+        pass: passedList.includes("52주신고가") || passedList.includes("전고점돌파")
+      },
+      {
+        key: "과열/모멘텀",
+        pass: passedList.includes("MACD") && passedList.includes("RSI(14)")
+      }
+    ];
+
+    return checks.map(cat => `
+      <span class="cond-badge ${cat.pass ? "pass" : "fail"}">
+        ${cat.pass ? "✓ " : ""}${cat.key}
+      </span>
+    `).join("");
   }
 
   function renderScoreDetails(item) {
@@ -1024,7 +1041,6 @@
     }
   }
 
-  // 설명서 탭 렌더링
   function renderGuideTab(container) {
     container.innerHTML = `
       <div class="guide-box">

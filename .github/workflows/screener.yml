@@ -2,11 +2,9 @@ name: Stock Screener & Collector
 
 on:
   schedule:
-    # 1. 한국시간(KST) 매일 00:00 (UTC 15:00) -> 자정 기준일자 리셋
     - cron: '0 15 * * *'
-    # 2. 한국시간(KST) 평일 09:00 (UTC 00:00) -> 09시 전체 스크리너 재실행
     - cron: '0 0 * * 1-5'
-  workflow_dispatch: # Actions 탭에서 수동 실행 지원
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -34,73 +32,58 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt || true
-          fi
           pip install pytz requests pandas websockets
 
-      - name: Ensure Initial data.json Exists
+      - name: Ensure Initial data.json
         run: |
-          if [ ! -f data.json ]; then
-            echo "Creating initial data.json fallback..."
-            CURRENT_DATE=$(TZ='Asia/Seoul' date +'%Y-%m-%d')
-            CURRENT_TIME=$(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')
-            cat <<EOF > data.json
-          {
-            "base_date": "$CURRENT_DATE",
-            "last_updated": "$CURRENT_TIME",
-            "status": "초기 데이터 대기 중",
-            "summary": {
-              "total_count": 0,
-              "conditions": "시가 > 전일 종가, 5>10>20일 정배열"
-            },
-            "items": []
-          }
-          EOF
-          fi
+          python -c "
+          import os, json
+          from datetime import datetime
+          import pytz
+          if not os.path.exists('data.json'):
+              kst = pytz.timezone('Asia/Seoul')
+              now = datetime.now(kst)
+              data = {
+                  'base_date': now.strftime('%Y-%m-%d'),
+                  'last_updated': now.strftime('%Y-%m-%d %H:%M:%S'),
+                  'status': 'Ready',
+                  'summary': {'total_count': 0, 'conditions': 'Open > PrevClose, 5>10>20 MA'},
+                  'items': []
+              }
+              with open('data.json', 'w', encoding='utf-8') as f:
+                  json.dump(data, f, ensure_ascii=False, indent=2)
+          "
 
-      - name: Run Screener (KST Time Based)
+      - name: Run Screener
         env:
           TZ: 'Asia/Seoul'
           APP_KEY: ${{ secrets.APP_KEY }}
           APP_SECRET: ${{ secrets.APP_SECRET }}
         run: |
-          export CURRENT_DATE=$(TZ='Asia/Seoul' date +'%Y-%m-%d')
-          export KST_HOUR=$(TZ='Asia/Seoul' date +'%H')
-          echo "=========================================="
-          echo "실행 기준일자: $CURRENT_DATE"
-          echo "현재 한국 시간: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')"
-          echo "=========================================="
+          CURRENT_DATE=$(TZ='Asia/Seoul' date +'%Y-%m-%d')
+          KST_HOUR=$(TZ='Asia/Seoul' date +'%H')
+          echo "Date: $CURRENT_DATE, Hour: $KST_HOUR"
 
           if [ "$KST_HOUR" -eq "00" ] || [ "$KST_HOUR" -eq "01" ]; then
-            EXEC_MODE="reset"
+            MODE="reset"
           else
-            EXEC_MODE="full"
+            MODE="full"
           fi
 
-          # 파이썬 실행 시 에러가 나도 data.json을 깨뜨리지 않고 로그를 찍도록 처리
           if [ -f screener.py ]; then
-            python screener.py --mode $EXEC_MODE || echo "::warning::screener.py 실행 중 에러가 발생했습니다. data.json 상태를 확인하세요."
+            python screener.py --mode $MODE || true
           elif [ -f collector.py ]; then
-            python collector.py --mode $EXEC_MODE || echo "::warning::collector.py 실행 중 에러가 발생했습니다."
+            python collector.py --mode $MODE || true
           elif [ -f main.py ]; then
-            python main.py --mode $EXEC_MODE || echo "::warning::main.py 실행 중 에러가 발생했습니다."
-          else
-            echo "파이썬 실행 스크립트가 없습니다. 기본 data.json을 사용합니다."
+            python main.py --mode $MODE || true
           fi
 
-      - name: Commit and Push Updated Data
+      - name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          if ! git diff --staged --quiet; then
-            git commit -m "Auto Update: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')"
-            git pull --rebase origin main || true
-            git push origin main || echo "::warning::Git push 실패 - Pages 배포를 우선 진행합니다."
-          else
-            echo "변경 사항이 없어 커밋을 건너뜁니다."
-          fi
+          git diff --staged --quiet || (git commit -m "Auto Update: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')" && git push origin main) || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

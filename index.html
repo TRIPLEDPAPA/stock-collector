@@ -64,7 +64,7 @@
     .text-down { color: #2563eb; font-weight: 600; }
     .empty {
       text-align: center;
-      padding: 50px;
+      padding: 40px;
       color: #94a3b8;
     }
   </style>
@@ -72,10 +72,10 @@
 <body>
   <div class="card">
     <header>
-      <h2 style="margin: 0;">주식 스크리너 (시가 갭상승 & 정배열)</h2>
+      <h2 style="margin: 0;">주식 스크리너 (시가 갭상승 & 이평선 정배열)</h2>
       <div class="meta-box">
-        <div>기준일자: <span id="base-date" class="badge-date">확인 중...</span></div>
-        <div>최종 갱신: <span id="last-updated">확인 중...</span></div>
+        <div>기준일자: <span id="base-date" class="badge-date">로딩 중...</span></div>
+        <div>최종 갱신: <span id="last-updated">로딩 중...</span></div>
         <div>진행 상태: <span id="status-text" class="badge-status">-</span></div>
       </div>
     </header>
@@ -89,7 +89,7 @@
             <th>현재가</th>
             <th>등락률</th>
             <th>시가(갭)</th>
-            <th>거래량</th>
+            <th>당일 거래량</th>
             <th>이평선</th>
             <th>PER</th>
             <th>PBR</th>
@@ -107,21 +107,23 @@
   </div>
 
   <script>
-    async function refreshData() {
+    async function loadData() {
       try {
-        const response = await fetch('./data.json?cache=' + Date.now());
-        if (!response.ok) throw new Error('data.json 로드 실패');
+        const response = await fetch('./data.json?t=' + Date.now());
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: data.json 파일을 찾을 수 없습니다.`);
+        }
         const data = await response.json();
 
-        document.getElementById('base-date').textContent = data.base_date;
-        document.getElementById('last-updated').textContent = data.last_updated;
-        document.getElementById('status-text').textContent = data.status;
+        document.getElementById('base-date').textContent = data.base_date || '-';
+        document.getElementById('last-updated').textContent = data.last_updated || '-';
+        document.getElementById('status-text').textContent = data.status || '-';
 
         const tbody = document.getElementById('result-body');
         tbody.innerHTML = '';
 
         if (!data.items || data.items.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="11" class="empty">현재 조건(시가 > 전일 종가, 이평선 정배열 등)을 만족하는 종목이 없거나 장 시작 전 대기 상태입니다.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="11" class="empty">조건(시가 > 전일 종가, 정배열 등)에 부합하는 종목이 없거나 장 시작 전 대기 상태입니다.</td></tr>';
           return;
         }
 
@@ -139,20 +141,29 @@
             <td>${Number(item.open).toLocaleString()}원 <span class="text-up">(+${item.gap_pct}%)</span></td>
             <td>${Number(item.volume).toLocaleString()}주</td>
             <td>${item.ma_status}</td>
-            <td>${item.per}</td>
-            <td>${item.pbr}</td>
+            <td>${item.per}배</td>
+            <td>${item.pbr}배</td>
             <td>${item.roe}%</td>
             <td>${item.rsi14}</td>
           `;
           tbody.appendChild(tr);
         });
       } catch (err) {
-        document.getElementById('base-date').textContent = '연결 오류';
-        document.getElementById('result-body').innerHTML = '<tr><td colspan="11" class="empty" style="color:#ef4444;">data.json 파일을 읽을 수 없습니다. Actions 빌드 로그를 확인해주세요.</td></tr>';
+        console.error(err);
+        document.getElementById('base-date').textContent = '데이터 확인 필요';
+        document.getElementById('status-text').textContent = '로드 실패';
+        document.getElementById('result-body').innerHTML = `
+          <tr>
+            <td colspan="11" class="empty" style="color: #ef4444; line-height: 1.6;">
+              <strong>data.json 파일을 불러오지 못했습니다.</strong><br>
+              GitHub 저장소 상단 <strong>Actions</strong> 탭에서 <strong>Stock Screener & Collector</strong> 워크플로우의 <strong>Run workflow</strong>를 한 번 실행해 주세요.
+            </td>
+          </tr>
+        `;
       }
     }
 
-    refreshData();
+    loadData();
   </script>
 </body>
 </html>

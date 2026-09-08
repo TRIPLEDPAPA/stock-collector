@@ -60,17 +60,21 @@
     .sub-chip { background-color: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 7px 13px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; flex-shrink: 0; }
     .sub-chip.active { background-color: #0284c7; border-color: #38bdf8; color: #ffffff; }
 
-    /* 일반 대금 필터 */
+    /* 대금 필터 */
     .deal-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
     .deal-filters::-webkit-scrollbar { display: none; }
     .filter-chip { background-color: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 8px 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; flex-shrink: 0; }
     .filter-chip.active { background-color: #d97706; border-color: #f59e0b; color: #ffffff; }
 
-    /* 쌍끌이 토글 바 */
-    .double-box { background-color: #141e30; border: 1px solid #253347; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; cursor: pointer; user-select: none; }
-    .double-box-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; }
-    .double-box-count { color: #f59e0b; font-size: 0.85rem; font-weight: 700; }
-    
+    /* 2개 토글 필터 (쌍끌이 / 80점이상 강한매수세 후보) */
+    .filter-toggle-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    .toggle-card {
+      flex: 1; background-color: #141e30; border: 1px solid #253347; border-radius: 8px;
+      padding: 9px 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;
+    }
+    .toggle-card-label { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 700; }
+    .toggle-card-count { color: #f59e0b; font-size: 0.78rem; font-weight: 700; }
+
     .summary-bar { display: flex; justify-content: space-between; font-size: 0.78rem; color: #94a3b8; margin-bottom: 10px; padding: 0 2px; }
 
     /* 지수 섹션 소제목 */
@@ -79,11 +83,16 @@
       margin: 10px 0 6px 2px; text-transform: uppercase;
     }
 
-    /* 카드 리스트 */
+    /* 카드 컨테이너 */
     .card-list { display: flex; flex-direction: column; gap: 10px; }
     .card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 13px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); }
     
-    /* 지수/원자재 전용 카드 스타일 */
+    .card.strong-buy-card {
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, rgba(20, 29, 46, 1) 100%);
+    }
+
+    /* 지수/원자재 카드 */
     .idx-row-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
     .idx-title-wrap { display: flex; align-items: center; gap: 6px; }
     .idx-cat-badge { font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; background-color: #334155; color: #cbd5e1; }
@@ -95,14 +104,16 @@
 
     .idx-sub-data { display: flex; justify-content: space-between; align-items: center; font-size: 0.77rem; color: var(--text-sub); padding-top: 6px; border-top: 1px dashed rgba(255, 255, 255, 0.08); margin-top: 6px; }
 
-    /* 일반 주식 전용 카드 스타일 */
+    /* 일반 주식 카드 */
     .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-    .stock-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .stock-info { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
     .market-tag { background-color: #2563eb; color: #ffffff; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
     .market-tag.kosdaq { background-color: #0d9488; }
     .stock-title { font-size: 1.05rem; font-weight: 800; color: #ffffff; }
-    .double-badge { background-color: #78350f; color: #f59e0b; border: 1px solid #b45309; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
-    .score-badge { background-color: #1e293b; color: #38bdf8; border: 1px solid #2d3748; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+
+    .strong-badge { background-color: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid #f59e0b; font-size: 0.68rem; font-weight: 800; padding: 1px 6px; border-radius: 4px; }
+    .score-badge-new { background-color: #1e293b; color: #38bdf8; border: 1px solid #334155; font-size: 0.72rem; font-weight: 800; padding: 1px 6px; border-radius: 4px; }
+    .score-high { color: #10b981; border-color: #059669; background-color: rgba(16, 185, 129, 0.15); }
 
     .rate-up { color: var(--accent-red); }
     .rate-down { color: var(--accent-down); }
@@ -113,6 +124,7 @@
     .chip-inst { background-color: rgba(239, 68, 68, 0.15); color: #f87171; }
     .chip-retail { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
 
+    /* 6대 영역 배지 표시 */
     .conditions-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
     .cond-badge { font-size: 0.68rem; padding: 3px 6px; border-radius: 4px; font-weight: 600; border: 1px solid transparent; user-select: none; }
     .cond-badge.pass { background-color: var(--tag-green-bg); color: var(--tag-green-text); border-color: var(--tag-green-border); }
@@ -147,7 +159,7 @@
       <button class="tab-btn" onclick="setTab('INDEX', this)">지수</button>
     </div>
 
-    <!-- 지수 서브 카테고리 칩 -->
+    <!-- 지수 서브 탭 -->
     <div class="index-sub-tabs" id="indexSubTabs">
       <button class="sub-chip active" onclick="setIndexCategory('ALL', this)">전체</button>
       <button class="sub-chip" onclick="setIndexCategory('지수', this)">지수</button>
@@ -165,13 +177,22 @@
       <button class="filter-chip" onclick="setDeal('400억이상', this)">400억 이상</button>
     </div>
 
-    <!-- 쌍끌이 토글 바 -->
-    <div class="double-box" id="doubleBox" onclick="toggleDoubleOnly()">
-      <div class="double-box-label">
-        <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 16px; height: 16px; pointer-events: none;" />
-        <span>🔥 외인+기관 쌍끌이만 보기</span>
+    <!-- 상단 토글 필터 (쌍끌이 / 강한 매수세 후보 80점 이상) -->
+    <div class="filter-toggle-group" id="filterToggleGroup">
+      <div class="toggle-card" onclick="toggleDoubleOnly()">
+        <div class="toggle-card-label">
+          <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 15px; height: 15px; pointer-events: none;" />
+          <span>🔥 쌍끌이만</span>
+        </div>
+        <div class="toggle-card-count" id="doubleCount">(0)</div>
       </div>
-      <div class="double-box-count" id="doubleCount">(0개)</div>
+      <div class="toggle-card" onclick="toggleStrongBuyOnly()">
+        <div class="toggle-card-label">
+          <input type="checkbox" id="strongBuyCheckbox" style="accent-color: #fbbf24; width: 15px; height: 15px; pointer-events: none;" />
+          <span>👑 강한 매수세 후보 (80점↑)</span>
+        </div>
+        <div class="toggle-card-count" id="strongBuyCount">(0)</div>
+      </div>
     </div>
 
     <div class="summary-bar">
@@ -189,7 +210,16 @@
     const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 원자재(금, 은, 구리, WTI유, 브렌트유)는 달러($), 환율은 원, 지수는 포인트(p)
+    // 20개 지표를 6대 핵심 영역으로 직관화
+    const SIX_CATEGORIES = [
+      { key: "가격", tags: ["주가등락률", "양봉마감", "고가근접"] },
+      { key: "거래", tags: ["거래대금", "거래량비율"] },
+      { key: "수급", tags: ["외국인순매수", "기관순매수", "순매수비율"] },
+      { key: "추세", tags: ["5일이평선", "20일이평선", "60일이평선", "120일이평선", "단기이평정배열"] },
+      { key: "돌파", tags: ["52주신고가", "전고점돌파", "주가위치"] },
+      { key: "과열", tags: ["RSI(14)", "이격도", "MACD"] }
+    ];
+
     const INDEX_META = {
       "원/달러 환율": { cat: "환율", group: "환율", unit: "원", isDollar: false },
       "코스피": { cat: "지수", group: "한국", unit: "p", isDollar: false },
@@ -208,26 +238,11 @@
       "브렌트유": { cat: "에너지", group: "에너지", unit: "$", isDollar: true }
     };
 
-    // 정렬 우선순위
     const DISPLAY_ORDER = [
-      "원/달러 환율",
-      "코스피", "코스닥", 
+      "원/달러 환율", "코스피", "코스닥", 
       "S&P 500", "다우존스", "나스닥 100", 
       "코스피200 선물 (F)", "Dow Jones (선물)", "S&P 500 (선물)", "나스닥 100 (선물)", 
-      "금", "은", "구리", 
-      "WTI유", "브렌트유"
-    ];
-
-    const TARGET_CONDITIONS = [
-      { key: "주가등락률", label: "주가등락률" },
-      { key: "거래대금", label: "거래대금" },
-      { key: "거래량비율", label: "거래량비율" },
-      { key: "20일이평선", label: "20일이평선" },
-      { key: "주가위치", label: "주가위치" },
-      { key: "양봉마감", label: "양봉마감" },
-      { key: "고가근접", label: "고가근접" },
-      { key: "윗꼬리제한", label: "윗꼬리제한" },
-      { key: "단기이평정배열", label: "단기이평정배열" }
+      "금", "은", "구리", "WTI유", "브렌트유"
     ];
 
     let allData = [];
@@ -235,6 +250,7 @@
     let currentIndexCat = "ALL";
     let currentDeal = "ALL";
     let isDoubleOnly = false;
+    let isStrongBuyOnly = false;
 
     function formatStockVol(val) {
       if (!val || val === 0) return "0만";
@@ -252,13 +268,14 @@
       return num.toLocaleString();
     }
 
-    function renderBadges(tagString) {
-      const tags = (tagString || "").split(",");
-      return TARGET_CONDITIONS.map(cond => {
-        const isPass = tags.includes(cond.key);
+    function renderCategoryBadges(passedTagsString) {
+      const passedList = (passedTagsString || "").split(",");
+      return SIX_CATEGORIES.map(cat => {
+        // 해당 영역에 속한 세부 지표가 1개 이상 통과되었는지 확인
+        const isPass = cat.tags.some(t => passedList.includes(t));
         return `
           <span class="cond-badge ${isPass ? 'pass' : 'fail'}">
-            ${isPass ? '✓ ' : ''}${cond.label}
+            ${isPass ? '✓ ' : ''}${cat.key}
           </span>
         `;
       }).join("");
@@ -274,7 +291,6 @@
           .order("trade_amount", { ascending: false });
 
         if (error) throw error;
-        
         const rawData = data || [];
         if (rawData.length === 0) {
           allData = [];
@@ -285,7 +301,6 @@
         const latestDate = rawData[0].date;
         document.getElementById("baseDate").innerText = `기준일자: ${latestDate}`;
 
-        // 고유 식별키 기준 최신 레코드 1개씩 유지
         const seenKeys = new Set();
         const uniqueData = [];
 
@@ -307,7 +322,15 @@
           if (item.market === 'INDEX') return false;
           return (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
         }).length;
-        document.getElementById("doubleCount").innerText = `(${totalDouble}개)`;
+        document.getElementById("doubleCount").innerText = `(${totalDouble})`;
+
+        const totalStrongBuy = allData.filter(item => {
+          if (item.market === 'INDEX') return false;
+          const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
+          const score = item.total_score || 0;
+          return score >= 80 && isDouble;
+        }).length;
+        document.getElementById("strongBuyCount").innerText = `(${totalStrongBuy})`;
 
         renderList();
       } catch (err) {
@@ -319,40 +342,32 @@
     function renderList() {
       const cardListEl = document.getElementById("cardList");
       const dealFiltersEl = document.getElementById("dealFilters");
-      const doubleBoxEl = document.getElementById("doubleBox");
+      const filterToggleGroupEl = document.getElementById("filterToggleGroup");
       const indexSubTabsEl = document.getElementById("indexSubTabs");
 
       if (currentTab === "INDEX") {
         indexSubTabsEl.style.display = "flex";
         dealFiltersEl.style.display = "none";
-        doubleBoxEl.style.display = "none";
+        filterToggleGroupEl.style.display = "none";
         renderIndexTab(cardListEl);
       } else {
         indexSubTabsEl.style.display = "none";
         dealFiltersEl.style.display = "flex";
-        doubleBoxEl.style.display = "flex";
+        filterToggleGroupEl.style.display = "flex";
         renderStockTab(cardListEl);
       }
     }
 
-    // 1. 지수/원자재 탭 렌더링
+    // 1. 지수/원자재 탭
     function renderIndexTab(container) {
       let filtered = allData.filter(d => d.market === "INDEX");
 
-      // 서브 카테고리 필터링: 원/달러 환율은 currentIndexCat === 'ALL' (전체탭)에만 노출
       filtered = filtered.filter(d => {
         const meta = INDEX_META[d.name];
         if (!meta) return false;
-
-        // 원/달러 환율은 '전체'탭에서만 표기
-        if (d.name === "원/달러 환율") {
-          return currentIndexCat === "ALL";
-        }
-
+        if (d.name === "원/달러 환율") return currentIndexCat === "ALL";
         if (currentIndexCat === "ALL") return true;
-        if (currentIndexCat === "원자재") {
-          return meta.cat === "원자재" || meta.cat === "금속" || meta.cat === "에너지";
-        }
+        if (currentIndexCat === "원자재") return meta.cat === "원자재" || meta.cat === "금속" || meta.cat === "에너지";
         return meta.cat === currentIndexCat;
       });
 
@@ -396,7 +411,6 @@
         const sign = rate > 0 ? "+" : "";
         const diffSign = diff > 0 ? "+" : "";
 
-        // 달러 표기 접두어/접미어 처리
         const currDisplay = isDollar ? `$${formatPrice(curr, true)}` : `${formatPrice(curr, false)}${unit}`;
         const diffDisplay = isDollar ? `${diffSign}$${formatPrice(Math.abs(diff), true)}` : `${diffSign}${formatPrice(diff, false)}${unit}`;
         const prevDisplay = isDollar ? `$${formatPrice(prev, true)}` : `${formatPrice(prev, false)}${unit}`;
@@ -427,7 +441,7 @@
       container.innerHTML = html;
     }
 
-    // 2. 일반 주식 탭 렌더링
+    // 2. 일반 종목 탭
     function renderStockTab(container) {
       const filtered = allData.filter(item => {
         if (item.market === "INDEX") return false;
@@ -441,10 +455,13 @@
           if (currentDeal === "400억이상" && dealVal < 40000000000) return false;
         }
 
-        if (isDoubleOnly) {
-          const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
-          if (!isDouble) return false;
-        }
+        const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
+        const score = item.total_score || 0;
+        const isStrongBuy = score >= 80 && isDouble;
+
+        if (isDoubleOnly && !isDouble) return false;
+        if (isStrongBuyOnly && !isStrongBuy) return false;
+
         return true;
       });
 
@@ -468,17 +485,17 @@
         const rateClass = rate > 0 ? "rate-up" : (rate < 0 ? "rate-down" : "");
         const sign = rate > 0 ? "+" : "";
 
-        const passedTagsArr = (item.passed_tags || "").split(",").filter(t => t);
-        const passCount = passedTagsArr.length;
+        const score = item.total_score || 0;
+        const isStrongBuy = score >= 80 && isDouble;
 
         return `
-          <div class="card">
+          <div class="card ${isStrongBuy ? 'strong-buy-card' : ''}">
             <div class="card-head">
               <div class="stock-info">
                 <span class="market-tag ${item.market === 'KOSDAQ' ? 'kosdaq' : ''}">${item.market}</span>
                 <span class="stock-title">${item.name}</span>
-                ${isDouble ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
-                <span class="score-badge">${passCount}/9</span>
+                ${isStrongBuy ? '<span class="strong-badge">👑 강한 매수세 후보</span>' : (isDouble ? '<span class="strong-badge" style="background: rgba(120,53,15,0.3); color:#f59e0b; border-color:#b45309;">🔥 쌍끌이</span>' : '')}
+                <span class="score-badge-new ${score >= 80 ? 'score-high' : ''}">${score}점</span>
               </div>
               <div class="price-wrap">
                 <div class="current-price">${closeP.toLocaleString()}원</div>
@@ -492,8 +509,9 @@
               <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
             </div>
 
+            <!-- 6대 영역 배지 -->
             <div class="conditions-grid">
-              ${renderBadges(item.passed_tags)}
+              ${renderCategoryBadges(item.passed_tags)}
             </div>
 
             <div class="card-footer">
@@ -529,6 +547,12 @@
     function toggleDoubleOnly() {
       isDoubleOnly = !isDoubleOnly;
       document.getElementById("doubleCheckbox").checked = isDoubleOnly;
+      renderList();
+    }
+
+    function toggleStrongBuyOnly() {
+      isStrongBuyOnly = !isStrongBuyOnly;
+      document.getElementById("strongBuyCheckbox").checked = isStrongBuyOnly;
       renderList();
     }
 

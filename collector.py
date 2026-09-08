@@ -19,6 +19,7 @@ def safe_float(val, default=0.0):
     if isinstance(val, (int, float)):
         return float(val)
     try:
+        # 쉼표(,) 및 공백을 완벽히 제거 후 실수형태로 변환
         cleaned = str(val).replace(",", "").strip()
         return float(cleaned)
     except (ValueError, TypeError):
@@ -36,12 +37,13 @@ def is_pure_stock(ticker, name):
     return True
 
 def parse_stock_item(item, market_type, today_str):
-    close_p = safe_float(item.get("closePrice") or item.get("nowPrice") or item.get("price") or 0)
-    open_p = safe_float(item.get("openPrice") or close_p)
-    high_p = safe_float(item.get("highPrice") or close_p)
-    chg = safe_float(item.get("fluctuationsRatio") or item.get("changeRate") or 0)
-    deal_won = safe_float(item.get("tradePrice") or item.get("accumulatedTradingValue") or 0)
-    current_vol = safe_float(item.get("accumulatedTradingVolume") or item.get("quant") or 0)
+    # 모든 주요 필드에 safe_float을 적용하여 쉼표 문자열 에러 원천 차단
+    close_p = safe_float(item.get("closePrice") or item.get("nowPrice") or item.get("price"))
+    open_p = safe_float(item.get("openPrice"), close_p)
+    high_p = safe_float(item.get("highPrice"), close_p)
+    chg = safe_float(item.get("fluctuationsRatio") or item.get("changeRate"))
+    deal_won = safe_float(item.get("tradePrice") or item.get("accumulatedTradingValue"))
+    current_vol = safe_float(item.get("accumulatedTradingVolume") or item.get("quant"))
 
     if 0 < deal_won < 50000000:
         deal_won *= 1000000

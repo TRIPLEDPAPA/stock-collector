@@ -101,11 +101,11 @@
       margin-right: 4px;
     }
 
-    /* 메인 4분할 탭 */
+    /* 메인 5분할 탭 (설명서 탭 추가) */
     .market-tabs {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
       margin-bottom: 10px;
     }
 
@@ -115,9 +115,10 @@
       border: none;
       padding: 10px 0;
       border-radius: 8px;
-      font-size: 0.84rem;
+      font-size: 0.82rem;
       font-weight: 800;
       cursor: pointer;
+      text-align: center;
     }
 
     .tab-btn.active {
@@ -135,6 +136,7 @@
       padding-bottom: 4px;
       scrollbar-width: none;
     }
+    .index-sub-tabs::-webkit-scrollbar { display: none; }
 
     .sub-chip {
       background: #182234;
@@ -554,6 +556,70 @@
       margin-top: 6px;
     }
 
+    /* 설명서 전용 스타일 */
+    .guide-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .guide-title {
+      font-size: 0.95rem;
+      font-weight: 900;
+      color: #38bdf8;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .guide-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.74rem;
+      margin-top: 8px;
+    }
+
+    .guide-table th, .guide-table td {
+      border: 1px solid #223249;
+      padding: 7px 8px;
+      text-align: left;
+    }
+
+    .guide-table th {
+      background: #182338;
+      color: #94a3b8;
+      font-weight: 800;
+    }
+
+    .guide-table td {
+      color: #cbd5e1;
+    }
+
+    .guide-list {
+      list-style: none;
+      padding: 0;
+      font-size: 0.77rem;
+      color: #cbd5e1;
+      line-height: 1.7;
+    }
+
+    .guide-list li {
+      margin-bottom: 6px;
+      position: relative;
+      padding-left: 14px;
+    }
+
+    .guide-list li::before {
+      content: "•";
+      position: absolute;
+      left: 2px;
+      color: #38bdf8;
+      font-weight: bold;
+    }
+
     .loading-box {
       text-align: center;
       padding: 60px 0;
@@ -570,15 +636,20 @@
     }
 
     @media (max-width: 450px) {
+      .market-tabs {
+        font-size: 0.75rem;
+      }
+      .tab-btn {
+        padding: 8px 0;
+        font-size: 0.76rem;
+      }
       .header-actions {
         flex-direction: column;
         align-items: flex-end;
       }
-
       .score-grid {
         grid-template-columns: 1fr;
       }
-
       .tech-grid {
         grid-template-columns: repeat(2, 1fr);
       }
@@ -604,12 +675,13 @@
     </div>
   </div>
 
-  <!-- 메인 4탭 -->
+  <!-- 5분할 메인 탭 (전체/코스피/코스닥/지수/설명서) -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
     <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
     <button class="tab-btn" onclick="setTab('INDEX', this)">지수</button>
+    <button class="tab-btn" onclick="setTab('GUIDE', this)">📖 설명서</button>
   </div>
 
   <!-- 지수 서브 탭 -->
@@ -651,11 +723,12 @@
     </div>
   </div>
 
-  <div class="summary-bar">
+  <div class="summary-bar" id="summaryBar">
     <span id="filteredCount">선별 종목: 0개</span>
     <span id="updatedTime">방금 갱신됨 (-)</span>
   </div>
 
+  <!-- 메인 카드 및 설명서 출력 영역 -->
   <div class="card-list" id="cardList">
     <div class="loading-box">데이터를 불러오는 중입니다...</div>
   </div>
@@ -730,7 +803,7 @@
   let allData = [];
   let currentTab = "ALL";
   let currentIndexCat = "ALL";
-  let minScoreFilter = 0; // 최소 점수 필터 (0, 80, 70, 60, 50)
+  let minScoreFilter = 0;
   let isDoubleOnly = false;
   let isStrongBuyOnly = false;
 
@@ -834,6 +907,11 @@
 
   async function fetchFromSupabase() {
     const list = document.getElementById("cardList");
+    if (currentTab === "GUIDE") {
+      renderGuideTab(list);
+      return;
+    }
+
     list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
 
     try {
@@ -923,18 +1001,151 @@
     const scoreFiltersEl = document.getElementById("scoreFilters");
     const toggleGroupEl = document.getElementById("filterToggleGroup");
     const indexSubTabsEl = document.getElementById("indexSubTabs");
+    const summaryBarEl = document.getElementById("summaryBar");
 
-    if (currentTab === "INDEX") {
+    if (currentTab === "GUIDE") {
+      indexSubTabsEl.style.display = "none";
+      scoreFiltersEl.style.display = "none";
+      toggleGroupEl.style.display = "none";
+      summaryBarEl.style.display = "none";
+      renderGuideTab(cardListEl);
+    } else if (currentTab === "INDEX") {
       indexSubTabsEl.style.display = "flex";
       scoreFiltersEl.style.display = "none";
       toggleGroupEl.style.display = "none";
+      summaryBarEl.style.display = "flex";
       renderIndexTab(cardListEl);
     } else {
       indexSubTabsEl.style.display = "none";
       scoreFiltersEl.style.display = "flex";
       toggleGroupEl.style.display = "flex";
+      summaryBarEl.style.display = "flex";
       renderStockTab(cardListEl);
     }
+  }
+
+  // 설명서 탭 렌더링
+  function renderGuideTab(container) {
+    container.innerHTML = `
+      <div class="guide-box">
+        <div class="guide-title">⏰ 데이터 동기화 & 리셋 시간 안내</div>
+        <ul class="guide-list">
+          <li><strong>GitHub Actions 자동 수집 (주기)</strong>: 장중 30분 간격 (평일 09:00 ~ 15:30) 자동 실행</li>
+          <li><strong>화면 자동 갱신</strong>: 브라우저가 열려 있는 동안 30초마다 Supabase 최신 데이터 자동 조회</li>
+          <li><strong>일별 데이터 리셋</strong>: 매일 한국 시간(KST) 오전 08:30경 전일 데이터가 신규 날짜로 전환 및 초기화</li>
+          <li><strong>글로벌 지수/원자재</strong>: 정규장 마감 후 뉴욕 시장 실시간 시세가 반영되어 익일 개장 전까지 유지</li>
+        </ul>
+      </div>
+
+      <div class="guide-box">
+        <div class="guide-title">📊 20개 지표 100점 만점 평가 구조</div>
+        <table class="guide-table">
+          <thead>
+            <tr>
+              <th>영역</th>
+              <th>지표명 (배점)</th>
+              <th>핵심 평가 기준</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="4" style="color:#f87171;font-weight:bold;">가격<br>(18점)</td>
+              <td>01. 주가등락률 (7점)</td>
+              <td>+10%이상(7점), +7~10%(6점), +5~7%(5점), +3~5%(4점), +1~3%(3점)</td>
+            </tr>
+            <tr>
+              <td>06. 양봉마감 (4점)</td>
+              <td>시가 대비 종가 +3%이상(4점), +1~3%(3점), 0~1%(2점)</td>
+            </tr>
+            <tr>
+              <td>07. 고가근접 (4점)</td>
+              <td>(종가-저가)/(고가-저가) 95%이상(4점), 90~95%(3점), 80~90%(2점)</td>
+            </tr>
+            <tr>
+              <td>08. 윗꼬리제한 (3점)</td>
+              <td>윗꼬리 비율 5%이하(3점), 5~10%(2점), 10~20%(1점)</td>
+            </tr>
+            <tr>
+              <td rowspan="2" style="color:#f59e0b;font-weight:bold;">거래<br>(12점)</td>
+              <td>02. 거래대금 (7점)</td>
+              <td>1,000억이상(7점), 500~1,000억(6점), 300~500억(5점), 100~300억(3점)</td>
+            </tr>
+            <tr>
+              <td>03. 거래량비율 (5점)</td>
+              <td>20일 평균 거래량 대비 300%이상(5점), 200~300%(4점), 150~200%(3점)</td>
+            </tr>
+            <tr>
+              <td rowspan="3" style="color:#38bdf8;font-weight:bold;">수급<br>(16점)</td>
+              <td>10. 외국인순매수 (6점)</td>
+              <td>최근 1일+5일 동시 순매수(6점), 1일 순매수(4점)</td>
+            </tr>
+            <tr>
+              <td>11. 기관순매수 (5점)</td>
+              <td>최근 1일+5일 동시 순매수(5점), 1일 순매수(3점)</td>
+            </tr>
+            <tr>
+              <td>12. 순매수비율 (5점)</td>
+              <td>(외인+기관 순매수대금)/거래대금 30%이상(5점), 20~30%(4점), 10~20%(3점)</td>
+            </tr>
+            <tr>
+              <td rowspan="5" style="color:#10b981;font-weight:bold;">추세<br>(23점)</td>
+              <td>04. 20일이평선 (6점)</td>
+              <td>20일선 위 +10%이상(6점), +5~10%(5점), +2~5%(4점)</td>
+            </tr>
+            <tr>
+              <td>09. 단기이평정배열 (6점)</td>
+              <td>5일>10일>20일 & 주가>5일선(6점), 정배열(5점)</td>
+            </tr>
+            <tr>
+              <td>13. 5일이평선 (4점)</td>
+              <td>5일선 위 +3%이상(4점), +1~3%(3점), 0~1%(2점)</td>
+            </tr>
+            <tr>
+              <td>14. 60일이평선 (5점)</td>
+              <td>60일선 위 +10%이상(5점), +5~10%(4점), 0~5%(3점)</td>
+            </tr>
+            <tr>
+              <td>15. 120일이평선 (4점)</td>
+              <td>120일선 위 +10%이상(4점), +5~10%(3점), 0~5%(2점)</td>
+            </tr>
+            <tr>
+              <td rowspan="3" style="color:#a855f7;font-weight:bold;">돌파<br>(14점)</td>
+              <td>05. 주가위치 (4점)</td>
+              <td>52주 최고가 대비 -5% 이내(4점), -5~-10%(3점), -10~-20%(2점)</td>
+            </tr>
+            <tr>
+              <td>16. 52주신고가 (5점)</td>
+              <td>신고가 갱신(5점), 고점 -3% 이내(4점), -3~-10%(3점)</td>
+            </tr>
+            <tr>
+              <td>17. 전고점돌파 (5점)</td>
+              <td>전고점 돌파 + 거래량 증가(5점), 돌파(4점), -3% 이내(3점)</td>
+            </tr>
+            <tr>
+              <td rowspan="3" style="color:#ec4899;font-weight:bold;">과열/모멘텀<br>(11점)</td>
+              <td>18. RSI(14) (4점)</td>
+              <td>55~70 강세구간(4점), 50~55(3점), 45~50 또는 70~75(2점)</td>
+            </tr>
+            <tr>
+              <td>19. 이격도 (4점)</td>
+              <td>102~108% 적정이격(4점), 100~102% 또는 108~112%(3점)</td>
+            </tr>
+            <tr>
+              <td>20. MACD (3점)</td>
+              <td>MACD 골든크로스 & 0선 위(3점), 골든크로스(2점), 0선 위(1점)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="guide-box">
+        <div class="guide-title">👑 특별 조건 안내</div>
+        <ul class="guide-list">
+          <li><strong>🔥 쌍끌이</strong>: 당일 외국인과 기관이 동시 순매수한 강력 수급 종목</li>
+          <li><strong>👑 강한 매수세 후보</strong>: 종합 스코어 <strong>80점 이상</strong>이면서 <strong>외인+기관 쌍끌이</strong>를 동시에 만족하는 최우선 공략 후보</li>
+        </ul>
+      </div>
+    `;
   }
 
   function renderIndexTab(container) {
@@ -1026,7 +1237,6 @@
       if (item.market === "INDEX") return false;
       if (currentTab !== "ALL" && item.market !== currentTab) return false;
 
-      // N점 이상 필터링
       const score = num(item.total_score);
       if (minScoreFilter > 0 && score < minScoreFilter) return false;
 
@@ -1036,7 +1246,6 @@
       return true;
     });
 
-    // 강한 매수세 / 총점 / 거래대금 순 정렬
     filtered.sort((a,b) => {
       const strongDiff = Number(isStrongBuy(b)) - Number(isStrongBuy(a));
       if (strongDiff !== 0) return strongDiff;
@@ -1136,7 +1345,6 @@
     renderList();
   }
 
-  // N점 이상 필터 선택 핸들러
   function setMinScore(scoreThreshold, btn) {
     minScoreFilter = scoreThreshold;
     document.querySelectorAll(".score-filters .score-filter-chip").forEach(b => b.classList.remove("active"));

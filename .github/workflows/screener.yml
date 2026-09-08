@@ -2,8 +2,8 @@ name: Stock Data Collector
 
 on:
   schedule:
-    - cron: '0 0-6 * * 1-5' # 평일 장중 자동 수집
-  workflow_dispatch: # Actions 탭에서 수동 실행 버튼
+    - cron: '*/30 0-14 * * 1-5' # 평일 30분 간격 자동 수집
+  workflow_dispatch:
 
 jobs:
   collect:
@@ -19,7 +19,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install requests supabase
+          pip install requests supabase yfinance
 
       - name: Run Collector
         run: |

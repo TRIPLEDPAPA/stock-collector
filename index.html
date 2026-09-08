@@ -187,11 +187,11 @@
 
     async function fetchFromSupabase() {
       try {
-      // index.html 수정 부분
-const { data, error } = await supabaseClient
-  .from("tripled_papa")  // 👈 공백 없는 이름으로 변경
-  .select("*")
-  .order("trade_amount", { ascending: false });
+        // 테이블명 공백 오류 해결을 위해 쿼리 호출 방식 조정
+        const { data, error } = await supabaseClient
+          .from("TRIPLE D PAPA")
+          .select("*")
+          .order("trade_amount", { ascending: false });
 
         if (error) throw error;
         allData = data || [];
@@ -213,7 +213,7 @@ const { data, error } = await supabaseClient
         renderStockList();
       } catch (err) {
         console.error("Supabase 로딩 에러:", err);
-        document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #ef4444;">데이터 로드 실패</div>`;
+        document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #ef4444;">데이터 로드 실패 (${err.message})</div>`;
       }
     }
 
@@ -254,7 +254,6 @@ const { data, error } = await supabaseClient
         const sign = rate > 0 ? "+" : "";
         const dealInEok = Math.round((item.trade_amount || 0) / 100000000);
 
-        // 통과한 조건 개수 계산
         const passedTagsArr = (item.passed_tags || "").split(",").filter(t => t);
         const passCount = passedTagsArr.length;
 
@@ -312,7 +311,6 @@ const { data, error } = await supabaseClient
       renderStockList();
     }
 
-    // 30초마다 자동 갱신
     setInterval(() => {
       fetchFromSupabase();
     }, 30000);

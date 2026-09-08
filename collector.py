@@ -89,10 +89,21 @@ def parse_stock_item(item, market_type, today_str):
 
 def get_indices_data(today_str):
     return [
+        # 국내 및 글로벌 증시 지수
         {"market": "INDEX", "ticker": "KOSPI", "name": "코스피", "close_price": 2650.12, "change_rate": 0.65, "trade_amount": 0, "deal_tag": "KOSPI", "passed_tags": "INDEX,KOSPI", "date": today_str},
         {"market": "INDEX", "ticker": "KOSDAQ", "name": "코스닥", "close_price": 850.44, "change_rate": 1.12, "trade_amount": 0, "deal_tag": "KOSDAQ", "passed_tags": "INDEX,KOSDAQ", "date": today_str},
         {"market": "INDEX", "ticker": "SP500", "name": "S&P 500", "close_price": 5200.10, "change_rate": 0.45, "trade_amount": 0, "deal_tag": "SP500", "passed_tags": "INDEX,SP500", "date": today_str},
-        {"market": "INDEX", "ticker": "NASDAQ", "name": "나스닥", "close_price": 16400.20, "change_rate": 0.85, "trade_amount": 0, "deal_tag": "NASDAQ", "passed_tags": "INDEX,NASDAQ", "date": today_str}
+        {"market": "INDEX", "ticker": "NASDAQ", "name": "나스닥", "close_price": 16400.20, "change_rate": 0.85, "trade_amount": 0, "deal_tag": "NASDAQ", "passed_tags": "INDEX,NASDAQ", "date": today_str},
+        {"market": "INDEX", "ticker": "DJI", "name": "다우존스", "close_price": 39100.50, "change_rate": 0.32, "trade_amount": 0, "deal_tag": "DJI", "passed_tags": "INDEX,DJI", "date": today_str},
+        {"market": "INDEX", "ticker": "N225", "name": "니케이 225", "close_price": 40400.00, "change_rate": 1.05, "trade_amount": 0, "deal_tag": "N225", "passed_tags": "INDEX,N225", "date": today_str},
+        {"market": "INDEX", "ticker": "SSEC", "name": "상해종합", "close_price": 3050.80, "change_rate": -0.15, "trade_amount": 0, "deal_tag": "SSEC", "passed_tags": "INDEX,SSEC", "date": today_str},
+        
+        # 원자재 및 귀금속
+        {"market": "INDEX", "ticker": "GOLD", "name": "금(USD/oz)", "close_price": 2160.40, "change_rate": 0.50, "trade_amount": 0, "deal_tag": "GOLD", "passed_tags": "INDEX,GOLD", "date": today_str},
+        {"market": "INDEX", "ticker": "SILVER", "name": "은(USD/oz)", "close_price": 24.80, "change_rate": 0.75, "trade_amount": 0, "deal_tag": "SILVER", "passed_tags": "INDEX,SILVER", "date": today_str},
+        {"market": "INDEX", "ticker": "BRENT", "name": "브렌트유", "close_price": 85.50, "change_rate": -0.80, "trade_amount": 0, "deal_tag": "BRENT", "passed_tags": "INDEX,BRENT", "date": today_str},
+        {"market": "INDEX", "ticker": "WTI", "name": "WTI 원유", "close_price": 81.20, "change_rate": -0.65, "trade_amount": 0, "deal_tag": "WTI", "passed_tags": "INDEX,WTI", "date": today_str},
+        {"market": "INDEX", "ticker": "COPPER", "name": "구리(LME)", "close_price": 8900.00, "change_rate": 1.20, "trade_amount": 0, "deal_tag": "COPPER", "passed_tags": "INDEX,COPPER", "date": today_str}
     ]
 
 def collect_market_data():

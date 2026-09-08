@@ -1,6 +1,7 @@
 import datetime
 import requests
 import time
+import yfinance as yf
 from supabase import create_client, Client
 
 SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
@@ -36,7 +37,7 @@ def is_pure_stock(ticker, name):
             return False
     return True
 
-# 1. 국내 실시간 지수 (KOSPI, KOSDAQ) 네이버 API 직접 수집
+# 1. 국내 지수 (코스피, 코스닥) 네이버 실시간 수집
 def fetch_real_korean_index(code, name, headers, today_str):
     url = f"https://m.stock.naver.com/api/index/{code}/basic"
     try:
@@ -48,7 +49,6 @@ def fetch_real_korean_index(code, name, headers, today_str):
             chg_rate = safe_float(data.get("fluctuationsRatio"))
             deal_won = int(safe_float(data.get("accumulatedTradingValueWon") or data.get("dealWon") or 0))
             
-            deal_label = "100억이상" if deal_won >= 10000000000 else "100억미만"
             return {
                 "market": "INDEX",
                 "ticker": f"IDX_{code}",
@@ -57,21 +57,73 @@ def fetch_real_korean_index(code, name, headers, today_str):
                 "open_price": open_p,
                 "change_rate": chg_rate,
                 "trade_amount": deal_won,
-                "deal_tag": deal_label,
-                "volume": 0,
-                "strength": 100.0,
+                "deal_tag": "100억이상" if deal_won >= 10000000000 else "100억미만",
+                "volume": 0, "strength": 100.0,
                 "per": 0.0, "pbr": 0.0, "roe": 0.0, "eps": 0,
-                "foreign_net_buy": 125000,
-                "inst_net_buy": -84000,
-                "retail_net_buy": -41000,
+                "foreign_net_buy": 125000, "inst_net_buy": -84000, "retail_net_buy": -41000,
                 "passed_tags": "",
                 "date": today_str
             }
     except Exception as e:
-        print(f"{name} 실시간 지수 수집 실패: {e}")
+        print(f"{name} 수집 실패: {e}")
     return None
 
-# 2. 개별 종목 실제 투자자 수급(외인/기관/개인 순매수) 조회
+# 2. 글로벌 지수 / 선물 / 원자재 / 환율 yfinance 자동 실시간 수집
+def fetch_global_realtime_items(today_str):
+    items_to_fetch = [
+        # 미국 3대 지수
+        {"symbol": "^GSPC", "ticker": "IDX_SP500", "name": "S&P 500"},
+        {"symbol": "^DJI", "ticker": "IDX_DOW", "name": "다우존스"},
+        {"symbol": "^NDX", "ticker": "IDX_NASDAQ100", "name": "나스닥 100"},
+        # 지수 선물
+        {"symbol": "YM=F", "ticker": "FUT_DOW", "name": "Dow Jones (선물)"},
+        {"symbol": "ES=F", "ticker": "FUT_SP500", "name": "S&P 500 (선물)"},
+        {"symbol": "NQ=F", "ticker": "FUT_NASDAQ100", "name": "나스닥 100 (선물)"},
+        # 원자재 ($)
+        {"symbol": "GC=F", "ticker": "COMM_GOLD", "name": "금"},
+        {"symbol": "SI=F", "ticker": "COMM_SILVER", "name": "은"},
+        {"symbol": "HG=F", "ticker": "COMM_COPPER", "name": "구리"},
+        {"symbol": "CL=F", "ticker": "COMM_WTI", "name": "WTI유"},
+        {"symbol": "BZ=F", "ticker": "COMM_BRENT", "name": "브렌트유"},
+        # 환율 (원)
+        {"symbol": "USDKRW=X", "ticker": "IDX_USDKRW", "name": "원/달러 환율"}
+    ]
+
+    results = []
+    print("글로벌 지수/원자재 실시간 수집 중...")
+    for cfg in items_to_fetch:
+        try:
+            t = yf.Ticker(cfg["symbol"])
+            hist = t.history(period="2d")
+            if not hist.empty:
+                latest = hist.iloc[-1]
+                prev = hist.iloc[-2] if len(hist) > 1 else hist.iloc[-1]
+                
+                close_val = round(float(latest["Close"]), 2)
+                open_val = round(float(prev["Close"]), 2) # 전일종가 기준
+                chg_rate = round(((close_val - open_val) / open_val) * 100, 2) if open_val > 0 else 0.0
+
+                results.append({
+                    "market": "INDEX",
+                    "ticker": cfg["ticker"],
+                    "name": cfg["name"],
+                    "close_price": close_val,
+                    "open_price": open_val,
+                    "change_rate": chg_rate,
+                    "trade_amount": 0,
+                    "deal_tag": "100억미만",
+                    "volume": 0, "strength": 100.0,
+                    "per": 0.0, "pbr": 0.0, "roe": 0.0, "eps": 0,
+                    "foreign_net_buy": 0, "inst_net_buy": 0, "retail_net_buy": 0,
+                    "passed_tags": "",
+                    "date": today_str
+                })
+        except Exception as e:
+            print(f"{cfg['name']} yfinance 조회 에러: {e}")
+            
+    return results
+
+# 3. 개별 종목 실제 투자자 수급(외인/기관/개인 순매수) 조회
 def get_real_investor_trend(ticker, headers):
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
@@ -123,8 +175,6 @@ def parse_stock_item(item, market_type, today_str, headers):
     if foreign_buy > 0 and inst_buy > 0:
         passed_tags.append("쌍끌이")
 
-    deal_label = "100억이상" if deal_won_int >= 10000000000 else "100억미만"
-
     return {
         "market": market_type,
         "ticker": ticker,
@@ -133,7 +183,7 @@ def parse_stock_item(item, market_type, today_str, headers):
         "open_price": open_p_int,
         "change_rate": chg,
         "trade_amount": deal_won_int,
-        "deal_tag": deal_label,
+        "deal_tag": "100억이상" if deal_won_int >= 10000000000 else "100억미만",
         "volume": current_vol_int,
         "strength": 100.0,
         "per": 0.0, "pbr": 0.0, "roe": 0.0, "eps": 0,
@@ -149,59 +199,21 @@ def collect_market_data():
     korea_time = now_utc + datetime.timedelta(hours=9)
     today_str = korea_time.strftime("%Y-%m-%d")
     
-    print(f"[{today_str}] 데이터 수집 시작...")
+    print(f"[{today_str}] 전체 실시간 데이터 수집 시작...")
     compiled_items = []
     headers = {
         "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15"
     }
 
-    # 1. 코스피/코스닥 실시간 지수 수집
+    # 1. 국내 지수 (코스피, 코스닥) 네이버 실시간 조회
     for code, name in [("KOSPI", "코스피"), ("KOSDAQ", "코스닥")]:
         idx_data = fetch_real_korean_index(code, name, headers, today_str)
         if idx_data:
             compiled_items.append(idx_data)
 
-    # 2. 글로벌 지수 및 원자재(달러 표기) / 환율(원화 표기)
-    global_configs = [
-        # 미국 지수
-        {"ticker": "IDX_SP500", "name": "S&P 500", "close": 5420.0, "open": 5402.0, "rate": 0.32, "deal": 45000000000000, "for": 380000, "inst": 290000, "ret": -670000},
-        {"ticker": "IDX_DOW", "name": "다우존스", "close": 40345.0, "open": 40284.0, "rate": 0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "IDX_NASDAQ100", "name": "나스닥 100", "close": 18850.0, "open": 18720.0, "rate": 0.69, "deal": 32000000000000, "for": 520000, "inst": 340000, "ret": -860000},
-        # 지수 선물
-        {"ticker": "FUT_KOSPI200", "name": "코스피200 선물 (F)", "close": 358.2, "open": 356.1, "rate": 0.56, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "FUT_DOW", "name": "Dow Jones (선물)", "close": 40410.0, "open": 40320.0, "rate": 0.22, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "FUT_SP500", "name": "S&P 500 (선물)", "close": 5435.0, "open": 5415.0, "rate": 0.37, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "FUT_NASDAQ100", "name": "나스닥 100 (선물)", "close": 18910.0, "open": 18780.0, "rate": 0.69, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        # 원자재/금속 (국제 달러 기준: 금 온스당$, 은 온스당$, 구리 파운드당$)
-        {"ticker": "COMM_GOLD", "name": "금", "close": 2515.5, "open": 2509.2, "rate": 0.25, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_SILVER", "name": "은", "close": 28.65, "open": 28.41, "rate": 0.85, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_COPPER", "name": "구리", "close": 4.18, "open": 4.19, "rate": -0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        # 에너지 (국제 달러 기준: 배럴당$)
-        {"ticker": "COMM_WTI", "name": "WTI유", "close": 68.75, "open": 69.25, "rate": -0.72, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_BRENT", "name": "브렌트유", "close": 72.15, "open": 72.62, "rate": -0.65, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        # 환율 (전체탭 전용)
-        {"ticker": "IDX_USDKRW", "name": "원/달러 환율", "close": 1341.5, "open": 1346.0, "rate": -0.33, "deal": 0, "for": 0, "inst": 0, "ret": 0}
-    ]
-
-    for item in global_configs:
-        compiled_items.append({
-            "market": "INDEX",
-            "ticker": item["ticker"],
-            "name": item["name"],
-            "close_price": item["close"],
-            "open_price": item["open"],
-            "change_rate": item["rate"],
-            "trade_amount": int(item["deal"]),
-            "deal_tag": "100억이상" if item["deal"] >= 10000000000 else "100억미만",
-            "volume": 0,
-            "strength": 100.0,
-            "per": 0.0, "pbr": 0.0, "roe": 0.0, "eps": 0,
-            "foreign_net_buy": item["for"],
-            "inst_net_buy": item["inst"],
-            "retail_net_buy": item["ret"],
-            "passed_tags": "",
-            "date": today_str
-        })
+    # 2. 글로벌 지수 / 원자재 / 선물 실시간 수집
+    global_items = fetch_global_realtime_items(today_str)
+    compiled_items.extend(global_items)
 
     # 3. 코스피 / 코스닥 일반 종목 수집
     for market in ["KOSPI", "KOSDAQ"]:
@@ -225,7 +237,7 @@ def collect_market_data():
     try:
         for item in compiled_items:
             supabase.table("TRIPLE D PAPA").upsert(item).execute()
-        print(f"[{today_str}] 지수 및 원자재(달러) 포함 총 {len(compiled_items)}건 수집 완료!")
+        print(f"[{today_str}] 전체 실시간 데이터 {len(compiled_items)}건 수집 완료!")
     except Exception as e:
         print(f"Supabase 저장 실패: {e}")
 

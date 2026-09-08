@@ -154,7 +154,7 @@
       color: #fff;
     }
 
-    /* 점수제 등급 필터 칩 */
+    /* 4단계 점수 이상 필터 칩 */
     .score-filters {
       display: flex;
       gap: 6px;
@@ -184,7 +184,7 @@
       color: #fff;
     }
 
-    /* 상단 토글 필터 (쌍끌이 / 강한 매수세) */
+    /* 상단 토글 필터 */
     .filter-toggle-group {
       display: flex;
       gap: 8px;
@@ -604,7 +604,7 @@
     </div>
   </div>
 
-  <!-- 메인 시장 탭 -->
+  <!-- 메인 4탭 -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -621,13 +621,13 @@
     <button class="sub-chip" onclick="setIndexCategory('에너지', this)">에너지</button>
   </div>
 
-  <!-- 점수제 등급 필터 (거래대금 필터 대체) -->
+  <!-- 4단계 점수 이상 필터 -->
   <div class="score-filters" id="scoreFilters">
-    <button class="score-filter-chip active" onclick="setScoreGrade('ALL', this)">전체 점수</button>
-    <button class="score-filter-chip" onclick="setScoreGrade('S', this)">🔴 S 최강 모멘텀 (90~100)</button>
-    <button class="score-filter-chip" onclick="setScoreGrade('A_PLUS', this)">🔴 A+ 강력한 상승 후보 (80~89)</button>
-    <button class="score-filter-chip" onclick="setScoreGrade('A', this)">🟠 A 상승 추세 (70~79)</button>
-    <button class="score-filter-chip" onclick="setScoreGrade('B_PLUS', this)">🟡 B+ 관심 (60~69)</button>
+    <button class="score-filter-chip active" onclick="setMinScore(0, this)">전체 점수</button>
+    <button class="score-filter-chip" onclick="setMinScore(80, this)">🔴 80점 이상</button>
+    <button class="score-filter-chip" onclick="setMinScore(70, this)">🟠 70점 이상</button>
+    <button class="score-filter-chip" onclick="setMinScore(60, this)">🟡 60점 이상</button>
+    <button class="score-filter-chip" onclick="setMinScore(50, this)">⚪ 50점 이상</button>
   </div>
 
   <!-- 상단 토글 필터 (쌍끌이 / 강한 매수세) -->
@@ -663,9 +663,6 @@
 </div>
 
 <script>
-  // ==========================================================
-  // Supabase 클라이언트 설정
-  // ==========================================================
   const SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co";
   const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
 
@@ -674,9 +671,6 @@
     SUPABASE_KEY
   );
 
-  // ==========================================================
-  // 20개 지표 목록
-  // ==========================================================
   const INDICATORS = [
     ["score_01", "주가등락률", 7],
     ["score_02", "거래대금", 7],
@@ -709,9 +703,6 @@
     { key: "과열/모멘텀", tags: ["RSI(14)", "이격도", "MACD"] }
   ];
 
-  // ==========================================================
-  // 지수 메타데이터
-  // ==========================================================
   const INDEX_META = {
     "원/달러 환율": { cat:"환율", group:"환율", unit:"원", isDollar:false },
     "코스피": { cat:"지수", group:"한국", unit:"p", isDollar:false },
@@ -739,7 +730,7 @@
   let allData = [];
   let currentTab = "ALL";
   let currentIndexCat = "ALL";
-  let currentScoreGrade = "ALL"; // 점수 등급 필터 상태
+  let minScoreFilter = 0; // 최소 점수 필터 (0, 80, 70, 60, 50)
   let isDoubleOnly = false;
   let isStrongBuyOnly = false;
 
@@ -1035,12 +1026,9 @@
       if (item.market === "INDEX") return false;
       if (currentTab !== "ALL" && item.market !== currentTab) return false;
 
-      // 점수제 등급 필터 적용
+      // N점 이상 필터링
       const score = num(item.total_score);
-      if (currentScoreGrade === "S" && (score < 90 || score > 100)) return false;
-      if (currentScoreGrade === "A_PLUS" && (score < 80 || score > 89)) return false;
-      if (currentScoreGrade === "A" && (score < 70 || score > 79)) return false;
-      if (currentScoreGrade === "B_PLUS" && (score < 60 || score > 69)) return false;
+      if (minScoreFilter > 0 && score < minScoreFilter) return false;
 
       if (isDoubleOnly && !isDouble(item)) return false;
       if (isStrongBuyOnly && !isStrongBuy(item)) return false;
@@ -1148,9 +1136,9 @@
     renderList();
   }
 
-  // 점수 등급 선택 핸들러
-  function setScoreGrade(grade, btn) {
-    currentScoreGrade = grade;
+  // N점 이상 필터 선택 핸들러
+  function setMinScore(scoreThreshold, btn) {
+    minScoreFilter = scoreThreshold;
     document.querySelectorAll(".score-filters .score-filter-chip").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     renderList();

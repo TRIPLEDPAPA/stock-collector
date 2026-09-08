@@ -30,6 +30,7 @@
     }
     .container { max-width: 540px; margin: 0 auto; }
 
+    /* 헤더 */
     .header-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
     .brand-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; }
     .brand-date { font-size: 0.75rem; color: var(--text-sub); margin-top: 2px; }
@@ -45,6 +46,7 @@
     }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
+    /* 탭 메뉴 */
     .market-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
     .tab-btn {
       background-color: #1e293b; color: var(--text-sub); border: none; padding: 10px 0;
@@ -52,17 +54,20 @@
     }
     .tab-btn.active { background-color: #38bdf8; color: #0f172a; font-weight: 800; }
 
+    /* 대금 필터 */
     .deal-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
     .deal-filters::-webkit-scrollbar { display: none; }
     .filter-chip { background-color: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 8px 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; flex-shrink: 0; }
     .filter-chip.active { background-color: #d97706; border-color: #f59e0b; color: #ffffff; }
 
+    /* 쌍끌이 토글 바 */
     .double-box { background-color: #141e30; border: 1px solid #253347; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; cursor: pointer; user-select: none; }
     .double-box-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; }
     .double-box-count { color: #f59e0b; font-size: 0.85rem; font-weight: 700; }
     
     .summary-bar { display: flex; justify-content: space-between; font-size: 0.78rem; color: #94a3b8; margin-bottom: 10px; padding: 0 2px; }
 
+    /* 카드 리스트 */
     .card-list { display: flex; flex-direction: column; gap: 12px; }
     .card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); }
     .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
@@ -111,14 +116,12 @@
       </div>
     </div>
 
-    <!-- 시장 탭 -->
     <div class="market-tabs">
       <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
       <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
       <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
     </div>
 
-    <!-- 거래대금 필터 -->
     <div class="deal-filters">
       <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
       <button class="filter-chip" onclick="setDeal('100억이상', this)">100억 이상</button>
@@ -127,7 +130,6 @@
       <button class="filter-chip" onclick="setDeal('400억이상', this)">400억 이상</button>
     </div>
 
-    <!-- 외인+기관 쌍끌이 토글 박스 -->
     <div class="double-box" onclick="toggleDoubleOnly()">
       <div class="double-box-label">
         <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 16px; height: 16px; pointer-events: none;" />
@@ -141,7 +143,6 @@
       <span id="updatedTime">방금 갱신됨 (-)</span>
     </div>
 
-    <!-- 주식 카드 리스트 -->
     <div class="card-list" id="cardList">
       <div class="loading-box">데이터를 불러오는 중입니다...</div>
     </div>
@@ -209,7 +210,6 @@
         const timeStr = `${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초`;
         document.getElementById("updatedTime").innerText = `방금 갱신됨 (${timeStr})`;
 
-        // 전체 데이터 중 쌍끌이 조건(외인>0 & 기관>0)을 만족하는 실제 종목 수만 카운트
         const totalDouble = allData.filter(item => {
           if (item.market === 'INDEX') return false;
           return (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
@@ -218,7 +218,7 @@
 
         renderStockList();
       } catch (err) {
-        console.error("Supabase 로딩 에러:", err);
+        console.error("Supabase 에러:", err);
         document.getElementById("cardList").innerHTML = `<div class="loading-box" style="color: #ef4444;">데이터 로드 실패</div>`;
       }
     }
@@ -228,11 +228,8 @@
 
       const filtered = allData.filter(item => {
         if (item.market === 'INDEX') return false;
-        
-        // 1. 코스피 / 코스닥 필터링
         if (currentTab !== "ALL" && item.market !== currentTab) return false;
         
-        // 2. 거래대금 조건 필터링
         if (currentDeal !== "ALL") {
           const dealVal = item.trade_amount || 0;
           if (currentDeal === "100억이상" && dealVal < 10000000000) return false;
@@ -241,7 +238,6 @@
           if (currentDeal === "400억이상" && dealVal < 40000000000) return false;
         }
 
-        // 3. 쌍끌이만 보기 필터링
         if (isDoubleOnly) {
           const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
           if (!isDouble) return false;
@@ -257,9 +253,7 @@
       }
 
       cardListEl.innerHTML = filtered.map(item => {
-        // 실제 데이터 기반으로 쌍끌이 여부 판단
         const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
-        
         const rate = item.change_rate || 0;
         const rateClass = rate > 0 ? "rate-up" : (rate < 0 ? "rate-down" : "");
         const sign = rate > 0 ? "+" : "";

@@ -37,33 +37,11 @@ def parse_stock_item(item, market_type, today_str):
     if deal_won == 0 and current_vol > 0:
         deal_won = close_p * current_vol
 
-    passed_tags = []
-    if chg > 0:
-        passed_tags.append("주가등락률")
-    if deal_won >= 10000000000:
-        passed_tags.append("거래대금")
-    if close_p > open_p:
-        passed_tags.append("양봉마감")
-    if high_p > 0 and (high_p - close_p) / high_p <= 0.02:
-        passed_tags.append("고가근접")
+    passed_tags = ["주가등락률", "거래대금", "양봉마감", "고가근접"]
     
-    body = abs(close_p - open_p) or 1
-    upper_wick = high_p - max(close_p, open_p)
-    if upper_wick <= body * 1.0:
-        passed_tags.append("윗꼬리제한")
-    passed_tags.append("거래량돌파")
-
-    deal_label = "100억미만"
-    if deal_won > 50000000000:
-        deal_label = "500억이상"
-    elif deal_won > 40000000000:
-        deal_label = "500억이하"
-    elif deal_won > 30000000000:
-        deal_label = "400억이하"
-    elif deal_won > 20000000000:
-        deal_label = "300억이하"
-    elif deal_won >= 10000000000:
-        deal_label = "200억이하"
+    deal_label = "100억이상"
+    if deal_won < 10000000000:
+        deal_label = "100억미만"
 
     return {
         "market": market_type,
@@ -87,29 +65,10 @@ def parse_stock_item(item, market_type, today_str):
         "date": today_str
     }
 
-def get_indices_data(today_str):
-    return [
-        # 국내 및 글로벌 증시 지수
-        {"market": "INDEX", "ticker": "KOSPI", "name": "코스피", "close_price": 2650.12, "change_rate": 0.65, "trade_amount": 0, "deal_tag": "KOSPI", "passed_tags": "INDEX,KOSPI", "date": today_str},
-        {"market": "INDEX", "ticker": "KOSDAQ", "name": "코스닥", "close_price": 850.44, "change_rate": 1.12, "trade_amount": 0, "deal_tag": "KOSDAQ", "passed_tags": "INDEX,KOSDAQ", "date": today_str},
-        {"market": "INDEX", "ticker": "SP500", "name": "S&P 500", "close_price": 5200.10, "change_rate": 0.45, "trade_amount": 0, "deal_tag": "SP500", "passed_tags": "INDEX,SP500", "date": today_str},
-        {"market": "INDEX", "ticker": "NASDAQ", "name": "나스닥", "close_price": 16400.20, "change_rate": 0.85, "trade_amount": 0, "deal_tag": "NASDAQ", "passed_tags": "INDEX,NASDAQ", "date": today_str},
-        {"market": "INDEX", "ticker": "DJI", "name": "다우존스", "close_price": 39100.50, "change_rate": 0.32, "trade_amount": 0, "deal_tag": "DJI", "passed_tags": "INDEX,DJI", "date": today_str},
-        {"market": "INDEX", "ticker": "N225", "name": "니케이 225", "close_price": 40400.00, "change_rate": 1.05, "trade_amount": 0, "deal_tag": "N225", "passed_tags": "INDEX,N225", "date": today_str},
-        {"market": "INDEX", "ticker": "SSEC", "name": "상해종합", "close_price": 3050.80, "change_rate": -0.15, "trade_amount": 0, "deal_tag": "SSEC", "passed_tags": "INDEX,SSEC", "date": today_str},
-        
-        # 원자재 및 귀금속
-        {"market": "INDEX", "ticker": "GOLD", "name": "금(USD/oz)", "close_price": 2160.40, "change_rate": 0.50, "trade_amount": 0, "deal_tag": "GOLD", "passed_tags": "INDEX,GOLD", "date": today_str},
-        {"market": "INDEX", "ticker": "SILVER", "name": "은(USD/oz)", "close_price": 24.80, "change_rate": 0.75, "trade_amount": 0, "deal_tag": "SILVER", "passed_tags": "INDEX,SILVER", "date": today_str},
-        {"market": "INDEX", "ticker": "BRENT", "name": "브렌트유", "close_price": 85.50, "change_rate": -0.80, "trade_amount": 0, "deal_tag": "BRENT", "passed_tags": "INDEX,BRENT", "date": today_str},
-        {"market": "INDEX", "ticker": "WTI", "name": "WTI 원유", "close_price": 81.20, "change_rate": -0.65, "trade_amount": 0, "deal_tag": "WTI", "passed_tags": "INDEX,WTI", "date": today_str},
-        {"market": "INDEX", "ticker": "COPPER", "name": "구리(LME)", "close_price": 8900.00, "change_rate": 1.20, "trade_amount": 0, "deal_tag": "COPPER", "passed_tags": "INDEX,COPPER", "date": today_str}
-    ]
-
 def collect_market_data():
     now_utc = datetime.datetime.utcnow()
     korea_time = now_utc + datetime.timedelta(hours=9)
-    today_str = korea_time.strftime("%Y-%m-%d")
+    today_str = korean_time.strftime("%Y-%m-%d")
     
     print(f"[{today_str}] 데이터 수집 시작...")
     compiled_stocks = []
@@ -129,7 +88,7 @@ def collect_market_data():
                 print(f"{market} 페이지 {page} 수집 중 오류: {e}")
 
     compiled_stocks.sort(key=lambda x: x["trade_amount"], reverse=True)
-    final_data = compiled_stocks[:40] + get_indices_data(today_str)
+    final_data = compiled_stocks[:40]
 
     try:
         for item in final_data:

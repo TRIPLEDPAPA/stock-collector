@@ -165,13 +165,13 @@
       { key: "단기이평정배열", label: "단기이평정배열" }
     ];
 
-    // 요청 순서 정의
+    // 요청하신 지수/원자재 12종 고정 순서
     const INDEX_ORDER = [
       "코스피", "코스닥", "S&P500", "나스닥", "다우존스", 
       "상해종합", "니케이", "금", "은", "구리", "브렌트유", "WTI유"
     ];
 
-    // 수급과 거래대금을 노출할 4개 지수 정의
+    // 투자자 수급 및 거래대금을 노출할 4대 지수
     const BIG_FOUR_INDICES = ["코스피", "코스닥", "S&P500", "나스닥"];
 
     let allData = [];
@@ -204,6 +204,7 @@
           .from("TRIPLE D PAPA")
           .select("*")
           .order("date", { ascending: false })
+          .order("created_at", { ascending: false })
           .order("trade_amount", { ascending: false });
 
         if (error) throw error;
@@ -215,19 +216,20 @@
           return;
         }
 
+        // 기준일자 표기
         const latestDate = rawData[0].date;
         document.getElementById("baseDate").innerText = `기준일자: ${latestDate}`;
 
-        const seenTickers = new Set();
+        // 종목 및 지수 각각 이름/티커 기준으로 가장 최신 데이터 1개만 남기는 완벽한 중복 제거
+        const seenKeys = new Set();
         const uniqueData = [];
 
         for (const item of rawData) {
-          if (item.date === latestDate) {
-            const key = item.ticker || item.name;
-            if (!seenTickers.has(key)) {
-              seenTickers.add(key);
-              uniqueData.push(item);
-            }
+          // 이름 또는 티커를 고유 식별키로 사용
+          const uniqueKey = `${item.market}_${item.ticker || item.name}`;
+          if (!seenKeys.has(uniqueKey)) {
+            seenKeys.add(uniqueKey);
+            uniqueData.push(item);
           }
         }
 
@@ -283,13 +285,25 @@
         return true;
       });
 
-      // 지수 탭일 경우 지정된 순서대로 정렬
+      // 지수 탭일 경우 지정된 12개 순서대로 정렬 & 중복 이름 완전 필터링
       if (currentTab === "INDEX") {
-        filtered.sort((a, b) => {
+        const seenIndexNames = new Set();
+        const singleIndexList = [];
+
+        filtered.forEach(item => {
+          if (!seenIndexNames.has(item.name)) {
+            seenIndexNames.add(item.name);
+            singleIndexList.push(item);
+          }
+        });
+
+        singleIndexList.sort((a, b) => {
           const idxA = INDEX_ORDER.indexOf(a.name);
           const idxB = INDEX_ORDER.indexOf(b.name);
-          return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+          return (idxA !== -1 ? idxA : 999) - (idxB !== -1 ? idxB : 999);
         });
+
+        filtered = singleIndexList;
       }
 
       const labelText = currentTab === "INDEX" ? "주요 지수" : "선별 종목";
@@ -306,7 +320,7 @@
         const rateClass = rate > 0 ? "rate-up" : (rate < 0 ? "rate-down" : "");
         const sign = rate > 0 ? "+" : "";
 
-        // 1. 지수 카드 렌더링
+        // 1. 지수 카드
         if (isIndex) {
           const isBigFour = BIG_FOUR_INDICES.includes(item.name);
           const dealInEok = Math.round((item.trade_amount || 0) / 100000000);
@@ -339,7 +353,7 @@
           `;
         }
 
-        // 2. 일반 종목 카드 렌더링
+        // 2. 일반 종목 카드 (전일종가 계산)
         const closeP = item.close_price || 0;
         let prevClose = 0;
         if (rate !== -100 && closeP > 0) {

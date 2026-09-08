@@ -13,17 +13,17 @@ EXCLUDE_KEYWORDS = [
     "MSCI", "S&P", "나스닥", "NASDAQ", "다우", "금현물", "원유", "TR"
 ]
 
-def clean_float(val):
+def safe_float(val, default=0.0):
     if val is None:
-        return 0.0
+        return default
     if isinstance(val, (int, float)):
         return float(val)
-    # 문자열에 포함된 쉼표 및 공백 제거 후 안전하게 변환
-    cleaned = str(val).replace(",", "").strip()
     try:
+        # 문자열 내의 모든 쉼표와 공백을 확실하게 제거 후 변환
+        cleaned = str(val).replace(",", "").strip()
         return float(cleaned)
-    except ValueError:
-        return 0.0
+    except (ValueError, TypeError):
+        return default
 
 def is_pure_stock(ticker, name):
     if not ticker.endswith('0'):
@@ -37,12 +37,12 @@ def is_pure_stock(ticker, name):
     return True
 
 def parse_stock_item(item, market_type, today_str):
-    close_p = clean_float(item.get("closePrice") or item.get("nowPrice") or 0)
-    open_p = clean_float(item.get("openPrice") or close_p)
-    high_p = clean_float(item.get("highPrice") or close_p)
-    chg = clean_float(item.get("fluctuationsRatio") or item.get("changeRate") or 0)
-    deal_won = clean_float(item.get("tradePrice") or item.get("accumulatedTradingValue") or 0)
-    current_vol = clean_float(item.get("accumulatedTradingVolume") or item.get("quant") or 0)
+    close_p = safe_float(item.get("closePrice") or item.get("nowPrice") or item.get("price") or 0)
+    open_p = safe_float(item.get("openPrice") or close_p)
+    high_p = safe_float(item.get("highPrice") or close_p)
+    chg = safe_float(item.get("fluctuationsRatio") or item.get("changeRate") or 0)
+    deal_won = safe_float(item.get("tradePrice") or item.get("accumulatedTradingValue") or 0)
+    current_vol = safe_float(item.get("accumulatedTradingVolume") or item.get("quant") or 0)
 
     if 0 < deal_won < 50000000:
         deal_won *= 1000000
@@ -93,7 +93,6 @@ def collect_market_data():
                 res = requests.get(url, headers=headers, timeout=5)
                 data = res.json()
                 
-                # API 구조에 따라 'stocks' 또는 리스트 형태로 올 때 모두 대응
                 stocks_list = []
                 if isinstance(data, list):
                     stocks_list = data

@@ -18,12 +18,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # 1. 데이터 수집 및 웹 아티팩트 빌드
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,15 +35,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            pip install pytz requests pandas websockets
+            pip install -r requirements.txt || true
           fi
+          pip install pytz requests pandas websockets
 
       - name: Ensure Initial data.json Exists
         run: |
           if [ ! -f data.json ]; then
-            echo "Creating fallback data.json..."
+            echo "Creating initial data.json fallback..."
             CURRENT_DATE=$(TZ='Asia/Seoul' date +'%Y-%m-%d')
             CURRENT_TIME=$(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')
             cat <<EOF > data.json
@@ -69,7 +69,7 @@ jobs:
           export KST_HOUR=$(TZ='Asia/Seoul' date +'%H')
           echo "=========================================="
           echo "실행 기준일자: $CURRENT_DATE"
-          echo "현재 한국 시간(시): ${KST_HOUR}시"
+          echo "현재 한국 시간: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')"
           echo "=========================================="
 
           if [ "$KST_HOUR" -eq "00" ] || [ "$KST_HOUR" -eq "01" ]; then
@@ -78,14 +78,15 @@ jobs:
             EXEC_MODE="full"
           fi
 
+          # 파이썬 실행 시 에러가 나도 data.json을 깨뜨리지 않고 로그를 찍도록 처리
           if [ -f screener.py ]; then
-            python screener.py --mode $EXEC_MODE
+            python screener.py --mode $EXEC_MODE || echo "::warning::screener.py 실행 중 에러가 발생했습니다. data.json 상태를 확인하세요."
           elif [ -f collector.py ]; then
-            python collector.py --mode $EXEC_MODE
+            python collector.py --mode $EXEC_MODE || echo "::warning::collector.py 실행 중 에러가 발생했습니다."
           elif [ -f main.py ]; then
-            python main.py --mode $EXEC_MODE
+            python main.py --mode $EXEC_MODE || echo "::warning::main.py 실행 중 에러가 발생했습니다."
           else
-            echo "실행할 파이썬 파일이 없어 data.json을 유지합니다."
+            echo "파이썬 실행 스크립트가 없습니다. 기본 data.json을 사용합니다."
           fi
 
       - name: Commit and Push Updated Data
@@ -93,7 +94,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --staged --quiet || (git commit -m "Auto Update: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')" && git push origin main)
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto Update: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')"
+            git pull --rebase origin main || true
+            git push origin main || echo "::warning::Git push 실패 - Pages 배포를 우선 진행합니다."
+          else
+            echo "변경 사항이 없어 커밋을 건너뜁니다."
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -103,7 +110,6 @@ jobs:
         with:
           path: '.'
 
-  # 2. GitHub Pages 실제 배포 (Missing environment 해결)
   deploy:
     environment:
       name: github-pages

@@ -68,7 +68,7 @@ def parse_stock_item(item, market_type, today_str):
 def collect_market_data():
     now_utc = datetime.datetime.utcnow()
     korea_time = now_utc + datetime.timedelta(hours=9)
-    today_str = korea_time.strftime("%Y-%m-%d")  # 👈 오타 수정 완료
+    today_str = korea_time.strftime("%Y-%m-%d")
     
     print(f"[{today_str}] 데이터 수집 시작...")
     compiled_stocks = []

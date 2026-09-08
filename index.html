@@ -30,6 +30,7 @@
     }
     .container { max-width: 540px; margin: 0 auto; }
 
+    /* 헤더 */
     .header-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
     .brand-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; }
     .brand-date { font-size: 0.75rem; color: var(--text-sub); margin-top: 2px; }
@@ -45,6 +46,7 @@
     }
     .live-dot { width: 6px; height: 6px; background-color: #10b981; border-radius: 50%; display: inline-block; }
 
+    /* 4분할 시장 탭 */
     .market-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
     .tab-btn {
       background-color: #1e293b; color: var(--text-sub); border: none; padding: 10px 0;
@@ -52,17 +54,20 @@
     }
     .tab-btn.active { background-color: #38bdf8; color: #0f172a; font-weight: 800; }
 
+    /* 대금 필터 */
     .deal-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
     .deal-filters::-webkit-scrollbar { display: none; }
     .filter-chip { background-color: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 8px 14px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; flex-shrink: 0; }
     .filter-chip.active { background-color: #d97706; border-color: #f59e0b; color: #ffffff; }
 
+    /* 쌍끌이 토글 바 */
     .double-box { background-color: #141e30; border: 1px solid #253347; border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; cursor: pointer; user-select: none; }
     .double-box-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; }
     .double-box-count { color: #f59e0b; font-size: 0.85rem; font-weight: 700; }
     
     .summary-bar { display: flex; justify-content: space-between; font-size: 0.78rem; color: #94a3b8; margin-bottom: 10px; padding: 0 2px; }
 
+    /* 카드 리스트 */
     .card-list { display: flex; flex-direction: column; gap: 12px; }
     .card { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); }
     .card-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
@@ -70,6 +75,8 @@
     .market-tag { background-color: #2563eb; color: #ffffff; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
     .market-tag.kosdaq { background-color: #0d9488; }
     .market-tag.index { background-color: #8b5cf6; }
+    .market-tag.fx { background-color: #ec4899; }
+    .market-tag.comm { background-color: #d97706; }
     .stock-title { font-size: 1.05rem; font-weight: 800; color: #ffffff; }
     .double-badge { background-color: #78350f; color: #f59e0b; border: 1px solid #b45309; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
     .score-badge { background-color: #1e293b; color: #38bdf8; border: 1px solid #2d3748; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
@@ -165,14 +172,17 @@
       { key: "단기이평정배열", label: "단기이평정배열" }
     ];
 
-    // 요청하신 지수/원자재 12종 고정 순서
+    // 원/달러 환율이 포함된 지수 탭 순서
     const INDEX_ORDER = [
-      "코스피", "코스닥", "S&P500", "나스닥", "다우존스", 
-      "상해종합", "니케이", "금", "은", "구리", "브렌트유", "WTI유"
+      "원/달러 환율", "코스피", "코스닥", "S&P500", "나스닥", "다우존스", 
+      "상해종합", "니케이", "금", "은", "구리", "WTI유", "브렌트유"
     ];
 
-    // 투자자 수급 및 거래대금을 노출할 4대 지수
+    // 외인/기관/개인 수급과 거래대금을 상세 노출할 4대 지수
     const BIG_FOUR_INDICES = ["코스피", "코스닥", "S&P500", "나스닥"];
+
+    // 원화 단위 표기 항목 (환율 + 원자재)
+    const KRW_ITEMS = ["원/달러 환율", "금", "은", "구리", "WTI유", "브렌트유"];
 
     let allData = [];
     let currentTab = "ALL";
@@ -184,6 +194,16 @@
       const sign = val > 0 ? "+" : "";
       if (Math.abs(val) >= 10000) return `${sign}${(val / 10000).toFixed(1)}만`;
       return `${sign}${val.toLocaleString()}`;
+    }
+
+    function formatAmountText(val) {
+      if (!val || val === 0) return "0원";
+      const eok = Math.round(val / 100000000);
+      if (eok >= 10000) {
+        const jo = (eok / 10000).toFixed(1);
+        return `${jo}조원`;
+      }
+      return `${eok.toLocaleString()}억원`;
     }
 
     function renderBadges(tagString) {
@@ -216,16 +236,14 @@
           return;
         }
 
-        // 기준일자 표기
         const latestDate = rawData[0].date;
         document.getElementById("baseDate").innerText = `기준일자: ${latestDate}`;
 
-        // 종목 및 지수 각각 이름/티커 기준으로 가장 최신 데이터 1개만 남기는 완벽한 중복 제거
+        // 중복 완전 제거
         const seenKeys = new Set();
         const uniqueData = [];
 
         for (const item of rawData) {
-          // 이름 또는 티커를 고유 식별키로 사용
           const uniqueKey = `${item.market}_${item.ticker || item.name}`;
           if (!seenKeys.has(uniqueKey)) {
             seenKeys.add(uniqueKey);
@@ -285,7 +303,7 @@
         return true;
       });
 
-      // 지수 탭일 경우 지정된 12개 순서대로 정렬 & 중복 이름 완전 필터링
+      // 지수 탭 순서 정렬 및 중복 제거
       if (currentTab === "INDEX") {
         const seenIndexNames = new Set();
         const singleIndexList = [];
@@ -306,7 +324,7 @@
         filtered = singleIndexList;
       }
 
-      const labelText = currentTab === "INDEX" ? "주요 지수" : "선별 종목";
+      const labelText = currentTab === "INDEX" ? "지수 / 환율 / 원자재" : "선별 종목";
       document.getElementById("filteredCount").innerText = `${labelText}: ${filtered.length}개`;
 
       if (filtered.length === 0) {
@@ -320,20 +338,40 @@
         const rateClass = rate > 0 ? "rate-up" : (rate < 0 ? "rate-down" : "");
         const sign = rate > 0 ? "+" : "";
 
-        // 1. 지수 카드
+        // 1. 지수 / 환율 / 원자재 카드
         if (isIndex) {
           const isBigFour = BIG_FOUR_INDICES.includes(item.name);
-          const dealInEok = Math.round((item.trade_amount || 0) / 100000000);
+          const isFx = item.name === "원/달러 환율";
+          const isCommodity = ["금", "은", "구리", "WTI유", "브렌트유"].includes(item.name);
+
+          let unit = "p";
+          let tagClass = "index";
+          let tagLabel = "지수";
+
+          if (isFx) {
+            unit = "원";
+            tagClass = "fx";
+            tagLabel = "환율";
+          } else if (isCommodity) {
+            unit = "원";
+            tagClass = "comm";
+            tagLabel = "원자재(원화)";
+          }
+
+          let prevClose = item.open_price || 0;
+          if (!prevClose && rate !== -100 && item.close_price > 0) {
+            prevClose = Math.round(item.close_price / (1 + rate / 100));
+          }
 
           return `
             <div class="card">
-              <div class="card-head" style="margin-bottom: ${isBigFour ? '8px' : '0'};">
+              <div class="card-head" style="margin-bottom: ${isBigFour ? '8px' : '6px'};">
                 <div class="stock-info">
-                  <span class="market-tag index">지수</span>
+                  <span class="market-tag ${tagClass}">${tagLabel}</span>
                   <span class="stock-title">${item.name}</span>
                 </div>
                 <div class="price-wrap">
-                  <div class="current-price">${(item.close_price || 0).toLocaleString()}p</div>
+                  <div class="current-price">${(item.close_price || 0).toLocaleString()}${unit}</div>
                   <div class="rate-text ${rateClass}">${sign}${rate}%</div>
                 </div>
               </div>
@@ -345,15 +383,20 @@
                   <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
                 </div>
                 <div class="card-footer" style="margin-top: 4px;">
-                  <span class="prev-close-price">기준</span>
-                  <span class="trade-amount">거래대금 ${dealInEok.toLocaleString()}억</span>
+                  <span class="prev-close-price">전일종가 ${(prevClose || 0).toLocaleString()}${unit}</span>
+                  <span class="trade-amount">거래대금 ${formatAmountText(item.trade_amount)}</span>
                 </div>
-              ` : ''}
+              ` : `
+                <div class="card-footer" style="margin-top: 2px;">
+                  <span class="prev-close-price">전일종가 ${(prevClose || 0).toLocaleString()}${unit}</span>
+                  <span class="trade-amount" style="color: var(--text-sub);">${isFx ? '서울외환시장' : '원화 환산'}</span>
+                </div>
+              `}
             </div>
           `;
         }
 
-        // 2. 일반 종목 카드 (전일종가 계산)
+        // 2. 일반 종목 카드 (전일종가 및 거래대금)
         const closeP = item.close_price || 0;
         let prevClose = 0;
         if (rate !== -100 && closeP > 0) {
@@ -361,7 +404,6 @@
         }
 
         const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
-        const dealInEok = Math.round((item.trade_amount || 0) / 100000000);
         const passedTagsArr = (item.passed_tags || "").split(",").filter(t => t);
         const passCount = passedTagsArr.length;
 
@@ -392,7 +434,7 @@
 
             <div class="card-footer">
               <span class="prev-close-price">전일종가 ${prevClose.toLocaleString()}원</span>
-              <span class="trade-amount">거래대금 ${dealInEok.toLocaleString()}억</span>
+              <span class="trade-amount">거래대금 ${formatAmountText(item.trade_amount)}</span>
             </div>
           </div>
         `;

@@ -187,10 +187,11 @@
 
     async function fetchFromSupabase() {
       try {
-        const { data, error } = await supabaseClient
-          .from("TRIPLE D PAPA")
-          .select("*")
-          .order("trade_amount", { ascending: false });
+      // index.html 수정 부분
+const { data, error } = await supabaseClient
+  .from("tripled_papa")  // 👈 공백 없는 이름으로 변경
+  .select("*")
+  .order("trade_amount", { ascending: false });
 
         if (error) throw error;
         allData = data || [];

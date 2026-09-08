@@ -111,21 +111,23 @@
       </div>
     </div>
 
+    <!-- 시장 탭 -->
     <div class="market-tabs">
       <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
       <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
       <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
     </div>
 
+    <!-- 거래대금 필터 -->
     <div class="deal-filters">
       <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
-      <button class="filter-chip" onclick="setDeal('100억', this)">100억 이상</button>
-      <button class="filter-chip" onclick="setDeal('200억', this)">200억 이상</button>
-      <button class="filter-chip" onclick="setDeal('300억', this)">300억 이상</button>
-      <button class="filter-chip" onclick="setDeal('400억', this)">400억 이상</button>
-      <button class="filter-chip" onclick="setDeal('500억', this)">500억 이상</button>
+      <button class="filter-chip" onclick="setDeal('100억이상', this)">100억 이상</button>
+      <button class="filter-chip" onclick="setDeal('200억이상', this)">200억 이상</button>
+      <button class="filter-chip" onclick="setDeal('300억이상', this)">300억 이상</button>
+      <button class="filter-chip" onclick="setDeal('400억이상', this)">400억 이상</button>
     </div>
 
+    <!-- 외인+기관 쌍끌이 토글 박스 -->
     <div class="double-box" onclick="toggleDoubleOnly()">
       <div class="double-box-label">
         <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 16px; height: 16px; pointer-events: none;" />
@@ -139,6 +141,7 @@
       <span id="updatedTime">방금 갱신됨 (-)</span>
     </div>
 
+    <!-- 주식 카드 리스트 -->
     <div class="card-list" id="cardList">
       <div class="loading-box">데이터를 불러오는 중입니다...</div>
     </div>
@@ -206,8 +209,12 @@
         const timeStr = `${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초`;
         document.getElementById("updatedTime").innerText = `방금 갱신됨 (${timeStr})`;
 
-        const validStocks = allData.filter(d => d.market !== 'INDEX');
-        document.getElementById("doubleCount").innerText = `(${validStocks.length}개)`;
+        // 전체 데이터 중 쌍끌이 조건(외인>0 & 기관>0)을 만족하는 실제 종목 수만 카운트
+        const totalDouble = allData.filter(item => {
+          if (item.market === 'INDEX') return false;
+          return (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
+        }).length;
+        document.getElementById("doubleCount").innerText = `(${totalDouble}개)`;
 
         renderStockList();
       } catch (err) {
@@ -221,19 +228,22 @@
 
       const filtered = allData.filter(item => {
         if (item.market === 'INDEX') return false;
+        
+        // 1. 코스피 / 코스닥 필터링
         if (currentTab !== "ALL" && item.market !== currentTab) return false;
         
+        // 2. 거래대금 조건 필터링
         if (currentDeal !== "ALL") {
           const dealVal = item.trade_amount || 0;
-          if (currentDeal === "100억" && dealVal < 10000000000) return false;
-          if (currentDeal === "200억" && dealVal < 20000000000) return false;
-          if (currentDeal === "300억" && dealVal < 30000000000) return false;
-          if (currentDeal === "400억" && dealVal < 40000000000) return false;
-          if (currentDeal === "500억" && dealVal < 50000000000) return false;
+          if (currentDeal === "100억이상" && dealVal < 10000000000) return false;
+          if (currentDeal === "200억이상" && dealVal < 20000000000) return false;
+          if (currentDeal === "300억이상" && dealVal < 30000000000) return false;
+          if (currentDeal === "400억이상" && dealVal < 40000000000) return false;
         }
 
+        // 3. 쌍끌이만 보기 필터링
         if (isDoubleOnly) {
-          const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이매수");
+          const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
           if (!isDouble) return false;
         }
         return true;
@@ -247,13 +257,16 @@
       }
 
       cardListEl.innerHTML = filtered.map(item => {
+        // 실제 데이터 기반으로 쌍끌이 여부 판단
+        const isDouble = (item.foreign_net_buy > 0 && item.inst_net_buy > 0) || (item.passed_tags || "").includes("쌍끌이");
+        
         const rate = item.change_rate || 0;
         const rateClass = rate > 0 ? "rate-up" : (rate < 0 ? "rate-down" : "");
         const sign = rate > 0 ? "+" : "";
         const dealInEok = Math.round((item.trade_amount || 0) / 100000000);
 
         const passedTagsArr = (item.passed_tags || "").split(",").filter(t => t);
-        const passCount = passedTagsArr.length > 0 ? passedTagsArr.length : 4;
+        const passCount = passedTagsArr.length;
 
         return `
           <div class="card">
@@ -261,7 +274,7 @@
               <div class="stock-info">
                 <span class="market-tag ${item.market === 'KOSDAQ' ? 'kosdaq' : ''}">${item.market}</span>
                 <span class="stock-title">${item.name}</span>
-                <span class="double-badge">🔥 쌍끌이</span>
+                ${isDouble ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
                 <span class="score-badge">${passCount}/9</span>
               </div>
               <div class="price-wrap">

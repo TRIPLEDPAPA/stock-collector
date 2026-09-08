@@ -48,22 +48,28 @@ def parse_stock_item(item, market_type, today_str):
     if deal_won == 0 and current_vol > 0:
         deal_won = close_p * current_vol
 
+    # Supabase bigint 타입 매칭을 위한 완벽한 정수형 변환 검증
+    deal_won_int = int(deal_won)
+    close_p_int = int(close_p)
+    open_p_int = int(open_p)
+    current_vol_int = int(current_vol)
+
     passed_tags = ["주가등락률", "거래대금", "양봉마감", "고가근접"]
     
     deal_label = "100억이상"
-    if deal_won < 10000000000:
+    if deal_won_int < 10000000000:
         deal_label = "100억미만"
 
     return {
         "market": market_type,
         "ticker": str(item.get("itemCode") or item.get("code") or ""),
         "name": str(item.get("stockName") or item.get("name") or ""),
-        "close_price": int(close_p),       # bigint 매칭을 위해 정수 변환
-        "open_price": int(open_p),         # bigint 매칭을 위해 정수 변환
+        "close_price": close_p_int,
+        "open_price": open_p_int,
         "change_rate": chg,
-        "trade_amount": int(deal_won),     # bigint 매칭을 위해 정수 변환
+        "trade_amount": deal_won_int,
         "deal_tag": deal_label,
-        "volume": int(current_vol),        # bigint 매칭을 위해 정수 변환
+        "volume": current_vol_int,
         "strength": 115.0,
         "per": 12.5,
         "pbr": 1.2,

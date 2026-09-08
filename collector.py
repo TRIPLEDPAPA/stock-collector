@@ -9,7 +9,7 @@ from supabase import create_client, Client
 
 
 # ============================================================
-# TRIPLE D PAPA - 초고속 병렬 수집기 (20개 지표 100점 평가)
+# TRIPLE D PAPA - 국내 종목 전용 초고속 병렬 수집기
 # ============================================================
 
 SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
@@ -25,15 +25,11 @@ EXCLUDE_KEYWORDS = [
     "금현물", "원유", "TR"
 ]
 
-# 차트 분석용 봉 개수
 HISTORY_COUNT = 250
-
-# 시장별 수집 페이지 (3페이지 = 시장당 60종목, 총 120개 핵심 주도주)
-STOCK_PAGES = 3
-
+STOCK_PAGES = 3  # 시장별 60종목, 총 120개 핵심 주도주 고속 수집
 REQUEST_TIMEOUT = 6
 INVESTOR_TIMEOUT = 4
-MAX_WORKERS = 8  # 8개 스레드 병렬 네트워크 요청
+MAX_WORKERS = 8
 
 
 def safe_float(val, default=0.0) -> float:
@@ -77,10 +73,6 @@ def get_headers() -> Dict[str, str]:
         "Referer": "https://m.stock.naver.com/",
     }
 
-
-# ============================================================
-# 기술적 지표 연산
-# ============================================================
 
 def sma(values: List[float], period: int) -> Optional[float]:
     if len(values) < period:
@@ -543,62 +535,6 @@ def parse_stock_item(item: Dict, market_type: str, today_str: str, headers: Dict
     }
 
 
-def fetch_naver_korea_index(code: str, name: str, headers: Dict[str, str], today_str: str) -> Optional[Dict]:
-    url = f"https://m.stock.naver.com/api/index/{code}/basic"
-    try:
-        res = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        if res.status_code != 200:
-            return None
-        data = res.json()
-        close_p = safe_float(data.get("closePrice"))
-        open_p = safe_float(data.get("openPrice"), close_p)
-        deal_won = int(safe_float(data.get("accumulatedTradingValueWon") or data.get("dealWon") or 0))
-
-        return {
-            "market": "INDEX",
-            "ticker": f"IDX_{code}",
-            "name": name,
-            "close_price": close_p,
-            "open_price": open_p,
-            "change_rate": safe_float(data.get("fluctuationsRatio")),
-            "trade_amount": deal_won,
-            "deal_tag": "100억이상" if deal_won >= 10_000_000_000 else "100억미만",
-            "volume": 0, "strength": 100.0,
-            "foreign_net_buy": 0, "inst_net_buy": 0, "retail_net_buy": 0,
-            "passed_tags": "", "total_score": 0, "grade": "",
-            "double_buy": False, "strong_buy": False, "date": today_str,
-        }
-    except Exception:
-        return None
-
-
-def fetch_naver_world_item(category: str, symbol: str, display_name: str, headers: Dict[str, str], today_str: str) -> Optional[Dict]:
-    url = f"https://m.stock.naver.com/api/index/{category}/{symbol}/basic"
-    try:
-        res = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        if res.status_code != 200:
-            return None
-        data = res.json()
-        close_p = safe_float(data.get("closePrice"))
-        open_p = safe_float(data.get("openPrice"), close_p)
-
-        return {
-            "market": "INDEX",
-            "ticker": f"GL_{symbol}",
-            "name": display_name,
-            "close_price": close_p,
-            "open_price": open_p,
-            "change_rate": safe_float(data.get("fluctuationsRatio")),
-            "trade_amount": 0, "deal_tag": "100억미만",
-            "volume": 0, "strength": 100.0,
-            "foreign_net_buy": 0, "inst_net_buy": 0, "retail_net_buy": 0,
-            "passed_tags": "", "total_score": 0, "grade": "",
-            "double_buy": False, "strong_buy": False, "date": today_str,
-        }
-    except Exception:
-        return None
-
-
 def fetch_stock_page(market: str, page: int, headers: Dict[str, str]) -> List[Dict]:
     url = f"https://m.stock.naver.com/api/stocks/marketValue/{market}?page={page}&pageSize=20"
     try:
@@ -611,7 +547,7 @@ def fetch_stock_page(market: str, page: int, headers: Dict[str, str]) -> List[Di
 
 
 # ============================================================
-# 고속 병렬 수집 실행 메인
+# 국내 주식 전용 초고속 병렬 수집 실행
 # ============================================================
 
 def collect_market_data():
@@ -621,35 +557,10 @@ def collect_market_data():
     compiled_items = []
 
     print("=" * 70)
-    print(f"[{today_str}] TRIPLE D PAPA 고속 병렬 수집 시작 (Thread={MAX_WORKERS})")
+    print(f"[{today_str}] TRIPLE D PAPA 국내 종목 고속 병렬 수집 시작 (Thread={MAX_WORKERS})")
     print("=" * 70)
 
-    # 1. 지수 수집
-    for code, name in [("KOSPI", "코스피"), ("KOSDAQ", "코스닥")]:
-        idx = fetch_naver_korea_index(code, name, headers, today_str)
-        if idx:
-            compiled_items.append(idx)
-
-    world_targets = [
-        ("findex", "SPI@SPX", "S&P 500"),
-        ("findex", "DJI@DJI", "다우존스"),
-        ("findex", "NAS@NDX", "나스닥 100"),
-        ("future", "CME@YM", "Dow Jones (선물)"),
-        ("future", "CME@ES", "S&P 500 (선물)"),
-        ("future", "CME@NQ", "나스닥 100 (선물)"),
-        ("marketvalue", "CMX@GC", "금"),
-        ("marketvalue", "CMX@SI", "은"),
-        ("marketvalue", "CMX@HG", "구리"),
-        ("marketvalue", "NYM@CL", "WTI유"),
-        ("marketvalue", "ICE@BZ", "브렌트유"),
-        ("exchange", "FX_USDKRW", "원/달러 환율"),
-    ]
-    for cat, symbol, name in world_targets:
-        item = fetch_naver_world_item(cat, symbol, name, headers, today_str)
-        if item:
-            compiled_items.append(item)
-
-    # 2. 국내 주식 목록 사전 추출
+    # 국내 주식 목록 사전 추출
     raw_stock_list = []
     seen_tickers = set()
 
@@ -665,9 +576,9 @@ def collect_market_data():
                     seen_tickers.add(ticker)
                     raw_stock_list.append((it, market))
 
-    print(f"총 분석 대상: {len(raw_stock_list)}개 주도주 (병렬 연산 진행)")
+    print(f"총 분석 대상: {len(raw_stock_list)}개 주도주 (병렬 분석 진행)")
 
-    # 3. 8개 멀티스레드 병렬 실행
+    # 8개 멀티스레드 병렬 실행
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = [
             executor.submit(parse_stock_item, it, mkt, today_str, headers)
@@ -682,10 +593,10 @@ def collect_market_data():
             except Exception:
                 pass
 
-    # 4. Supabase 일괄 저장 (Batch Upsert)
+    # Supabase 배치 일괄 저장
     print(f"\n총 {len(compiled_items)}건 데이터 Supabase 일괄 저장 중...")
     saved = 0
-    batch_size = 50  # 50개씩 묶어서 고속 전송
+    batch_size = 50
     for i in range(0, len(compiled_items), batch_size):
         batch = compiled_items[i:i + batch_size]
         try:

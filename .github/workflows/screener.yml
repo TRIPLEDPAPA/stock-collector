@@ -1,26 +1,87 @@
-name: Daily Stock Screener
+name: Stock Screener & Collector
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '30 6 * * 1-5' # 평일 15:30 KST (UTC 06:30)
+    # 1. 한국시간(KST) 매일 00:00 (UTC 15:00) -> 자정 기준일자 리셋
+    - cron: '0 15 * * *'
+    # 2. 한국시간(KST) 평일 09:00 (UTC 00:00) -> 09시 전체 스크리너 재실행
+    - cron: '0 0 * * 1-5'
+  workflow_dispatch: # GitHub Actions 탭에서 수동 실행 버튼
+
+# 배포 권한 설정
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# 중복 빌드로 인한 취소(Canceling) 방지
+concurrency:
+  group: 'pages'
+  cancel-in-progress: false
 
 jobs:
-  run-screener:
+  build-and-run:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
+          cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          pip install requests supabase
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install pytz requests pandas
+          fi
 
-      - name: Run Screener
+      - name: Run Screener (KST Time Based)
+        env:
+          TZ: 'Asia/Seoul'
+          APP_KEY: ${{ secrets.APP_KEY }}
+          APP_SECRET: ${{ secrets.APP_SECRET }}
         run: |
-          python collector.py
+          # 현재 한국시간(KST) 기준 날짜 및 시각 생성
+          export CURRENT_DATE=$(TZ='Asia/Seoul' date +'%Y-%m-%d')
+          export KST_HOUR=$(TZ='Asia/Seoul' date +'%H')
+          echo "=========================================="
+          echo "실행 기준일자: $CURRENT_DATE"
+          echo "현재 한국 시간(시): ${KST_HOUR}시"
+          echo "=========================================="
+
+          # 레포지토리에 있는 실행 스크립트 탐색 및 실행
+          # (screener.py, collector.py, main.py 중 존재하는 것을 자동 실행)
+          if [ -f screener.py ]; then
+            python screener.py
+          elif [ -f collector.py ]; then
+            python collector.py
+          elif [ -f main.py ]; then
+            python main.py
+          else
+            echo "실행할 파이썬 파일을 찾지 못했습니다."
+          fi
+
+      - name: Commit and Push Updated Data
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          # 변경사항(수집 데이터, JSON 등)이 있을 때만 커밋
+          git diff --staged --quiet || (git commit -m "Auto Update: $(TZ='Asia/Seoul' date +'%Y-%m-%d %H:%M:%S')" && git push origin main)
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.' # 배포할 정적 파일 경로 (루트 디렉터리)
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

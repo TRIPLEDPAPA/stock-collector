@@ -556,7 +556,7 @@
       margin-top: 6px;
     }
 
-    /* 설명서 전용 스타일 */
+    /* 설명서 전용 카드 스타일 */
     .guide-box {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -641,7 +641,7 @@
       }
       .tab-btn {
         padding: 8px 0;
-        font-size: 0.76rem;
+        font-size: 0.75rem;
       }
       .header-actions {
         flex-direction: column;
@@ -675,7 +675,7 @@
     </div>
   </div>
 
-  <!-- 5분할 메인 탭 -->
+  <!-- 메인 5분할 탭 -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -702,7 +702,7 @@
     <button class="score-filter-chip" onclick="setMinScore(50, this)">⚪ 50점 이상</button>
   </div>
 
-  <!-- 상단 토글 필터 -->
+  <!-- 상단 토글 필터 (쌍끌이 / 강한 매수세) -->
   <div class="filter-toggle-group" id="filterToggleGroup">
     <div class="toggle-card" id="doubleToggle" onclick="toggleDoubleOnly()">
       <div class="toggle-card-label">
@@ -728,7 +728,7 @@
     <span id="updatedTime">방금 갱신됨 (-)</span>
   </div>
 
-  <!-- 메인 카드 및 설명서 컨테이너 -->
+  <!-- 카드 및 설명서 리스트 -->
   <div class="card-list" id="cardList">
     <div class="loading-box">데이터를 불러오는 중입니다...</div>
   </div>
@@ -837,7 +837,6 @@
     return "";
   }
 
-  // 6대 영역 엄격 판정 함수
   function renderCategoryBadges(item) {
     const passedList = String(item.passed_tags || "").split(",").filter(Boolean);
 
@@ -923,6 +922,7 @@
   }
 
   async function fetchFromSupabase() {
+    // 사용자가 설명서 탭을 보고 있을 때는 데이터만 백그라운드로 받고 화면을 덮어쓰지 않음
     const list = document.getElementById("cardList");
     if (currentTab === "GUIDE") {
       renderGuideTab(list);
@@ -1041,13 +1041,14 @@
     }
   }
 
+  // 설명서 탭
   function renderGuideTab(container) {
     container.innerHTML = `
       <div class="guide-box">
         <div class="guide-title">⏰ 데이터 동기화 & 리셋 시간 안내</div>
         <ul class="guide-list">
           <li><strong>GitHub Actions 자동 수집 (주기)</strong>: 장중 30분 간격 (평일 09:00 ~ 15:30) 자동 실행</li>
-          <li><strong>화면 자동 갱신</strong>: 브라우저가 열려 있는 동안 30초마다 Supabase 최신 데이터 자동 조회</li>
+          <li><strong>화면 자동 갱신</strong>: 브라우저가 열려 있는 동안 30초마다 Supabase 최신 데이터 자동 동기화</li>
           <li><strong>일별 데이터 리셋</strong>: 매일 한국 시간(KST) 오전 08:30경 전일 데이터가 신규 날짜로 전환 및 초기화</li>
           <li><strong>글로벌 지수/원자재</strong>: 정규장 마감 후 뉴욕 시장 실시간 시세가 반영되어 익일 개장 전까지 유지</li>
         </ul>

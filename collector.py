@@ -1,10 +1,16 @@
 import datetime
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple, Optional
 
 import requests
 from supabase import create_client, Client
+
+
+# ============================================================
+# TRIPLE D PAPA - 초고속 병렬 수집기 (20개 지표 100점 평가)
+# ============================================================
 
 SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
 SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
@@ -19,11 +25,15 @@ EXCLUDE_KEYWORDS = [
     "금현물", "원유", "TR"
 ]
 
-HISTORY_COUNT = 260
-STOCK_PAGES = 5  # GitHub Actions 실행 시간 최적화 (20개씩 5페이지 = 100종목)
-REQUEST_TIMEOUT = 8
-INVESTOR_TIMEOUT = 5
-REQUEST_SLEEP = 0.08
+# 차트 분석용 봉 개수
+HISTORY_COUNT = 250
+
+# 시장별 수집 페이지 (3페이지 = 시장당 60종목, 총 120개 핵심 주도주)
+STOCK_PAGES = 3
+
+REQUEST_TIMEOUT = 6
+INVESTOR_TIMEOUT = 4
+MAX_WORKERS = 8  # 8개 스레드 병렬 네트워크 요청
 
 
 def safe_float(val, default=0.0) -> float:
@@ -67,6 +77,10 @@ def get_headers() -> Dict[str, str]:
         "Referer": "https://m.stock.naver.com/",
     }
 
+
+# ============================================================
+# 기술적 지표 연산
+# ============================================================
 
 def sma(values: List[float], period: int) -> Optional[float]:
     if len(values) < period:
@@ -177,7 +191,6 @@ def fetch_naver_chart(ticker: str, headers: Dict[str, str]) -> List[Dict[str, fl
         res = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
         res.raise_for_status()
 
-        # EUC-KR 및 UTF-8 인코딩 방어 파싱
         xml_content = res.content.decode("euc-kr", errors="replace")
         root = ET.fromstring(xml_content)
         rows = []
@@ -203,8 +216,7 @@ def fetch_naver_chart(ticker: str, headers: Dict[str, str]) -> List[Dict[str, fl
 
         rows.sort(key=lambda x: x["date"])
         return rows
-    except Exception as e:
-        print(f"[차트 실패] {ticker}: {e}")
+    except Exception:
         return []
 
 
@@ -445,6 +457,24 @@ def score_20_indicators(
         "passed_tags": ",".join(dict.fromkeys(passed)),
         "double_buy": double_buy,
         "strong_buy": bool(total_score >= 80 and double_buy),
+        "net_buy_ratio": round(nb_ratio, 2),
+        "volume_ratio": round(vr, 2),
+        "ma5": round(ma5, 2) if ma5 else 0,
+        "ma10": round(ma10, 2) if ma10 else 0,
+        "ma20": round(ma20, 2) if ma20 else 0,
+        "ma60": round(ma60, 2) if ma60 else 0,
+        "ma120": round(ma120, 2) if ma120 else 0,
+        "high_52w": round(h52, 2),
+        "previous_high_60": round(prev_h, 2),
+        "rsi14": round(rsi14, 2),
+        "macd": round(m_val, 4),
+        "macd_signal": round(s_val, 4),
+        "macd_hist": round(tech.get("macd_hist", 0), 4),
+        "disparity20": round(disp, 2),
+        "gap_52w": round(gap52, 2),
+        "breakout_ratio": round(br_r, 2),
+        "close_position": round(c_pos, 2),
+        "upper_tail_ratio": round(t_ratio, 2),
     }
 
 
@@ -580,18 +610,25 @@ def fetch_stock_page(market: str, page: int, headers: Dict[str, str]) -> List[Di
         return []
 
 
+# ============================================================
+# 고속 병렬 수집 실행 메인
+# ============================================================
+
 def collect_market_data():
     now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
     today_str = now_kst.strftime("%Y-%m-%d")
     headers = get_headers()
     compiled_items = []
 
-    print(f"[{today_str}] TRIPLE D PAPA 수집 시작 (20개 지표 실시간 계산)")
+    print("=" * 70)
+    print(f"[{today_str}] TRIPLE D PAPA 고속 병렬 수집 시작 (Thread={MAX_WORKERS})")
+    print("=" * 70)
 
     # 1. 지수 수집
     for code, name in [("KOSPI", "코스피"), ("KOSDAQ", "코스닥")]:
         idx = fetch_naver_korea_index(code, name, headers, today_str)
-        if idx: compiled_items.append(idx)
+        if idx:
+            compiled_items.append(idx)
 
     world_targets = [
         ("findex", "SPI@SPX", "S&P 500"),
@@ -609,41 +646,57 @@ def collect_market_data():
     ]
     for cat, symbol, name in world_targets:
         item = fetch_naver_world_item(cat, symbol, name, headers, today_str)
-        if item: compiled_items.append(item)
+        if item:
+            compiled_items.append(item)
 
-    # 2. 개별 종목 수집
+    # 2. 국내 주식 목록 사전 추출
+    raw_stock_list = []
     seen_tickers = set()
+
     for market in ["KOSPI", "KOSDAQ"]:
         for page in range(1, STOCK_PAGES + 1):
             stocks_list = fetch_stock_page(market, page, headers)
-            if not stocks_list: break
+            if not stocks_list:
+                break
+            for it in stocks_list:
+                ticker = str(it.get("itemCode") or it.get("code") or "").strip()
+                name = str(it.get("stockName") or it.get("name") or "").strip()
+                if ticker and ticker not in seen_tickers and is_pure_stock(ticker, name):
+                    seen_tickers.add(ticker)
+                    raw_stock_list.append((it, market))
 
-            for item in stocks_list:
-                ticker = str(item.get("itemCode") or item.get("code") or "").strip()
-                name = str(item.get("stockName") or item.get("name") or "").strip()
+    print(f"총 분석 대상: {len(raw_stock_list)}개 주도주 (병렬 연산 진행)")
 
-                if ticker in seen_tickers or not is_pure_stock(ticker, name):
-                    continue
+    # 3. 8개 멀티스레드 병렬 실행
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [
+            executor.submit(parse_stock_item, it, mkt, today_str, headers)
+            for it, mkt in raw_stock_list
+        ]
+        for future in as_completed(futures):
+            try:
+                res = future.result()
+                if res:
+                    compiled_items.append(res)
+                    print(f"  ✓ [{res['market']}] {res['name']} ({res['total_score']}점 [{res['grade']}])")
+            except Exception:
+                pass
 
-                seen_tickers.add(ticker)
-                parsed = parse_stock_item(item, market, today_str, headers)
-                if parsed:
-                    compiled_items.append(parsed)
-                    print(f"  ✓ {market} {ticker} {name} | {parsed['total_score']}점 [{parsed['grade']}]")
-                time.sleep(REQUEST_SLEEP)
-
-    # 3. Supabase 안전 저장
-    print(f"\n총 {len(compiled_items)}건 저장 시작...")
-    saved, failed = 0, 0
-    for item in compiled_items:
+    # 4. Supabase 일괄 저장 (Batch Upsert)
+    print(f"\n총 {len(compiled_items)}건 데이터 Supabase 일괄 저장 중...")
+    saved = 0
+    batch_size = 50  # 50개씩 묶어서 고속 전송
+    for i in range(0, len(compiled_items), batch_size):
+        batch = compiled_items[i:i + batch_size]
         try:
-            supabase.table("TRIPLE D PAPA").upsert(item).execute()
-            saved += 1
+            supabase.table("TRIPLE D PAPA").upsert(batch).execute()
+            saved += len(batch)
         except Exception as e:
-            failed += 1
-            print(f"[저장 실패] {item.get('ticker')} {item.get('name')}: {e}")
+            print(f"[배치 저장 실패] {e}")
 
-    print(f"[완료] 총 {len(compiled_items)}건 중 성공 {saved}건 / 실패 {failed}건")
+    print("=" * 70)
+    print(f"[완료] 총 {len(compiled_items)}건 수집 및 {saved}건 Supabase 저장 완료")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

@@ -112,6 +112,7 @@
       </div>
     </div>
 
+    <!-- 4분할 시장 탭 -->
     <div class="market-tabs">
       <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
       <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -119,6 +120,7 @@
       <button class="tab-btn" onclick="setTab('INDEX', this)">지수</button>
     </div>
 
+    <!-- 대금 필터 -->
     <div class="deal-filters" id="dealFilters">
       <button class="filter-chip active" onclick="setDeal('ALL', this)">전체대금</button>
       <button class="filter-chip" onclick="setDeal('100억이상', this)">100억 이상</button>
@@ -127,6 +129,7 @@
       <button class="filter-chip" onclick="setDeal('400억이상', this)">400억 이상</button>
     </div>
 
+    <!-- 쌍끌이 토글 바 -->
     <div class="double-box" id="doubleBox" onclick="toggleDoubleOnly()">
       <div class="double-box-label">
         <input type="checkbox" id="doubleCheckbox" style="accent-color: #f59e0b; width: 16px; height: 16px; pointer-events: none;" />
@@ -191,18 +194,38 @@
         const { data, error } = await supabaseClient
           .from("TRIPLE D PAPA")
           .select("*")
+          .order("date", { ascending: false })
           .order("trade_amount", { ascending: false });
 
         if (error) throw error;
-        allData = data || [];
+        
+        const rawData = data || [];
+        if (rawData.length === 0) {
+          allData = [];
+          renderStockList();
+          return;
+        }
 
-        if (allData.length > 0) {
-          const stockItem = allData.find(d => d.date);
-          if (stockItem) {
-            document.getElementById("baseDate").innerText = `기준일자: ${stockItem.date}`;
+        // 1. 가장 최신 일자 찾기
+        const latestDate = rawData[0].date;
+        document.getElementById("baseDate").innerText = `기준일자: ${latestDate}`;
+
+        // 2. 최신 일자 데이터만 추출 & 티커(ticker) 중복 제거
+        const seenTickers = new Set();
+        const uniqueData = [];
+
+        for (const item of rawData) {
+          if (item.date === latestDate) {
+            const key = item.ticker || item.name;
+            if (!seenTickers.has(key)) {
+              seenTickers.add(key);
+              uniqueData.push(item);
+            }
           }
         }
-        
+
+        allData = uniqueData;
+
         const now = new Date();
         const timeStr = `${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초`;
         document.getElementById("updatedTime").innerText = `방금 갱신됨 (${timeStr})`;
@@ -254,7 +277,7 @@
       });
 
       const labelText = currentTab === "INDEX" ? "지수 종목" : "선별 종목";
-      document.getElementById("filteredCount").innerText = `${labelText}:${filtered.length}개`;
+      document.getElementById("filteredCount").innerText = `${labelText}: ${filtered.length}개`;
 
       if (filtered.length === 0) {
         cardListEl.innerHTML = '<div class="loading-box">표시할 데이터가 없습니다.</div>';
@@ -277,7 +300,8 @@
             <div class="card-head">
               <div class="stock-info">
                 <span class="market-tag ${isIndex ? 'index' : (item.market === 'KOSDAQ' ? 'kosdaq' : '')}">${item.market}</span>
-                <span class="stock-title">${item.name}</span>${isDouble ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
+                <span class="stock-title">${item.name}</span>
+                ${isDouble ? '<span class="double-badge">🔥 쌍끌이</span>' : ''}
                 ${!isIndex ? `<span class="score-badge">${passCount}/9</span>` : ''}
               </div>
               <div class="price-wrap">

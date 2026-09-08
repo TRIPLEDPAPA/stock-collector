@@ -54,10 +54,7 @@ def parse_stock_item(item, market_type, today_str):
     current_vol_int = int(current_vol)
 
     passed_tags = ["주가등락률", "거래대금", "양봉마감", "고가근접"]
-    
-    deal_label = "100억이상"
-    if deal_won_int < 10000000000:
-        deal_label = "100억미만"
+    deal_label = "100억이상" if deal_won_int >= 10000000000 else "100억미만"
 
     return {
         "market": market_type,
@@ -87,54 +84,49 @@ def collect_market_data():
     today_str = korea_time.strftime("%Y-%m-%d")
     
     print(f"[{today_str}] 데이터 수집 시작...")
-    compiled_stocks = []
+    compiled_items = []
     headers = {"User-Agent": "Mozilla/5.0"}
 
-    # 1. 지수(KOSPI, KOSDAQ) 기본 데이터 생성
-    compiled_stocks.append({
-        "market": "INDEX",
-        "ticker": "KOSPI",
-        "name": "코스피 종합지수",
-        "close_price": 2650,
-        "open_price": 2640,
-        "change_rate": 0.45,
-        "trade_amount": 9500000000000,
-        "deal_tag": "100억이상",
-        "volume": 450000000,
-        "strength": 100.0,
-        "per": 11.0,
-        "pbr": 0.95,
-        "roe": 8.5,
-        "eps": 0,
-        "foreign_net_buy": 120000,
-        "inst_net_buy": -80000,
-        "retail_net_buy": -40000,
-        "passed_tags": "양봉마감",
-        "date": today_str
-    })
-    compiled_stocks.append({
-        "market": "INDEX",
-        "ticker": "KOSDAQ",
-        "name": "코스닥 종합지수",
-        "close_price": 760,
-        "open_price": 758,
-        "change_rate": 0.28,
-        "trade_amount": 6200000000000,
-        "deal_tag": "100억이상",
-        "volume": 720000000,
-        "strength": 100.0,
-        "per": 15.0,
-        "pbr": 1.4,
-        "roe": 6.5,
-        "eps": 0,
-        "foreign_net_buy": -35000,
-        "inst_net_buy": 45000,
-        "retail_net_buy": -10000,
-        "passed_tags": "양봉마감",
-        "date": today_str
-    })
+    # 요청 순서에 맞춘 지수 및 원자재 목록
+    index_configs = [
+        {"ticker": "IDX_KOSPI", "name": "코스피", "close": 2650, "rate": 0.45, "deal": 9500000000000, "for": 120000, "inst": -80000, "ret": -40000},
+        {"ticker": "IDX_KOSDAQ", "name": "코스닥", "close": 760, "rate": 0.28, "deal": 6200000000000, "for": -35000, "inst": 45000, "ret": -10000},
+        {"ticker": "IDX_SP500", "name": "S&P500", "close": 5420, "rate": 0.32, "deal": 45000000000000, "for": 450000, "inst": 320000, "ret": -770000},
+        {"ticker": "IDX_NASDAQ", "name": "나스닥", "close": 17150, "rate": 0.65, "deal": 58000000000000, "for": 680000, "inst": 410000, "ret": -1090000},
+        {"ticker": "IDX_DOW", "name": "다우존스", "close": 40345, "rate": 0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "IDX_SHANGHAI", "name": "상해종합", "close": 2820, "rate": -0.22, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "IDX_NIKKEI", "name": "니케이", "close": 36200, "rate": -0.48, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_GOLD", "name": "금", "close": 2510, "rate": 0.25, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_SILVER", "name": "은", "close": 28, "rate": 0.85, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_COPPER", "name": "구리", "close": 4, "rate": -0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_BRENT", "name": "브렌트유", "close": 74, "rate": -0.65, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_WTI", "name": "WTI유", "close": 70, "rate": -0.72, "deal": 0, "for": 0, "inst": 0, "ret": 0}
+    ]
 
-    # 2. 일반 종목 수집
+    for idx in index_configs:
+        compiled_items.append({
+            "market": "INDEX",
+            "ticker": idx["ticker"],
+            "name": idx["name"],
+            "close_price": int(idx["close"]),
+            "open_price": int(idx["close"]),
+            "change_rate": idx["rate"],
+            "trade_amount": int(idx["deal"]),
+            "deal_tag": "100억이상" if idx["deal"] >= 10000000000 else "100억미만",
+            "volume": 0,
+            "strength": 100.0,
+            "per": 0.0,
+            "pbr": 0.0,
+            "roe": 0.0,
+            "eps": 0,
+            "foreign_net_buy": idx["for"],
+            "inst_net_buy": idx["inst"],
+            "retail_net_buy": idx["ret"],
+            "passed_tags": "",
+            "date": today_str
+        })
+
+    # 일반 주식 수집
     for market in ["KOSPI", "KOSDAQ"]:
         for page in [1, 2]:
             try:
@@ -152,14 +144,14 @@ def collect_market_data():
                     ticker = str(item.get("itemCode") or item.get("code") or "")
                     name = str(item.get("stockName") or item.get("name") or "")
                     if is_pure_stock(ticker, name):
-                        compiled_stocks.append(parse_stock_item(item, market, today_str))
+                        compiled_items.append(parse_stock_item(item, market, today_str))
             except Exception as e:
                 print(f"{market} 페이지 {page} 수집 중 오류: {e}")
 
     try:
-        for item in compiled_stocks:
+        for item in compiled_items:
             supabase.table("TRIPLE D PAPA").upsert(item).execute()
-        print(f"[{today_str}] Supabase 업로드 완료! (총 {len(compiled_stocks)}개 항목)")
+        print(f"[{today_str}] Supabase 업로드 완료! (총 {len(compiled_items)}개 항목)")
     except Exception as e:
         print(f"Supabase 저장 실패: {e}")
 

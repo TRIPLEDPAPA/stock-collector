@@ -19,7 +19,6 @@ def safe_float(val, default=0.0):
     if isinstance(val, (int, float)):
         return float(val)
     try:
-        # 문자열 내의 모든 쉼표와 공백을 확실하게 제거 후 변환
         cleaned = str(val).replace(",", "").strip()
         return float(cleaned)
     except (ValueError, TypeError):

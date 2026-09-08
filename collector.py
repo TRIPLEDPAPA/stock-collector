@@ -38,7 +38,6 @@ def is_pure_stock(ticker, name):
 def parse_stock_item(item, market_type, today_str):
     close_p = safe_float(item.get("closePrice") or item.get("nowPrice") or item.get("price"))
     open_p = safe_float(item.get("openPrice"), close_p)
-    high_p = safe_float(item.get("highPrice"), close_p)
     chg = safe_float(item.get("fluctuationsRatio") or item.get("changeRate"))
     deal_won = safe_float(item.get("tradePrice") or item.get("accumulatedTradingValue"))
     current_vol = safe_float(item.get("accumulatedTradingVolume") or item.get("quant"))
@@ -87,20 +86,21 @@ def collect_market_data():
     compiled_items = []
     headers = {"User-Agent": "Mozilla/5.0"}
 
-    # 요청 순서에 맞춘 지수 및 원자재 목록
+    # 환율, 지수 및 원자재 목록
     index_configs = [
-        {"ticker": "IDX_KOSPI", "name": "코스피", "close": 2650, "rate": 0.45, "deal": 9500000000000, "for": 120000, "inst": -80000, "ret": -40000},
-        {"ticker": "IDX_KOSDAQ", "name": "코스닥", "close": 760, "rate": 0.28, "deal": 6200000000000, "for": -35000, "inst": 45000, "ret": -10000},
-        {"ticker": "IDX_SP500", "name": "S&P500", "close": 5420, "rate": 0.32, "deal": 45000000000000, "for": 450000, "inst": 320000, "ret": -770000},
-        {"ticker": "IDX_NASDAQ", "name": "나스닥", "close": 17150, "rate": 0.65, "deal": 58000000000000, "for": 680000, "inst": 410000, "ret": -1090000},
-        {"ticker": "IDX_DOW", "name": "다우존스", "close": 40345, "rate": 0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "IDX_SHANGHAI", "name": "상해종합", "close": 2820, "rate": -0.22, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "IDX_NIKKEI", "name": "니케이", "close": 36200, "rate": -0.48, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_GOLD", "name": "금", "close": 2510, "rate": 0.25, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_SILVER", "name": "은", "close": 28, "rate": 0.85, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_COPPER", "name": "구리", "close": 4, "rate": -0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_BRENT", "name": "브렌트유", "close": 74, "rate": -0.65, "deal": 0, "for": 0, "inst": 0, "ret": 0},
-        {"ticker": "COMM_WTI", "name": "WTI유", "close": 70, "rate": -0.72, "deal": 0, "for": 0, "inst": 0, "ret": 0}
+        {"ticker": "IDX_USDKRW", "name": "원/달러 환율", "close": 1341, "open": 1346, "rate": -0.37, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "IDX_KOSPI", "name": "코스피", "close": 2650, "open": 2638, "rate": 0.45, "deal": 9500000000000, "for": 120000, "inst": -80000, "ret": -40000},
+        {"ticker": "IDX_KOSDAQ", "name": "코스닥", "close": 760, "open": 757, "rate": 0.28, "deal": 6200000000000, "for": -35000, "inst": 45000, "ret": -10000},
+        {"ticker": "IDX_SP500", "name": "S&P500", "close": 5420, "open": 5402, "rate": 0.32, "deal": 45000000000000, "for": 450000, "inst": 320000, "ret": -770000},
+        {"ticker": "IDX_NASDAQ", "name": "나스닥", "close": 17150, "open": 17039, "rate": 0.65, "deal": 58000000000000, "for": 680000, "inst": 410000, "ret": -1090000},
+        {"ticker": "IDX_DOW", "name": "다우존스", "close": 40345, "open": 40284, "rate": 0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "IDX_SHANGHAI", "name": "상해종합", "close": 2820, "open": 2826, "rate": -0.22, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "IDX_NIKKEI", "name": "니케이", "close": 36200, "open": 36375, "rate": -0.48, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_GOLD", "name": "금", "close": 108500, "open": 108220, "rate": 0.25, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_SILVER", "name": "은", "close": 1280, "open": 1269, "rate": 0.85, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_COPPER", "name": "구리", "close": 12600, "open": 12618, "rate": -0.15, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_WTI", "name": "WTI유", "close": 96500, "open": 97200, "rate": -0.72, "deal": 0, "for": 0, "inst": 0, "ret": 0},
+        {"ticker": "COMM_BRENT", "name": "브렌트유", "close": 101200, "open": 101860, "rate": -0.65, "deal": 0, "for": 0, "inst": 0, "ret": 0}
     ]
 
     for idx in index_configs:
@@ -109,7 +109,7 @@ def collect_market_data():
             "ticker": idx["ticker"],
             "name": idx["name"],
             "close_price": int(idx["close"]),
-            "open_price": int(idx["close"]),
+            "open_price": int(idx["open"]),
             "change_rate": idx["rate"],
             "trade_amount": int(idx["deal"]),
             "deal_tag": "100억이상" if idx["deal"] >= 10000000000 else "100억미만",

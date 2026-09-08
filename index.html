@@ -101,11 +101,11 @@
       margin-right: 4px;
     }
 
-    /* 5분할 메인 탭 */
+    /* 4분할 메인 탭 (전체/코스피/코스닥/설명서) */
     .market-tabs {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 5px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
       margin-bottom: 10px;
     }
 
@@ -115,7 +115,7 @@
       border: none;
       padding: 10px 0;
       border-radius: 8px;
-      font-size: 0.82rem;
+      font-size: 0.84rem;
       font-weight: 800;
       cursor: pointer;
       text-align: center;
@@ -124,36 +124,6 @@
     .tab-btn.active {
       background: #38bdf8;
       color: #0f172a;
-    }
-
-    /* 지수 서브 탭 */
-    .index-sub-tabs {
-      display: none;
-      gap: 6px;
-      overflow-x: auto;
-      white-space: nowrap;
-      margin-bottom: 10px;
-      padding-bottom: 4px;
-      scrollbar-width: none;
-    }
-    .index-sub-tabs::-webkit-scrollbar { display: none; }
-
-    .sub-chip {
-      background: #182234;
-      border: 1px solid #283548;
-      color: var(--text-sub);
-      padding: 7px 12px;
-      border-radius: 8px;
-      font-size: 0.76rem;
-      font-weight: 700;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-
-    .sub-chip.active {
-      background: #0284c7;
-      border-color: #38bdf8;
-      color: #fff;
     }
 
     /* 4단계 점수 필터 칩 */
@@ -495,68 +465,7 @@
       margin-top: 2px;
     }
 
-    .index-group-title {
-      font-size: .75rem;
-      font-weight: 900;
-      color: #38bdf8;
-      margin: 10px 0 6px 2px;
-    }
-
-    .idx-row-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .idx-title-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .idx-cat-badge {
-      font-size: .66rem;
-      font-weight: 900;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: #334155;
-      color: #cbd5e1;
-    }
-
-    .idx-name {
-      font-size: 1rem;
-      font-weight: 900;
-    }
-
-    .idx-price-wrap {
-      text-align: right;
-    }
-
-    .idx-curr-price {
-      font-size: 1.12rem;
-      font-weight: 900;
-    }
-
-    .idx-change-wrap {
-      font-size: .8rem;
-      font-weight: 800;
-      margin-top: 2px;
-    }
-
-    .idx-sub-data {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: .72rem;
-      color: var(--text-sub);
-      padding-top: 6px;
-      border-top: 1px dashed rgba(255,255,255,.08);
-      margin-top: 6px;
-    }
-
-    /* 설명서 전용 카드 스타일 */
+    /* 설명서 전용 스타일 */
     .guide-box {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -636,17 +545,6 @@
     }
 
     @media (max-width: 450px) {
-      .market-tabs {
-        font-size: 0.75rem;
-      }
-      .tab-btn {
-        padding: 8px 0;
-        font-size: 0.75rem;
-      }
-      .header-actions {
-        flex-direction: column;
-        align-items: flex-end;
-      }
       .score-grid {
         grid-template-columns: 1fr;
       }
@@ -675,22 +573,12 @@
     </div>
   </div>
 
-  <!-- 메인 5분할 탭 -->
+  <!-- 4분할 메인 탭 (지수 탭 제거) -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
     <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
-    <button class="tab-btn" onclick="setTab('INDEX', this)">지수</button>
     <button class="tab-btn" onclick="setTab('GUIDE', this)">📖 설명서</button>
-  </div>
-
-  <!-- 지수 서브 탭 -->
-  <div class="index-sub-tabs" id="indexSubTabs">
-    <button class="sub-chip active" onclick="setIndexCategory('ALL', this)">전체</button>
-    <button class="sub-chip" onclick="setIndexCategory('지수', this)">지수</button>
-    <button class="sub-chip" onclick="setIndexCategory('원자재', this)">원자재</button>
-    <button class="sub-chip" onclick="setIndexCategory('금속', this)">금속</button>
-    <button class="sub-chip" onclick="setIndexCategory('에너지', this)">에너지</button>
   </div>
 
   <!-- 4단계 점수 이상 필터 -->
@@ -767,33 +655,17 @@
     ["score_20", "MACD", 3]
   ];
 
-  const INDEX_META = {
-    "원/달러 환율": { cat:"환율", group:"환율", unit:"원", isDollar:false },
-    "코스피": { cat:"지수", group:"한국", unit:"p", isDollar:false },
-    "코스닥": { cat:"지수", group:"한국", unit:"p", isDollar:false },
-    "S&P 500": { cat:"지수", group:"미국", unit:"p", isDollar:false },
-    "다우존스": { cat:"지수", group:"미국", unit:"p", isDollar:false },
-    "나스닥 100": { cat:"지수", group:"미국", unit:"p", isDollar:false },
-    "코스피200 선물 (F)": { cat:"지수", group:"지수선물", unit:"p", isDollar:false },
-    "Dow Jones (선물)": { cat:"지수", group:"지수선물", unit:"p", isDollar:false },
-    "S&P 500 (선물)": { cat:"지수", group:"지수선물", unit:"p", isDollar:false },
-    "나스닥 100 (선물)": { cat:"지수", group:"지수선물", unit:"p", isDollar:false },
-    "금": { cat:"금속", group:"금속", unit:"$", isDollar:true },
-    "은": { cat:"금속", group:"금속", unit:"$", isDollar:true },
-    "구리": { cat:"금속", group:"금속", unit:"$", isDollar:true },
-    "WTI유": { cat:"에너지", group:"에너지", unit:"$", isDollar:true },
-    "브렌트유": { cat:"에너지", group:"에너지", unit:"$", isDollar:true }
-  };
-
-  const DISPLAY_ORDER = [
-    "원/달러 환율", "코스피", "코스닥", "S&P 500", "다우존스", "나스닥 100",
-    "코스피200 선물 (F)", "Dow Jones (선물)", "S&P 500 (선물)", "나스닥 100 (선물)",
-    "금", "은", "구리", "WTI유", "브렌트유"
+  const SIX_CATEGORIES = [
+    { key: "가격", tags: ["주가등락률", "양봉마감", "고가근접", "윗꼬리제한"] },
+    { key: "거래", tags: ["거래대금", "거래량비율"] },
+    { key: "수급", tags: ["외국인순매수", "기관순매수", "순매수비율"] },
+    { key: "추세", tags: ["5일이평선", "20일이평선", "60일이평선", "120일이평선", "단기이평정배열"] },
+    { key: "돌파", tags: ["52주신고가", "전고점돌파", "주가위치"] },
+    { key: "과열/모멘텀", tags: ["RSI(14)", "이격도", "MACD"] }
   ];
 
   let allData = [];
   let currentTab = "ALL";
-  let currentIndexCat = "ALL";
   let minScoreFilter = 0;
   let isDoubleOnly = false;
   let isStrongBuyOnly = false;
@@ -812,15 +684,8 @@
     return `${sign}${value.toLocaleString()}`;
   }
 
-  function formatPrice(v, dollar=false) {
-    const value = num(v);
-    if (dollar) {
-      return value.toLocaleString(undefined, {
-        minimumFractionDigits: value % 1 !== 0 ? 2 : 0,
-        maximumFractionDigits: 2
-      });
-    }
-    return Math.round(value).toLocaleString();
+  function formatPrice(v) {
+    return Math.round(num(v)).toLocaleString();
   }
 
   function escapeHtml(value) {
@@ -922,7 +787,6 @@
   }
 
   async function fetchFromSupabase() {
-    // 사용자가 설명서 탭을 보고 있을 때는 데이터만 백그라운드로 받고 화면을 덮어쓰지 않음
     const list = document.getElementById("cardList");
     if (currentTab === "GUIDE") {
       renderGuideTab(list);
@@ -956,6 +820,7 @@
       const unique = [];
 
       for (const item of rawData) {
+        if (item.market === "INDEX") continue; // 지수 데이터는 자동 배제
         const key = `${item.date}_${item.market}_${item.ticker}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -982,7 +847,6 @@
   }
 
   function isDouble(item) {
-    if (item.market === "INDEX") return false;
     return Boolean(
       item.double_buy ||
       (num(item.foreign_net_buy) > 0 && num(item.inst_net_buy) > 0) ||
@@ -991,17 +855,12 @@
   }
 
   function isStrongBuy(item) {
-    return (
-      item.market !== "INDEX" &&
-      num(item.total_score) >= 80 &&
-      isDouble(item)
-    );
+    return (num(item.total_score) >= 80 && isDouble(item));
   }
 
   function updateCounts() {
-    const stocks = allData.filter(x => x.market !== "INDEX");
-    const doubleCount = stocks.filter(isDouble).length;
-    const strongCount = stocks.filter(isStrongBuy).length;
+    const doubleCount = allData.filter(isDouble).length;
+    const strongCount = allData.filter(isStrongBuy).length;
 
     document.getElementById("doubleCount").innerText = `(${doubleCount})`;
     document.getElementById("strongBuyCount").innerText = `(${strongCount})`;
@@ -1017,23 +876,14 @@
     const cardListEl = document.getElementById("cardList");
     const scoreFiltersEl = document.getElementById("scoreFilters");
     const toggleGroupEl = document.getElementById("filterToggleGroup");
-    const indexSubTabsEl = document.getElementById("indexSubTabs");
     const summaryBarEl = document.getElementById("summaryBar");
 
     if (currentTab === "GUIDE") {
-      indexSubTabsEl.style.display = "none";
       scoreFiltersEl.style.display = "none";
       toggleGroupEl.style.display = "none";
       summaryBarEl.style.display = "none";
       renderGuideTab(cardListEl);
-    } else if (currentTab === "INDEX") {
-      indexSubTabsEl.style.display = "flex";
-      scoreFiltersEl.style.display = "none";
-      toggleGroupEl.style.display = "none";
-      summaryBarEl.style.display = "flex";
-      renderIndexTab(cardListEl);
     } else {
-      indexSubTabsEl.style.display = "none";
       scoreFiltersEl.style.display = "flex";
       toggleGroupEl.style.display = "flex";
       summaryBarEl.style.display = "flex";
@@ -1041,16 +891,14 @@
     }
   }
 
-  // 설명서 탭
   function renderGuideTab(container) {
     container.innerHTML = `
       <div class="guide-box">
-        <div class="guide-title">⏰ 데이터 동기화 & 리셋 시간 안내</div>
+        <div class="guide-title">⏰ 데이터 동기화 & 리셋 안내</div>
         <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집 (주기)</strong>: 장중 30분 간격 (평일 09:00 ~ 15:30) 자동 실행</li>
-          <li><strong>화면 자동 갱신</strong>: 브라우저가 열려 있는 동안 30초마다 Supabase 최신 데이터 자동 동기화</li>
-          <li><strong>일별 데이터 리셋</strong>: 매일 한국 시간(KST) 오전 08:30경 전일 데이터가 신규 날짜로 전환 및 초기화</li>
-          <li><strong>글로벌 지수/원자재</strong>: 정규장 마감 후 뉴욕 시장 실시간 시세가 반영되어 익일 개장 전까지 유지</li>
+          <li><strong>GitHub Actions 자동 수집</strong>: 장중 30분 간격 (평일 09:00 ~ 15:30) 자동 실행</li>
+          <li><strong>화면 실시간 자동 갱신</strong>: 브라우저가 열려 있는 동안 30초마다 Supabase 최신 데이터 자동 동기화</li>
+          <li><strong>일별 데이터 리셋</strong>: 매일 한국 시간(KST) 오전 08:30경 신규 거래일 데이터로 자동 전환</li>
         </ul>
       </div>
 
@@ -1165,93 +1013,8 @@
     `;
   }
 
-  function renderIndexTab(container) {
-    let filtered = allData.filter(d => d.market === "INDEX");
-
-    filtered = filtered.filter(d => {
-      const meta = INDEX_META[d.name];
-      if (!meta) return false;
-      if (currentIndexCat === "ALL") return true;
-      if (d.name === "원/달러 환율") return currentIndexCat === "환율";
-      if (currentIndexCat === "원자재") {
-        return meta.cat === "원자재" || meta.cat === "금속" || meta.cat === "에너지";
-      }
-      return meta.cat === currentIndexCat;
-    });
-
-    filtered.sort((a,b) => {
-      const ia = DISPLAY_ORDER.indexOf(a.name);
-      const ib = DISPLAY_ORDER.indexOf(b.name);
-      return ((ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib));
-    });
-
-    document.getElementById("filteredCount").innerText = `지수/원자재: ${filtered.length}개`;
-
-    if (!filtered.length) {
-      container.innerHTML = `<div class="loading-box">데이터가 없습니다.</div>`;
-      return;
-    }
-
-    let html = "";
-    let lastGroup = "";
-
-    filtered.forEach(item => {
-      const meta = INDEX_META[item.name] || { cat:"기타", group:"기타", unit:"p", isDollar:false };
-
-      if (currentIndexCat === "ALL" && meta.group !== lastGroup) {
-        lastGroup = meta.group;
-        html += `<div class="index-group-title">▪ ${meta.group}</div>`;
-      }
-
-      const curr = num(item.close_price);
-      const rate = num(item.change_rate);
-      let prev = num(item.prev_close) || num(item.open_price);
-
-      if (!prev && rate !== -100 && curr > 0) {
-        prev = curr / (1 + rate / 100);
-      }
-
-      const diff = curr - prev;
-      const rateClass = rate > 0 ? "rate-up" : rate < 0 ? "rate-down" : "";
-      const sign = rate > 0 ? "+" : "";
-      const diffSign = diff > 0 ? "+" : "";
-
-      const currDisplay = meta.isDollar ? `$${formatPrice(curr,true)}` : `${formatPrice(curr,false)}${meta.unit}`;
-      const diffDisplay = meta.isDollar ? `${diffSign}$${formatPrice(Math.abs(diff),true)}` : `${diffSign}${formatPrice(diff,false)}${meta.unit}`;
-      const prevDisplay = meta.isDollar ? `$${formatPrice(prev,true)}` : `${formatPrice(prev,false)}${meta.unit}`;
-
-      html += `
-        <div class="card">
-          <div class="idx-row-head">
-            <div class="idx-title-wrap">
-              <span class="idx-cat-badge">${meta.cat}</span>
-              <span class="idx-name">${escapeHtml(item.name)}</span>
-            </div>
-            <div class="idx-price-wrap">
-              <div class="idx-curr-price">${currDisplay}</div>
-              <div class="idx-change-wrap ${rateClass}">
-                ${diffDisplay} (${sign}${rate.toFixed(2)}%)
-              </div>
-            </div>
-          </div>
-          <div class="idx-sub-data">
-            <span>전일종가: ${prevDisplay}</span>
-            <span>
-              ${item.trade_amount > 0
-                ? `거래대금: ${Math.round(num(item.trade_amount)/100000000).toLocaleString()}억`
-                : meta.isDollar ? "국제 시세 (USD)" : "실시간 지수"}
-            </span>
-          </div>
-        </div>
-      `;
-    });
-
-    container.innerHTML = html;
-  }
-
   function renderStockTab(container) {
     let filtered = allData.filter(item => {
-      if (item.market === "INDEX") return false;
       if (currentTab !== "ALL" && item.market !== currentTab) return false;
 
       const score = num(item.total_score);
@@ -1351,13 +1114,6 @@
   function setTab(tab, btn) {
     currentTab = tab;
     document.querySelectorAll(".market-tabs .tab-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    renderList();
-  }
-
-  function setIndexCategory(cat, btn) {
-    currentIndexCat = cat;
-    document.querySelectorAll(".index-sub-tabs .sub-chip").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     renderList();
   }

@@ -2,8 +2,8 @@ name: Stock Data Collector
 
 on:
   schedule:
-    - cron: '0 0-6 * * 1-5' # 평일 장중 주기적 실행
-  workflow_dispatch: # 수동 실행 버튼
+    - cron: '0 0-6 * * 1-5' # 평일 장중 자동 수집
+  workflow_dispatch: # Actions 탭에서 수동 실행 버튼
 
 jobs:
   collect:

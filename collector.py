@@ -19,7 +19,6 @@ def safe_float(val, default=0.0):
     if isinstance(val, (int, float)):
         return float(val)
     try:
-        # 문자열 내의 쉼표, 공백 등을 완전히 제거 후 실수로 변환
         cleaned = str(val).replace(",", "").strip()
         return float(cleaned)
     except Exception:
@@ -59,12 +58,12 @@ def parse_stock_item(item, market_type, today_str):
         "market": market_type,
         "ticker": str(item.get("itemCode") or item.get("code") or ""),
         "name": str(item.get("stockName") or item.get("name") or ""),
-        "close_price": close_p,
-        "open_price": open_p,
+        "close_price": int(close_p),       # bigint 매칭을 위해 정수 변환
+        "open_price": int(open_p),         # bigint 매칭을 위해 정수 변환
         "change_rate": chg,
-        "trade_amount": deal_won,
+        "trade_amount": int(deal_won),     # bigint 매칭을 위해 정수 변환
         "deal_tag": deal_label,
-        "volume": current_vol,
+        "volume": int(current_vol),        # bigint 매칭을 위해 정수 변환
         "strength": 115.0,
         "per": 12.5,
         "pbr": 1.2,

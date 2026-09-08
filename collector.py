@@ -13,6 +13,18 @@ EXCLUDE_KEYWORDS = [
     "MSCI", "S&P", "나스닥", "NASDAQ", "다우", "금현물", "원유", "TR"
 ]
 
+def clean_float(val):
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    # 문자열에 쉼표가 포함되어 있으면 제거 후 변환
+    cleaned = str(val).replace(",", "").strip()
+    try:
+        return float(cleaned)
+    except ValueError:
+        return 0.0
+
 def is_pure_stock(ticker, name):
     if not ticker.endswith('0'):
         return False
@@ -25,12 +37,12 @@ def is_pure_stock(ticker, name):
     return True
 
 def parse_stock_item(item, market_type, today_str):
-    close_p = float(item.get("closePrice", 0))
-    open_p = float(item.get("openPrice", close_p))
-    high_p = float(item.get("highPrice", close_p))
-    chg = float(item.get("fluctuationsRatio", 0))
-    deal_won = float(item.get("tradePrice", 0))
-    current_vol = float(item.get("accumulatedTradingVolume", item.get("quant", 0)))
+    close_p = clean_float(item.get("closePrice", 0))
+    open_p = clean_float(item.get("openPrice", close_p))
+    high_p = clean_float(item.get("highPrice", close_p))
+    chg = clean_float(item.get("fluctuationsRatio", 0))
+    deal_won = clean_float(item.get("tradePrice", 0))
+    current_vol = clean_float(item.get("accumulatedTradingVolume", item.get("quant", 0)))
 
     if 0 < deal_won < 50000000:
         deal_won *= 1000000

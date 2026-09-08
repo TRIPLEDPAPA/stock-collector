@@ -3,45 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>주식 조건검색 수집기</title>
+  <title>주식 스크리너 - 실시간 수집 현황</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #f8fafc;
-      color: #1e293b;
+      color: #0f172a;
       margin: 0;
-      padding: 24px;
+      padding: 20px;
     }
-    .container {
-      max-width: 1000px;
+    .card {
+      max-width: 1080px;
       margin: 0 auto;
       background: #ffffff;
       padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07);
     }
     header {
-      border-bottom: 2px solid #e2e8f0;
+      border-bottom: 2px solid #f1f5f9;
       padding-bottom: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
-    .header-meta {
+    .meta-box {
       display: flex;
       flex-wrap: wrap;
-      gap: 16px;
-      margin-top: 8px;
-      font-size: 15px;
-      color: #475569;
+      gap: 12px;
+      margin-top: 10px;
+      font-size: 14px;
     }
-    .badge {
-      background-color: #e0f2fe;
+    .badge-date {
+      background: #e0f2fe;
       color: #0369a1;
       padding: 4px 10px;
       border-radius: 6px;
-      font-weight: 600;
+      font-weight: 700;
     }
-    .status-badge {
-      background-color: #f1f5f9;
+    .badge-status {
+      background: #f1f5f9;
       color: #334155;
       padding: 4px 10px;
       border-radius: 6px;
@@ -54,34 +53,34 @@
     }
     th, td {
       border: 1px solid #e2e8f0;
-      padding: 10px 12px;
+      padding: 10px 8px;
       text-align: center;
     }
     th {
-      background-color: #f8fafc;
-      font-weight: 600;
+      background: #f8fafc;
+      color: #475569;
     }
-    .text-red { color: #dc2626; font-weight: 600; }
-    .text-blue { color: #2563eb; font-weight: 600; }
-    .empty-state {
+    .text-up { color: #dc2626; font-weight: 600; }
+    .text-down { color: #2563eb; font-weight: 600; }
+    .empty {
       text-align: center;
-      padding: 40px;
+      padding: 50px;
       color: #94a3b8;
     }
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="card">
     <header>
-      <h1 style="margin: 0; font-size: 24px;">주식 조건검색 및 시세 수집 현황</h1>
-      <div class="header-meta">
-        <div>기준일자: <span id="base-date" class="badge">로딩 중...</span></div>
-        <div>최종 갱신: <span id="last-updated">로딩 중...</span></div>
-        <div>상태: <span id="status-text" class="status-badge">-</span></div>
+      <h2 style="margin: 0;">주식 스크리너 (시가 갭상승 & 정배열)</h2>
+      <div class="meta-box">
+        <div>기준일자: <span id="base-date" class="badge-date">확인 중...</span></div>
+        <div>최종 갱신: <span id="last-updated">확인 중...</span></div>
+        <div>진행 상태: <span id="status-text" class="badge-status">-</span></div>
       </div>
     </header>
 
-    <div id="table-container">
+    <div style="overflow-x: auto;">
       <table>
         <thead>
           <tr>
@@ -89,17 +88,18 @@
             <th>종목명</th>
             <th>현재가</th>
             <th>등락률</th>
-            <th>당일 거래량</th>
-            <th>이평선(5/10/20)</th>
+            <th>시가(갭)</th>
+            <th>거래량</th>
+            <th>이평선</th>
             <th>PER</th>
             <th>PBR</th>
             <th>ROE</th>
-            <th>RSI(14)</th>
+            <th>RSI</th>
           </tr>
         </thead>
-        <tbody id="stock-list">
+        <tbody id="result-body">
           <tr>
-            <td colspan="10" class="empty-state">데이터를 불러오는 중입니다...</td>
+            <td colspan="11" class="empty">데이터를 불러오는 중입니다...</td>
           </tr>
         </tbody>
       </table>
@@ -107,55 +107,52 @@
   </div>
 
   <script>
-    async function loadData() {
+    async function refreshData() {
       try {
-        // 브라우저 캐시 방지를 위해 타임스탬프 쿼리 스트링 추가
-        const res = await fetch('./data.json?t=' + Date.now());
-        if (!res.ok) throw new Error('데이터 파일을 찾을 수 없습니다.');
-        const data = await res.json();
+        const response = await fetch('./data.json?cache=' + Date.now());
+        if (!response.ok) throw new Error('data.json 로드 실패');
+        const data = await response.json();
 
-        // 1. 헤더 일자 및 상태 업데이트
         document.getElementById('base-date').textContent = data.base_date;
         document.getElementById('last-updated').textContent = data.last_updated;
         document.getElementById('status-text').textContent = data.status;
 
-        // 2. 테이블 렌더링
-        const tbody = document.getElementById('stock-list');
+        const tbody = document.getElementById('result-body');
         tbody.innerHTML = '';
 
         if (!data.items || data.items.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="10" class="empty-state">조건에 부합하는 종목이 없거나 장 시작 전 대기 상태입니다.</td></tr>`;
+          tbody.innerHTML = '<tr><td colspan="11" class="empty">현재 조건(시가 > 전일 종가, 이평선 정배열 등)을 만족하는 종목이 없거나 장 시작 전 대기 상태입니다.</td></tr>';
           return;
         }
 
-        data.items.forEach(stock => {
-          const row = document.createElement('tr');
-          const isUp = stock.diff_pct > 0;
-          const diffClass = isUp ? 'text-red' : (stock.diff_pct < 0 ? 'text-blue' : '');
+        data.items.forEach(item => {
+          const tr = document.createElement('tr');
+          const isUp = item.diff_pct > 0;
+          const diffClass = isUp ? 'text-up' : (item.diff_pct < 0 ? 'text-down' : '');
           const sign = isUp ? '+' : '';
 
-          row.innerHTML = `
-            <td>${stock.code}</td>
-            <td style="font-weight:600;">${stock.name}</td>
-            <td>${Number(stock.close).toLocaleString()}원</td>
-            <td class="${diffClass}">${sign}${stock.diff_pct}%</td>
-            <td>${Number(stock.volume).toLocaleString()}주</td>
-            <td>${stock.ma_trend}</td>
-            <td>${stock.per}배</td>
-            <td>${stock.pbr}배</td>
-            <td>${stock.roe}%</td>
-            <td>${stock.rsi14}</td>
+          tr.innerHTML = `
+            <td>${item.code}</td>
+            <td style="font-weight:600;">${item.name}</td>
+            <td>${Number(item.close).toLocaleString()}원</td>
+            <td class="${diffClass}">${sign}${item.diff_pct}%</td>
+            <td>${Number(item.open).toLocaleString()}원 <span class="text-up">(+${item.gap_pct}%)</span></td>
+            <td>${Number(item.volume).toLocaleString()}주</td>
+            <td>${item.ma_status}</td>
+            <td>${item.per}</td>
+            <td>${item.pbr}</td>
+            <td>${item.roe}%</td>
+            <td>${item.rsi14}</td>
           `;
-          tbody.appendChild(row);
+          tbody.appendChild(tr);
         });
       } catch (err) {
-        console.error(err);
-        document.getElementById('base-date').textContent = '로드 실패';
-        document.getElementById('stock-list').innerHTML = `<tr><td colspan="10" class="empty-state" style="color:#ef4444;">데이터 로드에 실패했습니다. GitHub Actions 상태를 확인하세요.</td></tr>`;
+        document.getElementById('base-date').textContent = '연결 오류';
+        document.getElementById('result-body').innerHTML = '<tr><td colspan="11" class="empty" style="color:#ef4444;">data.json 파일을 읽을 수 없습니다. Actions 빌드 로그를 확인해주세요.</td></tr>';
       }
     }
 
-    loadData();
+    refreshData();
   </script>
 </body>
 </html>

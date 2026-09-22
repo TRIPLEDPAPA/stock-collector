@@ -9,6 +9,12 @@ from typing import Dict, List, Tuple, Optional
 import requests
 from supabase import create_client, Client
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 # ============================================================
 # TRIPLE D PAPA - 국내 종목 전용 초고속 병렬 수집기
@@ -586,40 +592,62 @@ def fetch_full_stock_universe(headers: Dict[str, str]) -> List[Dict]:
 
 def fetch_kis_investor_amount(ticker: str, token: str, target_date: str) -> Optional[Dict]:
     """
-    KIS 주식현재가 투자자(FHKST01010900).
-    당일 데이터는 장 종료 후 제공. *_ntby_tr_pbmn 단위는 백만원이므로 원으로 변환한다.
+    KIS 공식 종목별 투자자매매동향(일별).
+    실제 개인/외국인/기관 순매수 거래대금을 사용한다.
     """
-    url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/inquire-investor"
-    params = {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": ticker}
-    interval = max(0.05, safe_float(os.getenv("KIS_REQUEST_INTERVAL", "0.08"), 0.08))
+    url = (
+        "https://openapi.koreainvestment.com:9443"
+        "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
+    )
+    wanted = target_date.replace("-", "")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": ticker,
+        "FID_INPUT_DATE_1": wanted,
+        "FID_ORG_ADJ_PRC": "",
+        "FID_ETC_CLS_CODE": "",
+    }
+    interval = max(0.06, safe_float(os.getenv("KIS_REQUEST_INTERVAL", "0.08"), 0.08))
 
-    for attempt in range(4):
+    for attempt in range(5):
         try:
-            res = requests.get(url, headers=kis_headers(token, "FHKST01010900"), params=params, timeout=10)
+            res = requests.get(
+                url,
+                headers=kis_headers(token, "FHPTJ04160001"),
+                params=params,
+                timeout=12,
+            )
             if res.status_code == 429:
-                time.sleep(0.8 * (attempt + 1))
+                time.sleep(1.0 * (attempt + 1))
                 continue
+
             res.raise_for_status()
             body = res.json()
             if str(body.get("rt_cd", "0")) != "0":
-                time.sleep(0.25 * (attempt + 1))
-                continue
-            rows = body.get("output") or []
+                msg = str(body.get("msg1", ""))
+                if any(k in msg.lower() for k in ("초당", "rate", "limit", "exceed")):
+                    time.sleep(1.0 * (attempt + 1))
+                    continue
+                return None
+
+            rows = body.get("output2") or body.get("output1") or []
             if isinstance(rows, dict):
                 rows = [rows]
-            wanted = target_date.replace("-", "")
-            row = next((x for x in rows if str(x.get("stck_bsop_date", "")) == wanted), None)
-            if row is None and rows:
+
+            row = next(
+                (x for x in rows if str(x.get("stck_bsop_date", "")) == wanted),
+                None,
+            )
+            if row is None and rows and not rows[0].get("stck_bsop_date"):
                 row = rows[0]
             if not row:
                 return None
 
-            row_date = str(row.get("stck_bsop_date", ""))
+            row_date = str(row.get("stck_bsop_date", wanted))
             if row_date and row_date != wanted:
                 return None
 
             def pbmn_to_won(key: str) -> int:
-                # KIS 공식 샘플: 순매수 거래대금 단위 = 백만원
                 return safe_int(row.get(key), 0) * 1_000_000
 
             return {
@@ -631,10 +659,12 @@ def fetch_kis_investor_amount(ticker: str, token: str, target_date: str) -> Opti
                 "foreign_qty": safe_int(row.get("frgn_ntby_qty"), 0),
                 "institution_qty": safe_int(row.get("orgn_ntby_qty"), 0),
             }
-        except Exception:
-            if attempt == 3:
+        except requests.RequestException:
+            if attempt == 4:
                 return None
-            time.sleep(0.35 * (attempt + 1))
+            time.sleep(0.6 * (attempt + 1))
+        except Exception:
+            return None
         finally:
             time.sleep(interval)
     return None
@@ -662,7 +692,7 @@ def _top10(rows: List[Dict], key: str, buy: bool) -> List[Dict]:
 
 
 def generate_data_json(compiled_items: List[Dict], today_str: str):
-    """KRX 정규장 실제 순매수대금 기준 개인/외국인/기관 TOP10+TOP10을 생성한다."""
+    """KRX 정규장 실제 순매수대금 기준 개인/외국인/기관 TOP10+TOP10을 생성한다. 추정치/더미 fallback은 사용하지 않는다."""
     now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
     payload = {
         "base_date": today_str,

@@ -1,4 +1,5 @@
 import datetime
+import json
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -9,7 +10,7 @@ from supabase import create_client, Client
 
 
 # ============================================================
-# TRIPLE D PAPA - 국내 종목 전용 초고속 병렬 수집기
+# TRIPLE D PAPA - 국내 종목 전용 초고속 병렬 수집기 및 수급 생성기
 # ============================================================
 
 SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
@@ -546,6 +547,82 @@ def fetch_stock_page(market: str, page: int, headers: Dict[str, str]) -> List[Di
         return []
 
 
+def generate_investor_ranking_json(compiled_items: List[Dict], today_str: str):
+    """
+    수집된 종목 데이터를 바탕으로 개인/외국인/기관 순매수·순매도 TOP10을 산출하여 
+    총 60개의 항목을 가진 investor_ranking.json 파일을 생성합니다.
+    """
+    # 순매수 대금 기준 정렬을 위해 계산 (수량 * 종가 또는 수급 데이터 활용)
+    enriched = []
+    for item in compiled_items:
+        close_p = item.get("close_price", 0)
+        f_net = item.get("foreign_net_buy", 0)
+        i_net = item.get("inst_net_buy", 0)
+        r_net = item.get("retail_net_buy", 0)
+
+        enriched.append({
+            "rank": 0,
+            "code": item.get("ticker"),
+            "name": item.get("name"),
+            "market": item.get("market"),
+            "net_amount_foreign": f_net * close_p,
+            "net_amount_institution": i_net * close_p,
+            "net_amount_retail": r_net * close_p,
+        })
+
+    # 외국인 순매수 기준 정렬
+    sorted_foreign = sorted(enriched, key=lambda x: x["net_amount_foreign"], reverse=True)
+    f_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_foreign"]} for i, x in enumerate(sorted_foreign[:10])]
+    f_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_foreign"])} for i, x in enumerate(sorted(sorted_foreign, key=lambda x: x["net_amount_foreign"])[:10])]
+
+    # 기관 순매수 기준 정렬
+    sorted_inst = sorted(enriched, key=lambda x: x["net_amount_institution"], reverse=True)
+    i_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_institution"]} for i, x in enumerate(sorted_inst[:10])]
+    i_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_institution"])} for i, x in enumerate(sorted(sorted_inst, key=lambda x: x["net_amount_institution"])[:10])]
+
+    # 개인 순매수 기준 정렬
+    sorted_retail = sorted(enriched, key=lambda x: x["net_amount_retail"], reverse=True)
+    r_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_retail"]} for i, x in enumerate(sorted_retail[:10])]
+    r_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_retail"])} for i, x in enumerate(sorted(sorted_retail, key=lambda x: x["net_amount_retail"])[:10])]
+
+    payload = {
+        "trade_date": today_str,
+        "market": "ALL",
+        "session": "KRX_REGULAR",
+        "close_time": "15:30",
+        "basis": "NET_AMOUNT",
+        "unit": "KRW",
+        "status": "FINAL",
+        "individual": {
+            "buy": r_buy,
+            "sell": r_sell
+        },
+        "foreign": {
+            "buy": f_buy,
+            "sell": f_sell
+        },
+        "institution": {
+            "buy": i_buy,
+            "sell": i_sell
+        }
+    }
+
+    total_count = len(r_buy) + len(r_sell) + len(f_buy) + len(f_sell) + len(i_buy) + len(i_sell)
+    payload["count"] = total_count
+    payload["valid"] = (total_count == 60)
+    payload["validation"] = {
+        "valid": payload["valid"],
+        "count": total_count,
+        "expected": 60,
+        "render_allowed": payload["valid"],
+        "errors": [] if payload["valid"] else ["데이터 개수 부족"]
+    }
+
+    with open("investor_ranking.json", "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print(f"[완료] investor_ranking.json 파일 생성 완료 (총 항목: {total_count}/60)")
+
+
 # ============================================================
 # 국내 주식 전용 초고속 병렬 수집 실행
 # ============================================================
@@ -560,7 +637,6 @@ def collect_market_data():
     print(f"[{today_str}] TRIPLE D PAPA 국내 종목 고속 병렬 수집 시작 (Thread={MAX_WORKERS})")
     print("=" * 70)
 
-    # 국내 주식 목록 사전 추출
     raw_stock_list = []
     seen_tickers = set()
 
@@ -578,7 +654,6 @@ def collect_market_data():
 
     print(f"총 분석 대상: {len(raw_stock_list)}개 주도주 (병렬 분석 진행)")
 
-    # 8개 멀티스레드 병렬 실행
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = [
             executor.submit(parse_stock_item, it, mkt, today_str, headers)
@@ -589,7 +664,7 @@ def collect_market_data():
                 res = future.result()
                 if res:
                     compiled_items.append(res)
-                    print(f"  ✓ [{res['market']}] {res['name']} ({res['total_score']}점 [{res['grade']}])")
+                    print(f"   ✓ [{res['market']}] {res['name']} ({res['total_score']}점 [{res['grade']}])")
             except Exception:
                 pass
 
@@ -604,6 +679,10 @@ def collect_market_data():
             saved += len(batch)
         except Exception as e:
             print(f"[배치 저장 실패] {e}")
+
+    # 수급 TOP60 JSON 파일 생성 (GitHub Pages 연동용)
+    if compiled_items:
+        generate_investor_ranking_json(compiled_items, today_str)
 
     print("=" * 70)
     print(f"[완료] 총 {len(compiled_items)}건 수집 및 {saved}건 Supabase 저장 완료")

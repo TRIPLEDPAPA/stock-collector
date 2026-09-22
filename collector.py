@@ -10,7 +10,7 @@ from supabase import create_client, Client
 
 
 # ============================================================
-# TRIPLE D PAPA - 국내 종목 전용 초고속 병렬 수집기 및 수급 생성기
+# TRIPLE D PAPA - 국내 종목 전용 초고속 병렬 수집기
 # ============================================================
 
 SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
@@ -269,7 +269,6 @@ def score_20_indicators(
         if is_pass:
             passed.append(tag)
 
-    # 01 주가등락률 (7점)
     if chg >= 10: add("score_01", 7, "주가등락률", True)
     elif chg >= 7: add("score_01", 6, "주가등락률", True)
     elif chg >= 5: add("score_01", 5, "주가등락률", True)
@@ -278,7 +277,6 @@ def score_20_indicators(
     elif chg >= 0: add("score_01", 1, "주가등락률")
     else: add("score_01", 0, "주가등락률")
 
-    # 02 거래대금 (7점)
     if deal_won >= 100_000_000_000: add("score_02", 7, "거래대금", True)
     elif deal_won >= 50_000_000_000: add("score_02", 6, "거래대금", True)
     elif deal_won >= 30_000_000_000: add("score_02", 5, "거래대금", True)
@@ -286,7 +284,6 @@ def score_20_indicators(
     elif deal_won >= 5_000_000_000: add("score_02", 2, "거래대금")
     else: add("score_02", 0, "거래대금")
 
-    # 03 거래량비율 (5점)
     vr = tech.get("volume_ratio", 0)
     if vr >= 300: add("score_03", 5, "거래량비율", True)
     elif vr >= 200: add("score_03", 4, "거래량비율", True)
@@ -295,7 +292,6 @@ def score_20_indicators(
     elif vr >= 70: add("score_03", 1, "거래량비율")
     else: add("score_03", 0, "거래량비율")
 
-    # 04 20일이평선 (6점)
     ma20 = tech.get("ma20", 0)
     m20_r = (close_p / ma20 * 100) if ma20 > 0 else 0
     if m20_r >= 110: add("score_04", 6, "20일이평선", True)
@@ -305,7 +301,6 @@ def score_20_indicators(
     elif m20_r >= 97: add("score_04", 1, "20일이평선")
     else: add("score_04", 0, "20일이평선")
 
-    # 05 주가위치 (4점)
     h52 = tech.get("high_52w", 0)
     gap52 = ((close_p / h52) - 1) * 100 if h52 > 0 else -100
     if gap52 >= -5: add("score_05", 4, "주가위치", True)
@@ -314,7 +309,6 @@ def score_20_indicators(
     elif gap52 >= -30: add("score_05", 1, "주가위치")
     else: add("score_05", 0, "주가위치")
 
-    # 06 양봉마감 (4점)
     c_rate = ((close_p - open_p) / open_p * 100) if open_p > 0 else 0
     if c_rate >= 3: add("score_06", 4, "양봉마감", True)
     elif c_rate >= 1: add("score_06", 3, "양봉마감", True)
@@ -322,7 +316,6 @@ def score_20_indicators(
     elif c_rate == 0: add("score_06", 1, "양봉마감")
     else: add("score_06", 0, "양봉마감")
 
-    # 07 고가근접 (4점)
     dr = high_p - low_p
     c_pos = ((close_p - low_p) / dr * 100) if dr > 0 else 50
     if c_pos >= 95: add("score_07", 4, "고가근접", True)
@@ -331,7 +324,6 @@ def score_20_indicators(
     elif c_pos >= 70: add("score_07", 1, "고가근접")
     else: add("score_07", 0, "고가근접")
 
-    # 08 윗꼬리제한 (3점)
     u_tail = high_p - max(open_p, close_p)
     t_ratio = (u_tail / dr * 100) if dr > 0 else 0
     if t_ratio <= 5: add("score_08", 3, "윗꼬리제한", True)
@@ -339,7 +331,6 @@ def score_20_indicators(
     elif t_ratio <= 20: add("score_08", 1, "윗꼬리제한")
     else: add("score_08", 0, "윗꼬리제한")
 
-    # 09 단기이평정배열 (6점)
     ma5, ma10 = tech.get("ma5", 0), tech.get("ma10", 0)
     if ma5 > 0 and ma10 > 0 and ma20 > 0:
         if close_p > ma5 > ma10 > ma20: add("score_09", 6, "단기이평정배열", True)
@@ -349,14 +340,12 @@ def score_20_indicators(
         else: add("score_09", 0, "단기이평정배열")
     else: add("score_09", 0, "단기이평정배열")
 
-    # 10 외국인순매수 (6점)
     if foreign_1d > 0 and foreign_5d > 0: add("score_10", 6, "외국인순매수", True)
     elif foreign_1d > 0: add("score_10", 4, "외국인순매수", True)
     elif foreign_5d > 0: add("score_10", 3, "외국인순매수")
     elif foreign_1d == 0: add("score_10", 2, "외국인순매수")
     else: add("score_10", 0, "외국인순매수")
 
-    # 11 기관순매수 (5점)
     if inst_1d > 0 and inst_5d > 0: add("score_11", 5, "기관순매수", True)
     elif inst_1d > 0: add("score_11", 3, "기관순매수", True)
     elif inst_5d > 0: add("score_11", 2, "기관순매수")
@@ -366,7 +355,6 @@ def score_20_indicators(
     double_buy = (foreign_1d > 0 and inst_1d > 0)
     if double_buy: passed.append("쌍끌이")
 
-    # 12 순매수대금/거래대금 (5점)
     nb_won = (foreign_1d + inst_1d) * close_p
     nb_ratio = (nb_won / deal_won * 100) if deal_won > 0 else 0
     if nb_ratio >= 30: add("score_12", 5, "순매수비율", True)
@@ -375,7 +363,6 @@ def score_20_indicators(
     elif nb_ratio >= 0: add("score_12", 2, "순매수비율")
     else: add("score_12", 0, "순매수비율")
 
-    # 13 5일이평선 (4점)
     m5_r = (close_p / ma5 * 100) if ma5 > 0 else 0
     if m5_r >= 103: add("score_13", 4, "5일이평선", True)
     elif m5_r >= 101: add("score_13", 3, "5일이평선", True)
@@ -383,7 +370,6 @@ def score_20_indicators(
     elif m5_r >= 97: add("score_13", 1, "5일이평선")
     else: add("score_13", 0, "5일이평선")
 
-    # 14 60일이평선 (5점)
     ma60 = tech.get("ma60", 0)
     m60_r = (close_p / ma60 * 100) if ma60 > 0 else 0
     if m60_r >= 110: add("score_14", 5, "60일이평선", True)
@@ -392,7 +378,6 @@ def score_20_indicators(
     elif m60_r >= 95: add("score_14", 1, "60일이평선")
     else: add("score_14", 0, "60일이평선")
 
-    # 15 120일이평선 (4점)
     ma120 = tech.get("ma120", 0)
     m120_r = (close_p / ma120 * 100) if ma120 > 0 else 0
     if m120_r >= 110: add("score_15", 4, "120일이평선", True)
@@ -401,14 +386,12 @@ def score_20_indicators(
     elif m120_r >= 95: add("score_15", 1, "120일이평선")
     else: add("score_15", 0, "120일이평선")
 
-    # 16 52주신고가 (5점)
     if gap52 >= 0: add("score_16", 5, "52주신고가", True)
     elif gap52 >= -1: add("score_16", 4, "52주신고가", True)
     elif gap52 >= -3: add("score_16", 3, "52주신고가", True)
     elif gap52 >= -10: add("score_16", 1, "52주신고가")
     else: add("score_16", 0, "52주신고가")
 
-    # 17 전고점돌파 (5점)
     prev_h = tech.get("previous_high_60", 0)
     br_r = ((close_p / prev_h) - 1) * 100 if prev_h > 0 else -100
     if br_r > 0 and vr >= 150: add("score_17", 5, "전고점돌파", True)
@@ -417,7 +400,6 @@ def score_20_indicators(
     elif br_r >= -5: add("score_17", 1, "전고점돌파")
     else: add("score_17", 0, "전고점돌파")
 
-    # 18 RSI(14) (4점)
     rsi14 = tech.get("rsi14", 50)
     if 55 <= rsi14 <= 70: add("score_18", 4, "RSI(14)", True)
     elif 50 <= rsi14 < 55: add("score_18", 3, "RSI(14)", True)
@@ -425,7 +407,6 @@ def score_20_indicators(
     elif 30 <= rsi14 < 45 or rsi14 > 75: add("score_18", 1, "RSI(14)")
     else: add("score_18", 0, "RSI(14)")
 
-    # 19 이격도 (4점)
     disp = tech.get("disparity20", 100)
     if 102 <= disp <= 108: add("score_19", 4, "이격도", True)
     elif (100 <= disp < 102) or (108 < disp <= 112): add("score_19", 3, "이격도", True)
@@ -433,7 +414,6 @@ def score_20_indicators(
     elif disp < 95 or 112 < disp <= 120: add("score_19", 1, "이격도")
     else: add("score_19", 0, "이격도")
 
-    # 20 MACD (3점)
     m_val = tech.get("macd", 0)
     s_val = tech.get("macd_signal", 0)
     if m_val > s_val and m_val > 0: add("score_20", 3, "MACD", True)
@@ -547,12 +527,11 @@ def fetch_stock_page(market: str, page: int, headers: Dict[str, str]) -> List[Di
         return []
 
 
-def generate_investor_ranking_json(compiled_items: List[Dict], today_str: str):
+def generate_data_json(compiled_items: List[Dict], today_str: str):
     """
-    수집된 종목 데이터를 바탕으로 개인/외국인/기관 순매수·순매도 TOP10을 산출하여 
-    총 60개의 항목을 가진 investor_ranking.json 파일을 생성합니다.
+    수집된 종목 데이터를 바탕으로 기존 data.json 규격에 
+    투자자 수급 TOP60(individual, foreign, institution) 데이터를 통합하여 생성합니다.
     """
-    # 순매수 대금 기준 정렬을 위해 계산 (수량 * 종가 또는 수급 데이터 활용)
     enriched = []
     for item in compiled_items:
         close_p = item.get("close_price", 0)
@@ -561,7 +540,6 @@ def generate_investor_ranking_json(compiled_items: List[Dict], today_str: str):
         r_net = item.get("retail_net_buy", 0)
 
         enriched.append({
-            "rank": 0,
             "code": item.get("ticker"),
             "name": item.get("name"),
             "market": item.get("market"),
@@ -570,62 +548,41 @@ def generate_investor_ranking_json(compiled_items: List[Dict], today_str: str):
             "net_amount_retail": r_net * close_p,
         })
 
-    # 외국인 순매수 기준 정렬
     sorted_foreign = sorted(enriched, key=lambda x: x["net_amount_foreign"], reverse=True)
     f_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_foreign"]} for i, x in enumerate(sorted_foreign[:10])]
     f_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_foreign"])} for i, x in enumerate(sorted(sorted_foreign, key=lambda x: x["net_amount_foreign"])[:10])]
 
-    # 기관 순매수 기준 정렬
     sorted_inst = sorted(enriched, key=lambda x: x["net_amount_institution"], reverse=True)
     i_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_institution"]} for i, x in enumerate(sorted_inst[:10])]
     i_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_institution"])} for i, x in enumerate(sorted(sorted_inst, key=lambda x: x["net_amount_institution"])[:10])]
 
-    # 개인 순매수 기준 정렬
     sorted_retail = sorted(enriched, key=lambda x: x["net_amount_retail"], reverse=True)
     r_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_retail"]} for i, x in enumerate(sorted_retail[:10])]
     r_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_retail"])} for i, x in enumerate(sorted(sorted_retail, key=lambda x: x["net_amount_retail"])[:10])]
 
-    payload = {
-        "trade_date": today_str,
-        "market": "ALL",
-        "session": "KRX_REGULAR",
-        "close_time": "15:30",
-        "basis": "NET_AMOUNT",
-        "unit": "KRW",
-        "status": "FINAL",
-        "individual": {
-            "buy": r_buy,
-            "sell": r_sell
-        },
-        "foreign": {
-            "buy": f_buy,
-            "sell": f_sell
-        },
-        "institution": {
-            "buy": i_buy,
-            "sell": i_sell
-        }
-    }
-
     total_count = len(r_buy) + len(r_sell) + len(f_buy) + len(f_sell) + len(i_buy) + len(i_sell)
-    payload["count"] = total_count
-    payload["valid"] = (total_count == 60)
-    payload["validation"] = {
-        "valid": payload["valid"],
+
+    payload = {
+        "base_date": today_str,
+        "last_updated": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S"),
+        "status": "정규장 분석 완료",
         "count": total_count,
-        "expected": 60,
-        "render_allowed": payload["valid"],
-        "errors": [] if payload["valid"] else ["데이터 개수 부족"]
+        "valid": (total_count == 60),
+        "validation": {
+            "valid": (total_count == 60),
+            "count": total_count,
+            "expected": 60,
+            "render_allowed": (total_count == 60)
+        },
+        "individual": {"buy": r_buy, "sell": r_sell},
+        "foreign": {"buy": f_buy, "sell": f_sell},
+        "institution": {"buy": i_buy, "sell": i_sell}
     }
 
-    with open("investor_ranking.json", "w", encoding="utf-8") as f:
+    with open("data.json", "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-    print(f"[완료] investor_ranking.json 파일 생성 완료 (총 항목: {total_count}/60)")
+    print(f"[완료] data.json 파일 통합 생성 완료 (총 수급 항목: {total_count}/60)")
 
-
-# ============================================================
-# 국내 주식 전용 초고속 병렬 수집 실행
-# ============================================================
 
 def collect_market_data():
     now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
@@ -668,7 +625,6 @@ def collect_market_data():
             except Exception:
                 pass
 
-    # Supabase 배치 일괄 저장
     print(f"\n총 {len(compiled_items)}건 데이터 Supabase 일괄 저장 중...")
     saved = 0
     batch_size = 50
@@ -680,9 +636,8 @@ def collect_market_data():
         except Exception as e:
             print(f"[배치 저장 실패] {e}")
 
-    # 수급 TOP60 JSON 파일 생성 (GitHub Pages 연동용)
     if compiled_items:
-        generate_investor_ranking_json(compiled_items, today_str)
+        generate_data_json(compiled_items, today_str)
 
     print("=" * 70)
     print(f"[완료] 총 {len(compiled_items)}건 수집 및 {saved}건 Supabase 저장 완료")

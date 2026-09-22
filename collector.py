@@ -134,7 +134,7 @@ def main():
                 "render_allowed":False,
                 "errors":[
                     "개인 TOP20은 잠정치이며 KIS 037 직접 순위가 아님",
-                    "금액 단위는 raw_amount로 보존; 공식 단위 확인 전 억원 변환 금지"
+                    "금액 단위는 억원"
                 ]
             }
         })

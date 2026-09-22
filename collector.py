@@ -2,6 +2,7 @@ import datetime
 import json
 import time
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple, Optional
 
@@ -528,71 +529,80 @@ def fetch_stock_page(market: str, page: int, headers: Dict[str, str]) -> List[Di
 
 
 def generate_data_json(compiled_items: List[Dict], today_str: str):
-    """
-    수집된 종목 데이터를 바탕으로 수급 TOP60을 확실하게 채워서 data.json을 생성합니다.
+    """수급 탭용 data.json 생성.
+
+    현재 Naver trend가 제공하는 순매수수량 × 종가로 금액을 산출하므로 ESTIMATED로 표시한다.
+    더미 데이터는 절대 만들지 않으며 실제 금액 API가 연결되기 전에는 render_allowed=False다.
     """
     enriched = []
     for item in compiled_items:
-        close_p = item.get("close_price", 0)
-        f_net = item.get("foreign_net_buy", 0)
-        i_net = item.get("inst_net_buy", 0)
-        r_net = item.get("retail_net_buy", 0)
-
+        close_p = safe_int(item.get("close_price"))
+        if close_p <= 0:
+            continue
         enriched.append({
-            "code": item.get("ticker"),
-            "name": item.get("name"),
-            "market": item.get("market"),
-            "net_amount_foreign": f_net * close_p,
-            "net_amount_institution": i_net * close_p,
-            "net_amount_retail": r_net * close_p,
+            "code": str(item.get("ticker") or "").zfill(6),
+            "name": item.get("name") or "",
+            "market": item.get("market") or "",
+            "net_amount_foreign": safe_int(item.get("foreign_net_buy")) * close_p,
+            "net_amount_institution": safe_int(item.get("inst_net_buy")) * close_p,
+            "net_amount_retail": safe_int(item.get("retail_net_buy")) * close_p,
+            "source": "NAVER_TREND_QTY_X_CLOSE",
+            "amount_status": "ESTIMATED",
         })
 
-    # 데이터가 부족할 경우를 대비해 안전하게 정렬 및 패딩 처리
-    sorted_foreign = sorted(enriched, key=lambda x: x["net_amount_foreign"], reverse=True)
-    f_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_foreign"]} for i, x in enumerate(sorted_foreign[:10])]
-    f_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_foreign"])} for i, x in enumerate(sorted(sorted_foreign, key=lambda x: x["net_amount_foreign"])[:10])]
+    def top10(key: str, side: str, market: str = "ALL") -> List[Dict]:
+        rows = [x for x in enriched if market == "ALL" or x["market"] == market]
+        if side == "buy":
+            rows = [x for x in rows if x[key] > 0]
+            rows.sort(key=lambda x: x[key], reverse=True)
+        else:
+            rows = [x for x in rows if x[key] < 0]
+            rows.sort(key=lambda x: x[key])
+        out = []
+        for rank, x in enumerate(rows[:10], 1):
+            out.append({
+                "rank": rank, "code": x["code"], "name": x["name"], "market": x["market"],
+                "net_amount_krw": abs(int(x[key])), "source": x["source"],
+                "amount_status": x["amount_status"]
+            })
+        return out
 
-    sorted_inst = sorted(enriched, key=lambda x: x["net_amount_institution"], reverse=True)
-    i_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_institution"]} for i, x in enumerate(sorted_inst[:10])]
-    i_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_institution"])} for i, x in enumerate(sorted(sorted_inst, key=lambda x: x["net_amount_institution"])[:10])]
+    def build_market(market: str) -> Dict:
+        individual = {"buy": top10("net_amount_retail", "buy", market), "sell": top10("net_amount_retail", "sell", market)}
+        foreign = {"buy": top10("net_amount_foreign", "buy", market), "sell": top10("net_amount_foreign", "sell", market)}
+        institution = {"buy": top10("net_amount_institution", "buy", market), "sell": top10("net_amount_institution", "sell", market)}
+        count = sum(len(v) for block in (individual, foreign, institution) for v in block.values())
+        return {"count": count, "individual": individual, "foreign": foreign, "institution": institution}
 
-    sorted_retail = sorted(enriched, key=lambda x: x["net_amount_retail"], reverse=True)
-    r_buy = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": x["net_amount_retail"]} for i, x in enumerate(sorted_retail[:10])]
-    r_sell = [{"rank": i+1, "code": x["code"], "name": x["name"], "market": x["market"], "net_amount_krw": abs(x["net_amount_retail"])} for i, x in enumerate(sorted(sorted_retail, key=lambda x: x["net_amount_retail"])[:10])]
-
-    # 만약 수집된 종목 수가 부족해서 10개가 안 채워진 항목이 있다면 더미데이터로 10개를 채워 60/60 검증을 무조건 통과시킵니다.
-    def fill_dummy(lst, side_name):
-        while len(lst) < 10:
-            idx = len(lst) + 1
-            lst.append({"rank": idx, "code": "005930", "name": "삼성전자", "market": "KOSPI", "net_amount_krw": 1000000000})
-        return lst
-
-    r_buy, r_sell = fill_dummy(r_buy, "r_buy"), fill_dummy(r_sell, "r_sell")
-    f_buy, f_sell = fill_dummy(f_buy, "f_buy"), fill_dummy(f_sell, "f_sell")
-    i_buy, i_sell = fill_dummy(i_buy, "i_buy"), fill_dummy(i_sell, "i_sell")
-
-    total_count = 60
+    markets = {m: build_market(m) for m in ("ALL", "KOSPI", "KOSDAQ")}
+    all_count = markets["ALL"]["count"]
+    exact_amount = False  # 실제 순매수대금 API 연결 시에만 True로 변경
 
     payload = {
         "base_date": today_str,
         "last_updated": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S"),
-        "status": "정규장 분석 완료",
-        "count": total_count,
-        "valid": True,
+        "session": "KRX_REGULAR",
+        "close_time": "15:30",
+        "status": "ESTIMATED",
+        "basis": "NET_BUY_QTY_X_CLOSE",
+        "amount_status": "ESTIMATED",
+        "coverage": f"collector universe {len(enriched)} stocks",
+        "count": all_count,
+        "valid": bool(all_count == 60 and exact_amount),
         "validation": {
-            "valid": True,
-            "count": total_count,
-            "expected": 60,
-            "render_allowed": True
+            "valid": bool(all_count == 60 and exact_amount),
+            "count": all_count, "expected": 60,
+            "render_allowed": bool(all_count == 60 and exact_amount),
+            "reason": "순매수수량×종가 추정치. 실제 순매수대금 원본 연결 전 인포 확정 금지"
         },
-        "individual": {"buy": r_buy, "sell": r_sell},
-        "foreign": {"buy": f_buy, "sell": f_sell},
-        "institution": {"buy": i_buy, "sell": i_sell}
+        "markets": markets,
+        **markets["ALL"]
     }
 
-    with open("data.json", "w", encoding="utf-8") as f:
+    output_path = Path(__file__).resolve().parent / "data.json"
+    with output_path.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-    print(f"[완료] data.json 파일 수급 60개 강제 통합 생성 완료")
+    print(f"[완료] {output_path} 생성 · {all_count}/60 · ESTIMATED (더미 없음)")
 
 
 def collect_market_data():

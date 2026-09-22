@@ -2,6 +2,7 @@ name: Stock Data Collector
 
 on:
   schedule:
+    # UTC 기준: 한국시간 평일 09:00~23:30 사이 30분 간격
     - cron: '*/30 0-14 * * 1-5'
   workflow_dispatch:
 
@@ -13,6 +14,7 @@ jobs:
   collect:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+
     permissions:
       contents: write
 
@@ -30,27 +32,62 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests supabase python-dotenv
 
-      - name: Check required secrets
+      # 1순위: GitHub Repository Secrets
+      # 2순위: 저장소 루트의 .env (개인/Private 저장소에서만 사용 권장)
+      - name: Load API credentials
+        shell: bash
         env:
-          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
-          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          SECRET_KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          SECRET_KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          SECRET_DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          SECRET_KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
         run: |
-          python - <<'PY'
-          import os, sys
-          missing = [k for k in ("KIS_APP_KEY", "KIS_APP_SECRET") if not os.getenv(k)]
-          if missing:
-              print("::error::Missing GitHub Actions secrets: " + ", ".join(missing))
-              sys.exit(1)
-          print("KIS secrets are configured.")
-          PY
+          set -e
+
+          load_from_dotenv () {
+            if [ -f ".env" ]; then
+              echo ".env found. Loading missing values..."
+              set -a
+              source .env
+              set +a
+            fi
+          }
+
+          # Secrets가 있으면 우선 사용한다.
+          KIS_APP_KEY="$SECRET_KIS_APP_KEY"
+          KIS_APP_SECRET="$SECRET_KIS_APP_SECRET"
+          DART_API_KEY="$SECRET_DART_API_KEY"
+          KRX_API_KEY="$SECRET_KRX_API_KEY"
+
+          # Secrets가 비어 있으면 .env를 읽는다.
+          if [ -z "$KIS_APP_KEY" ] || [ -z "$KIS_APP_SECRET" ]; then
+            unset KIS_APP_KEY KIS_APP_SECRET DART_API_KEY KRX_API_KEY
+            load_from_dotenv
+          fi
+
+          if [ -z "$KIS_APP_KEY" ] || [ -z "$KIS_APP_SECRET" ]; then
+            echo "::error::KIS credentials not found."
+            echo "::error::Use Repository Secrets KIS_APP_KEY/KIS_APP_SECRET or commit a .env file."
+            exit 1
+          fi
+
+          {
+            echo "KIS_APP_KEY=$KIS_APP_KEY"
+            echo "KIS_APP_SECRET=$KIS_APP_SECRET"
+            [ -n "${DART_API_KEY:-}" ] && echo "DART_API_KEY=$DART_API_KEY"
+            [ -n "${KRX_API_KEY:-}" ] && echo "KRX_API_KEY=$KRX_API_KEY"
+          } >> "$GITHUB_ENV"
+
+          echo "::add-mask::$KIS_APP_KEY"
+          echo "::add-mask::$KIS_APP_SECRET"
+          [ -n "${DART_API_KEY:-}" ] && echo "::add-mask::$DART_API_KEY"
+          [ -n "${KRX_API_KEY:-}" ] && echo "::add-mask::$KRX_API_KEY"
+
+          echo "KIS credentials loaded successfully."
 
       - name: Run Collector
         env:
-          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
-          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
-          DART_API_KEY: ${{ secrets.DART_API_KEY }}
-          KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
-          KIS_REQUEST_INTERVAL: '0.08'
+          KIS_REQUEST_INTERVAL: '0.40'
         run: |
           python collector.py
 
@@ -58,22 +95,47 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import os
+          import sys
+
+          if not os.path.exists("data.json"):
+              print("::error::data.json was not created.")
+              sys.exit(1)
+
           with open("data.json", "r", encoding="utf-8") as f:
               d = json.load(f)
-          print("status =", d.get("status"))
-          print("count  =", d.get("count"))
-          print("errors =", d.get("validation", {}).get("errors", []))
-          print("render_allowed =", d.get("validation", {}).get("render_allowed"))
+
+          status = d.get("status")
+          count = int(d.get("count") or 0)
+          validation = d.get("validation") or {}
+          valid = bool(validation.get("valid"))
+          render_allowed = bool(validation.get("render_allowed"))
+          errors = validation.get("errors") or []
+
+          print("status =", status)
+          print("count =", count)
+          print("valid =", valid)
+          print("render_allowed =", render_allowed)
+          print("errors =", errors)
+
+          # ERROR이더라도 data.json은 GitHub Pages에 올려 화면에서 원인을 볼 수 있게 한다.
+          if status == "FINAL" and count == 60 and valid and render_allowed:
+              print("FINAL 60/60 verified - infographic allowed.")
+          else:
+              print("Not FINAL - infographic remains blocked.")
           PY
 
       - name: Commit and push data.json
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
           git add data.json
+
           if git diff --cached --quiet; then
             echo "No data.json changes."
             exit 0
           fi
+
           git commit -m "Auto Update data.json: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
           git push

@@ -1,831 +1,151 @@
-import datetime
-import json
-import time
-import os
-import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Tuple, Optional
+import os, json, datetime, requests
+from typing import List, Dict
 
-import requests
-from supabase import create_client, Client
+BASE = "https://openapi.koreainvestment.com:9443"
+APPKEY = os.getenv("KIS_APP_KEY", "").strip()
+APPSECRET = os.getenv("KIS_APP_SECRET", "").strip()
+TIMEOUT = 15
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
-
-# ============================================================
-# TRIPLE D PAPA - 국내 종목 전용 초고속 병렬 수집기
-# ============================================================
-
-SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
-SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-EXCLUDE_KEYWORDS = [
-    "KODEX", "TIGER", "ACE", "SOL", "RISE", "PLUS", "KOSEF", "ARIRANG",
-    "TIMEFOLIO", "HANARO", "WOORI", "UNICORN", "KBSTAR", "WON", "HERO",
-    "TRUSTON", "ETN", "스팩", "SPAC", "선물", "인버스", "레버리지", "2X",
-    "액티브", "국채", "채권", "MSCI", "S&P", "나스닥", "NASDAQ", "다우",
-    "금현물", "원유", "TR"
-]
-
-HISTORY_COUNT = 250
-STOCK_PAGES = 3  # 시장별 60종목, 총 120개 핵심 주도주 고속 수집
-REQUEST_TIMEOUT = 6
-INVESTOR_TIMEOUT = 4
-MAX_WORKERS = 8
-
-
-def safe_float(val, default=0.0) -> float:
-    if val is None:
-        return default
-    if isinstance(val, (int, float)):
-        return float(val)
+def num(v):
     try:
-        return float(str(val).replace(",", "").replace("%", "").strip())
-    except Exception:
-        return default
-
-
-def safe_int(val, default=0) -> int:
-    try:
-        return int(round(safe_float(val, default)))
-    except Exception:
-        return default
-
-
-def is_pure_stock(ticker: str, name: str) -> bool:
-    if not ticker or not ticker.isdigit():
-        return False
-    if name.endswith(("우", "우B", "우C", "(우)", "우선주")):
-        return False
-    clean = name.upper().replace(" ", "")
-    for kw in EXCLUDE_KEYWORDS:
-        if kw.upper() in clean:
-            return False
-    return True
-
-
-def get_headers() -> Dict[str, str]:
-    return {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/139.0.0.0 Safari/537.36"
-        ),
-        "Accept": "application/json,text/plain,*/*",
-        "Referer": "https://m.stock.naver.com/",
-    }
-
-
-def sma(values: List[float], period: int) -> Optional[float]:
-    if len(values) < period:
-        return None
-    return sum(values[-period:]) / period
-
-
-def ema_series(values: List[float], period: int) -> List[float]:
-    if not values:
-        return []
-    result = [float(values[0])]
-    alpha = 2.0 / (period + 1.0)
-    for value in values[1:]:
-        result.append((value * alpha) + (result[-1] * (1.0 - alpha)))
-    return result
-
-
-def rsi(values: List[float], period: int = 14) -> Optional[float]:
-    if len(values) < period + 1:
-        return None
-    gains, losses = [], []
-    for i in range(1, len(values)):
-        diff = values[i] - values[i - 1]
-        gains.append(max(diff, 0.0))
-        losses.append(max(-diff, 0.0))
-
-    avg_gain = sum(gains[:period]) / period
-    avg_loss = sum(losses[:period]) / period
-
-    for i in range(period, len(gains)):
-        avg_gain = ((avg_gain * (period - 1)) + gains[i]) / period
-        avg_loss = ((avg_loss * (period - 1)) + losses[i]) / period
-
-    if avg_loss == 0:
-        return 100.0 if avg_gain > 0 else 50.0
-
-    rs = avg_gain / avg_loss
-    return 100.0 - (100.0 / (1.0 + rs))
-
-
-def macd(values: List[float]) -> Tuple[Optional[float], Optional[float], Optional[float]]:
-    if len(values) < 35:
-        return None, None, None
-    ema12 = ema_series(values, 12)
-    ema26 = ema_series(values, 26)
-    macd_line = [a - b for a, b in zip(ema12, ema26)]
-    signal_series = ema_series(macd_line, 9)
-
-    if not macd_line or not signal_series:
-        return None, None, None
-
-    macd_val = macd_line[-1]
-    signal_val = signal_series[-1]
-    return macd_val, signal_val, (macd_val - signal_val)
-
-
-def technical_snapshot(history: List[Dict[str, float]]) -> Dict[str, float]:
-    closes = [x["close"] for x in history]
-    highs = [x["high"] for x in history]
-    volumes = [x["volume"] for x in history]
-
-    result = {
-        "ma5": 0.0, "ma10": 0.0, "ma20": 0.0, "ma60": 0.0, "ma120": 0.0,
-        "volume_ratio": 0.0, "high_52w": 0.0, "previous_high_60": 0.0,
-        "rsi14": 50.0, "macd": 0.0, "macd_signal": 0.0, "macd_hist": 0.0,
-        "disparity20": 100.0,
-    }
-    if not closes:
-        return result
-
-    for period, key in [(5, "ma5"), (10, "ma10"), (20, "ma20"), (60, "ma60"), (120, "ma120")]:
-        val = sma(closes, period)
-        if val is not None:
-            result[key] = val
-
-    if len(volumes) >= 21:
-        avg20 = sum(volumes[-21:-1]) / 20.0
-        if avg20 > 0:
-            result["volume_ratio"] = (volumes[-1] / avg20) * 100.0
-
-    window_highs = highs[-250:] if len(highs) >= 250 else highs[:]
-    if window_highs:
-        result["high_52w"] = max(window_highs)
-
-    prev_high_window = highs[-61:-1] if len(highs) >= 61 else highs[:-1]
-    if prev_high_window:
-        result["previous_high_60"] = max(prev_high_window)
-
-    rsi_val = rsi(closes, 14)
-    if rsi_val is not None:
-        result["rsi14"] = rsi_val
-
-    m_val, s_val, h_val = macd(closes)
-    if m_val is not None:
-        result["macd"] = m_val
-        result["macd_signal"] = s_val
-        result["macd_hist"] = h_val
-
-    if result["ma20"] > 0:
-        result["disparity20"] = (closes[-1] / result["ma20"]) * 100.0
-
-    return result
-
-
-def fetch_naver_chart(ticker: str, headers: Dict[str, str]) -> List[Dict[str, float]]:
-    url = f"https://fchart.stock.naver.com/sise.nhn?symbol={ticker}&timeframe=day&count={HISTORY_COUNT}&requestType=0"
-    try:
-        res = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        res.raise_for_status()
-
-        xml_content = res.content.decode("euc-kr", errors="replace")
-        root = ET.fromstring(xml_content)
-        rows = []
-
-        for item in root.findall(".//item"):
-            data = item.attrib.get("data", "")
-            parts = data.split("|")
-            if len(parts) < 6:
-                continue
-
-            close_p = safe_float(parts[1])
-            if close_p <= 0:
-                continue
-
-            rows.append({
-                "date": parts[0],
-                "close": close_p,
-                "open": safe_float(parts[2]),
-                "high": safe_float(parts[3]),
-                "low": safe_float(parts[4]),
-                "volume": safe_float(parts[5]),
-            })
-
-        rows.sort(key=lambda x: x["date"])
-        return rows
-    except Exception:
-        return []
-
-
-def get_real_investor_trend(ticker: str, headers: Dict[str, str]) -> Tuple[int, int, int, int, int]:
-    url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
-    try:
-        res = requests.get(url, headers=headers, timeout=INVESTOR_TIMEOUT)
-        if res.status_code != 200:
-            return 0, 0, 0, 0, 0
-
-        data = res.json()
-        trend_list = data if isinstance(data, list) else (
-            data.get("message", {}).get("result", []) or data.get("result", []) or []
-        )
-        if not trend_list:
-            return 0, 0, 0, 0, 0
-
-        def get_f(x): return safe_int(x.get("foreignerPureBuyQuant") or x.get("frgnPureBuyQuant") or 0)
-        def get_i(x): return safe_int(x.get("organPureBuyQuant") or x.get("instPureBuyQuant") or 0)
-        def get_r(x): return safe_int(x.get("individualPureBuyQuant") or x.get("retailPureBuyQuant") or 0)
-
-        latest = trend_list[0]
-        f_1d, i_1d, r_1d = get_f(latest), get_i(latest), get_r(latest)
-        if r_1d == 0 and (f_1d != 0 or i_1d != 0):
-            r_1d = -(f_1d + i_1d)
-
-        first5 = trend_list[:5]
-        f_5d = sum(get_f(x) for x in first5)
-        i_5d = sum(get_i(x) for x in first5)
-
-        return f_1d, i_1d, r_1d, f_5d, i_5d
-    except Exception:
-        return 0, 0, 0, 0, 0
-
-
-def grade_from_score(score: int) -> str:
-    if score >= 90: return "S"
-    if score >= 85: return "A+"
-    if score >= 80: return "A"
-    if score >= 70: return "B+"
-    if score >= 60: return "B"
-    if score >= 50: return "C"
-    return "D"
-
-
-def score_20_indicators(
-    chg: float, close_p: float, open_p: float, high_p: float, low_p: float,
-    deal_won: float, current_vol: float, tech: Dict[str, float],
-    foreign_1d: int, inst_1d: int, foreign_5d: int, inst_5d: int
-) -> Dict[str, object]:
-
-    scores = {}
-    passed = []
-
-    def add(k, val, tag, is_pass=False):
-        scores[k] = int(max(0, val))
-        if is_pass:
-            passed.append(tag)
-
-    if chg >= 10: add("score_01", 7, "주가등락률", True)
-    elif chg >= 7: add("score_01", 6, "주가등락률", True)
-    elif chg >= 5: add("score_01", 5, "주가등락률", True)
-    elif chg >= 3: add("score_01", 4, "주가등락률")
-    elif chg >= 1: add("score_01", 3, "주가등락률")
-    elif chg >= 0: add("score_01", 1, "주가등락률")
-    else: add("score_01", 0, "주가등락률")
-
-    if deal_won >= 100_000_000_000: add("score_02", 7, "거래대금", True)
-    elif deal_won >= 50_000_000_000: add("score_02", 6, "거래대금", True)
-    elif deal_won >= 30_000_000_000: add("score_02", 5, "거래대금", True)
-    elif deal_won >= 10_000_000_000: add("score_02", 3, "거래대금")
-    elif deal_won >= 5_000_000_000: add("score_02", 2, "거래대금")
-    else: add("score_02", 0, "거래대금")
-
-    vr = tech.get("volume_ratio", 0)
-    if vr >= 300: add("score_03", 5, "거래량비율", True)
-    elif vr >= 200: add("score_03", 4, "거래량비율", True)
-    elif vr >= 150: add("score_03", 3, "거래량비율", True)
-    elif vr >= 100: add("score_03", 2, "거래량비율")
-    elif vr >= 70: add("score_03", 1, "거래량비율")
-    else: add("score_03", 0, "거래량비율")
-
-    ma20 = tech.get("ma20", 0)
-    m20_r = (close_p / ma20 * 100) if ma20 > 0 else 0
-    if m20_r >= 110: add("score_04", 6, "20일이평선", True)
-    elif m20_r >= 105: add("score_04", 5, "20일이평선", True)
-    elif m20_r >= 102: add("score_04", 4, "20일이평선")
-    elif m20_r >= 100: add("score_04", 3, "20일이평선")
-    elif m20_r >= 97: add("score_04", 1, "20일이평선")
-    else: add("score_04", 0, "20일이평선")
-
-    h52 = tech.get("high_52w", 0)
-    gap52 = ((close_p / h52) - 1) * 100 if h52 > 0 else -100
-    if gap52 >= -5: add("score_05", 4, "주가위치", True)
-    elif gap52 >= -10: add("score_05", 3, "주가위치", True)
-    elif gap52 >= -20: add("score_05", 2, "주가위치")
-    elif gap52 >= -30: add("score_05", 1, "주가위치")
-    else: add("score_05", 0, "주가위치")
-
-    c_rate = ((close_p - open_p) / open_p * 100) if open_p > 0 else 0
-    if c_rate >= 3: add("score_06", 4, "양봉마감", True)
-    elif c_rate >= 1: add("score_06", 3, "양봉마감", True)
-    elif c_rate > 0: add("score_06", 2, "양봉마감")
-    elif c_rate == 0: add("score_06", 1, "양봉마감")
-    else: add("score_06", 0, "양봉마감")
-
-    dr = high_p - low_p
-    c_pos = ((close_p - low_p) / dr * 100) if dr > 0 else 50
-    if c_pos >= 95: add("score_07", 4, "고가근접", True)
-    elif c_pos >= 90: add("score_07", 3, "고가근접", True)
-    elif c_pos >= 80: add("score_07", 2, "고가근접")
-    elif c_pos >= 70: add("score_07", 1, "고가근접")
-    else: add("score_07", 0, "고가근접")
-
-    u_tail = high_p - max(open_p, close_p)
-    t_ratio = (u_tail / dr * 100) if dr > 0 else 0
-    if t_ratio <= 5: add("score_08", 3, "윗꼬리제한", True)
-    elif t_ratio <= 10: add("score_08", 2, "윗꼬리제한", True)
-    elif t_ratio <= 20: add("score_08", 1, "윗꼬리제한")
-    else: add("score_08", 0, "윗꼬리제한")
-
-    ma5, ma10 = tech.get("ma5", 0), tech.get("ma10", 0)
-    if ma5 > 0 and ma10 > 0 and ma20 > 0:
-        if close_p > ma5 > ma10 > ma20: add("score_09", 6, "단기이평정배열", True)
-        elif ma5 > ma10 > ma20: add("score_09", 5, "단기이평정배열", True)
-        elif close_p > ma20 and ma5 > ma10: add("score_09", 3, "단기이평정배열")
-        elif close_p > ma20: add("score_09", 2, "단기이평정배열")
-        else: add("score_09", 0, "단기이평정배열")
-    else: add("score_09", 0, "단기이평정배열")
-
-    if foreign_1d > 0 and foreign_5d > 0: add("score_10", 6, "외국인순매수", True)
-    elif foreign_1d > 0: add("score_10", 4, "외국인순매수", True)
-    elif foreign_5d > 0: add("score_10", 3, "외국인순매수")
-    elif foreign_1d == 0: add("score_10", 2, "외국인순매수")
-    else: add("score_10", 0, "외국인순매수")
-
-    if inst_1d > 0 and inst_5d > 0: add("score_11", 5, "기관순매수", True)
-    elif inst_1d > 0: add("score_11", 3, "기관순매수", True)
-    elif inst_5d > 0: add("score_11", 2, "기관순매수")
-    elif inst_1d == 0: add("score_11", 1, "기관순매수")
-    else: add("score_11", 0, "기관순매수")
-
-    double_buy = (foreign_1d > 0 and inst_1d > 0)
-    if double_buy: passed.append("쌍끌이")
-
-    nb_won = (foreign_1d + inst_1d) * close_p
-    nb_ratio = (nb_won / deal_won * 100) if deal_won > 0 else 0
-    if nb_ratio >= 30: add("score_12", 5, "순매수비율", True)
-    elif nb_ratio >= 20: add("score_12", 4, "순매수비율", True)
-    elif nb_ratio >= 10: add("score_12", 3, "순매수비율")
-    elif nb_ratio >= 0: add("score_12", 2, "순매수비율")
-    else: add("score_12", 0, "순매수비율")
-
-    m5_r = (close_p / ma5 * 100) if ma5 > 0 else 0
-    if m5_r >= 103: add("score_13", 4, "5일이평선", True)
-    elif m5_r >= 101: add("score_13", 3, "5일이평선", True)
-    elif m5_r >= 100: add("score_13", 2, "5일이평선")
-    elif m5_r >= 97: add("score_13", 1, "5일이평선")
-    else: add("score_13", 0, "5일이평선")
-
-    ma60 = tech.get("ma60", 0)
-    m60_r = (close_p / ma60 * 100) if ma60 > 0 else 0
-    if m60_r >= 110: add("score_14", 5, "60일이평선", True)
-    elif m60_r >= 105: add("score_14", 4, "60일이평선", True)
-    elif m60_r >= 100: add("score_14", 3, "60일이평선")
-    elif m60_r >= 95: add("score_14", 1, "60일이평선")
-    else: add("score_14", 0, "60일이평선")
-
-    ma120 = tech.get("ma120", 0)
-    m120_r = (close_p / ma120 * 100) if ma120 > 0 else 0
-    if m120_r >= 110: add("score_15", 4, "120일이평선", True)
-    elif m120_r >= 105: add("score_15", 3, "120일이평선", True)
-    elif m120_r >= 100: add("score_15", 2, "120일이평선")
-    elif m120_r >= 95: add("score_15", 1, "120일이평선")
-    else: add("score_15", 0, "120일이평선")
-
-    if gap52 >= 0: add("score_16", 5, "52주신고가", True)
-    elif gap52 >= -1: add("score_16", 4, "52주신고가", True)
-    elif gap52 >= -3: add("score_16", 3, "52주신고가", True)
-    elif gap52 >= -10: add("score_16", 1, "52주신고가")
-    else: add("score_16", 0, "52주신고가")
-
-    prev_h = tech.get("previous_high_60", 0)
-    br_r = ((close_p / prev_h) - 1) * 100 if prev_h > 0 else -100
-    if br_r > 0 and vr >= 150: add("score_17", 5, "전고점돌파", True)
-    elif br_r > 0: add("score_17", 4, "전고점돌파", True)
-    elif br_r >= -2: add("score_17", 3, "전고점돌파")
-    elif br_r >= -5: add("score_17", 1, "전고점돌파")
-    else: add("score_17", 0, "전고점돌파")
-
-    rsi14 = tech.get("rsi14", 50)
-    if 55 <= rsi14 <= 70: add("score_18", 4, "RSI(14)", True)
-    elif 50 <= rsi14 < 55: add("score_18", 3, "RSI(14)", True)
-    elif 45 <= rsi14 < 50 or 70 < rsi14 <= 75: add("score_18", 2, "RSI(14)")
-    elif 30 <= rsi14 < 45 or rsi14 > 75: add("score_18", 1, "RSI(14)")
-    else: add("score_18", 0, "RSI(14)")
-
-    disp = tech.get("disparity20", 100)
-    if 102 <= disp <= 108: add("score_19", 4, "이격도", True)
-    elif (100 <= disp < 102) or (108 < disp <= 112): add("score_19", 3, "이격도", True)
-    elif 95 <= disp < 100: add("score_19", 2, "이격도")
-    elif disp < 95 or 112 < disp <= 120: add("score_19", 1, "이격도")
-    else: add("score_19", 0, "이격도")
-
-    m_val = tech.get("macd", 0)
-    s_val = tech.get("macd_signal", 0)
-    if m_val > s_val and m_val > 0: add("score_20", 3, "MACD", True)
-    elif m_val > s_val: add("score_20", 2, "MACD", True)
-    elif m_val > 0: add("score_20", 1, "MACD")
-    else: add("score_20", 0, "MACD")
-
-    total_score = min(sum(scores.values()), 100)
-
-    return {
-        **scores,
-        "total_score": total_score,
-        "grade": grade_from_score(total_score),
-        "passed_tags": ",".join(dict.fromkeys(passed)),
-        "double_buy": double_buy,
-        "strong_buy": bool(total_score >= 80 and double_buy),
-        "net_buy_ratio": round(nb_ratio, 2),
-        "volume_ratio": round(vr, 2),
-        "ma5": round(ma5, 2) if ma5 else 0,
-        "ma10": round(ma10, 2) if ma10 else 0,
-        "ma20": round(ma20, 2) if ma20 else 0,
-        "ma60": round(ma60, 2) if ma60 else 0,
-        "ma120": round(ma120, 2) if ma120 else 0,
-        "high_52w": round(h52, 2),
-        "previous_high_60": round(prev_h, 2),
-        "rsi14": round(rsi14, 2),
-        "macd": round(m_val, 4),
-        "macd_signal": round(s_val, 4),
-        "macd_hist": round(tech.get("macd_hist", 0), 4),
-        "disparity20": round(disp, 2),
-        "gap_52w": round(gap52, 2),
-        "breakout_ratio": round(br_r, 2),
-        "close_position": round(c_pos, 2),
-        "upper_tail_ratio": round(t_ratio, 2),
-    }
-
-
-def parse_stock_item(item: Dict, market_type: str, today_str: str, headers: Dict[str, str]) -> Optional[Dict]:
-    ticker = str(item.get("itemCode") or item.get("code") or "").strip()
-    name = str(item.get("stockName") or item.get("name") or "").strip()
-    if not ticker or not name:
-        return None
-
-    history = fetch_naver_chart(ticker, headers)
-    if len(history) < 20:
-        return None
-
-    latest = history[-1]
-    close_p = safe_float(item.get("closePrice") or item.get("nowPrice") or item.get("price") or latest["close"])
-    open_p = safe_float(item.get("openPrice") or latest["open"])
-    high_p = safe_float(item.get("highPrice") or latest["high"])
-    low_p = safe_float(item.get("lowPrice") or latest["low"])
-    chg = safe_float(item.get("fluctuationsRatio") or item.get("changeRate"))
-
-    current_vol = safe_float(item.get("accumulatedTradingVolume") or item.get("quant") or latest["volume"])
-    deal_won = safe_float(item.get("tradePrice") or item.get("accumulatedTradingValue") or item.get("tradeAmount"))
-
-    if 0 < deal_won < 50_000_000:
-        deal_won *= 1_000_000
-    if deal_won <= 0 and current_vol > 0:
-        deal_won = close_p * current_vol
-
-    tech = technical_snapshot(history)
-    f_1d, i_1d, r_1d, f_5d, i_5d = get_real_investor_trend(ticker, headers)
-
-    scoring = score_20_indicators(
-        chg=chg, close_p=close_p, open_p=open_p, high_p=high_p, low_p=low_p,
-        deal_won=deal_won, current_vol=current_vol, tech=tech,
-        foreign_1d=f_1d, inst_1d=i_1d, foreign_5d=f_5d, inst_5d=i_5d
+        return int(float(str(v or "0").replace(",", "")))
+    except:
+        return 0
+
+def token():
+    if not APPKEY or not APPSECRET:
+        raise RuntimeError("KIS_APP_KEY/KIS_APP_SECRET 없음")
+    r = requests.post(
+        BASE + "/oauth2/tokenP",
+        headers={"content-type":"application/json; charset=utf-8"},
+        json={"grant_type":"client_credentials","appkey":APPKEY,"appsecret":APPSECRET},
+        timeout=TIMEOUT,
     )
+    if r.status_code != 200:
+        # 키는 절대 출력하지 않고 KIS 응답만 남긴다.
+        raise RuntimeError(f"KIS TOKEN HTTP {r.status_code}: {r.text[:800]}")
+    j=r.json()
+    t=j.get("access_token")
+    if not t:
+        raise RuntimeError(f"KIS TOKEN 응답 이상: {j}")
+    return t
 
-    prev_close = history[-2]["close"] if len(history) >= 2 else close_p
-
-    return {
-        "market": market_type,
-        "ticker": ticker,
-        "name": name,
-        "close_price": int(round(close_p)),
-        "open_price": int(round(open_p)),
-        "high_price": int(round(high_p)),
-        "low_price": int(round(low_p)),
-        "prev_close": int(round(prev_close)),
-        "change_rate": round(chg, 2),
-        "trade_amount": int(round(deal_won)),
-        "deal_tag": (
-            "400억이상" if deal_won >= 40_000_000_000 else
-            "300억이상" if deal_won >= 30_000_000_000 else
-            "200억이상" if deal_won >= 20_000_000_000 else
-            "100억이상" if deal_won >= 10_000_000_000 else "100억미만"
-        ),
-        "volume": int(round(current_vol)),
-        "strength": 100.0,
-        "foreign_net_buy": f_1d,
-        "inst_net_buy": i_1d,
-        "retail_net_buy": r_1d,
-        "foreign_net_buy_5d": f_5d,
-        "inst_net_buy_5d": i_5d,
-        "date": today_str,
-        **scoring,
+def call_rank(tok, investor: str, side: str) -> List[Dict]:
+    # KIS 공식: 국내기관_외국인 매매종목가집계 [국내주식-037]
+    # investor: foreign=1, institution=2
+    # side: buy=0, sell=1
+    params={
+        "FID_COND_MRKT_DIV_CODE":"V",
+        "FID_COND_SCR_DIV_CODE":"16449",
+        "FID_INPUT_ISCD":"0000",
+        "FID_DIV_CLS_CODE":"1",       # 금액정렬
+        "FID_RANK_SORT_CLS_CODE":"0" if side=="buy" else "1",
+        "FID_ETC_CLS_CODE":"1" if investor=="foreign" else "2",
     }
-
-
-def fetch_stock_page(market: str, page: int, headers: Dict[str, str]) -> List[Dict]:
-    url = f"https://m.stock.naver.com/api/stocks/marketValue/{market}?page={page}&pageSize=20"
-    try:
-        res = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        res.raise_for_status()
-        data = res.json()
-        return data if isinstance(data, list) else (data.get("stocks") or data.get("result") or [])
-    except Exception:
-        return []
-
-
-def get_kis_access_token() -> str:
-    """KIS 실전 REST 접근토큰. GitHub Secrets의 KIS_APP_KEY/KIS_APP_SECRET 사용."""
-    app_key = os.getenv("KIS_APP_KEY", "").strip()
-    app_secret = os.getenv("KIS_APP_SECRET", "").strip()
-    if not app_key or not app_secret:
-        raise RuntimeError("KIS_APP_KEY / KIS_APP_SECRET 환경변수가 없습니다.")
-
-    url = "https://openapi.koreainvestment.com:9443/oauth2/tokenP"
-    res = requests.post(url, json={
-        "grant_type": "client_credentials",
-        "appkey": app_key,
-        "appsecret": app_secret,
-    }, timeout=15)
-    res.raise_for_status()
-    body = res.json()
-    token = body.get("access_token")
-    if not token:
-        raise RuntimeError(f"KIS 토큰 발급 실패: {body}")
-    return token
-
-
-def kis_headers(token: str, tr_id: str) -> Dict[str, str]:
-    return {
-        "content-type": "application/json; charset=utf-8",
-        "authorization": f"Bearer {token}",
-        "appkey": os.getenv("KIS_APP_KEY", "").strip(),
-        "appsecret": os.getenv("KIS_APP_SECRET", "").strip(),
-        "tr_id": tr_id,
-        "custtype": "P",
+    h={
+        "content-type":"application/json; charset=utf-8",
+        "authorization":"Bearer "+tok,
+        "appkey":APPKEY,
+        "appsecret":APPSECRET,
+        "tr_id":"FHPTJ04400000",
+        "custtype":"P",
     }
-
-
-def fetch_full_stock_universe(headers: Dict[str, str]) -> List[Dict]:
-    """네이버 시가총액 목록을 끝까지 순회해 KOSPI/KOSDAQ 보통주 유니버스를 만든다."""
-    result, seen = [], set()
-    for market in ("KOSPI", "KOSDAQ"):
-        for page in range(1, 151):
-            rows = fetch_stock_page(market, page, headers)
-            if not rows:
-                break
-            added = 0
-            for item in rows:
-                ticker = str(item.get("itemCode") or item.get("code") or "").strip()
-                name = str(item.get("stockName") or item.get("name") or "").strip()
-                if ticker in seen or not is_pure_stock(ticker, name):
-                    continue
-                seen.add(ticker)
-                result.append({"ticker": ticker, "name": name, "market": market})
-                added += 1
-            if len(rows) < 20:
-                break
-            if added == 0 and page > 120:
-                break
-    return result
-
-
-def fetch_kis_investor_amount(ticker: str, token: str, target_date: str) -> Optional[Dict]:
-    """
-    KIS 공식 종목별 투자자매매동향(일별).
-    실제 개인/외국인/기관 순매수 거래대금을 사용한다.
-    """
-    url = (
-        "https://openapi.koreainvestment.com:9443"
-        "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
+    r=requests.get(
+        BASE+"/uapi/domestic-stock/v1/quotations/foreign-institution-total",
+        headers=h, params=params, timeout=TIMEOUT
     )
-    # KIS 일별 투자자 API는 당일 결산 전 TIME LIMIT가 날 수 있어
-    # 조회 기준일을 충분히 이전으로 잡고 응답 중 최신 거래일을 사용한다.
-    target_dt = datetime.datetime.strptime(target_date, "%Y-%m-%d").date()
-    query_dt = target_dt - datetime.timedelta(days=7)
-    wanted = query_dt.strftime("%Y%m%d")
-    target_yyyymmdd = target_dt.strftime("%Y%m%d")
-    params = {
-        "FID_COND_MRKT_DIV_CODE": "J",
-        "FID_INPUT_ISCD": ticker,
-        "FID_INPUT_DATE_1": wanted,
-        "FID_ORG_ADJ_PRC": "",
-        "FID_ETC_CLS_CODE": "",
-    }
-    interval = max(0.40, safe_float(os.getenv("KIS_REQUEST_INTERVAL", "0.40"), 0.40))
-
-    for attempt in range(5):
-        try:
-            res = requests.get(
-                url,
-                headers=kis_headers(token, "FHPTJ04160001"),
-                params=params,
-                timeout=12,
-            )
-            if res.status_code == 429:
-                time.sleep(1.0 * (attempt + 1))
-                continue
-
-            res.raise_for_status()
-            body = res.json()
-            if str(body.get("rt_cd", "0")) != "0":
-                msg = str(body.get("msg1", ""))
-                if any(k in msg.lower() for k in ("초당", "rate", "limit", "exceed")):
-                    time.sleep(1.0 * (attempt + 1))
-                    continue
-                return None
-
-            rows = body.get("output2") or body.get("output1") or []
-            if isinstance(rows, dict):
-                rows = [rows]
-
-            dated_rows = [
-                x for x in rows
-                if str(x.get("stck_bsop_date", "")).isdigit()
-                and str(x.get("stck_bsop_date", "")) <= target_yyyymmdd
-            ]
-            if dated_rows:
-                row = max(dated_rows, key=lambda x: str(x.get("stck_bsop_date", "")))
-            elif rows and not rows[0].get("stck_bsop_date"):
-                row = rows[0]
-            else:
-                return None
-
-            row_date = str(row.get("stck_bsop_date", target_yyyymmdd))
-
-            def pbmn_to_won(key: str) -> int:
-                return safe_int(row.get(key), 0) * 1_000_000
-
-            return {
-                "date": row_date or wanted,
-                "individual": pbmn_to_won("prsn_ntby_tr_pbmn"),
-                "foreign": pbmn_to_won("frgn_ntby_tr_pbmn"),
-                "institution": pbmn_to_won("orgn_ntby_tr_pbmn"),
-                "individual_qty": safe_int(row.get("prsn_ntby_qty"), 0),
-                "foreign_qty": safe_int(row.get("frgn_ntby_qty"), 0),
-                "institution_qty": safe_int(row.get("orgn_ntby_qty"), 0),
-            }
-        except requests.RequestException:
-            if attempt == 4:
-                return None
-            time.sleep(0.6 * (attempt + 1))
-        except Exception:
-            return None
-        finally:
-            time.sleep(interval)
-    return None
-
-
-def _top10(rows: List[Dict], key: str, buy: bool) -> List[Dict]:
-    filtered = [x for x in rows if (x[key] > 0 if buy else x[key] < 0)]
-    filtered.sort(key=lambda x: x[key], reverse=buy)
-    out = []
-    for rank, x in enumerate(filtered[:10], 1):
+    if r.status_code != 200:
+        raise RuntimeError(f"KIS RANK {investor}/{side} HTTP {r.status_code}: {r.text[:800]}")
+    j=r.json()
+    if str(j.get("rt_cd","0")) != "0":
+        raise RuntimeError(f"KIS RANK {investor}/{side}: {j.get('msg_cd')} {j.get('msg1')}")
+    rows=j.get("output") or []
+    out=[]
+    field="frgn_ntby_tr_pbmn" if investor=="foreign" else "orgn_ntby_tr_pbmn"
+    for x in rows:
+        code=str(x.get("mksc_shrn_iscd") or "").zfill(6)
+        name=str(x.get("hts_kor_isnm") or "").strip()
+        amount=num(x.get(field))
+        if not code.isdigit() or not name or amount == 0:
+            continue
+        # 원본 API 단위는 변환하지 않고 raw_amount로 보존.
+        # 표시용 억원 환산은 단위 확인 후 프런트에서 적용한다.
         out.append({
-            "rank": rank,
-            "code": x["code"],
-            "name": x["name"],
-            "market": x["market"],
-            # 매도도 화면 합계 계산을 위해 절대값으로 저장하되 side로 방향을 명시
-            "net_amount_krw": abs(int(x[key])),
-            "signed_net_amount_krw": int(x[key]),
-            "net_qty": int(x.get(key + "_qty", 0)),
-            "source": "KIS_OPEN_API",
-            "status": "FINAL",
-            "side": "BUY" if buy else "SELL",
+            "code":code, "name":name,
+            "raw_amount":amount,
+            "source_field":field,
+            "side":side,
+            "source":"KIS FHPTJ04400000"
         })
+        if len(out)==10: break
     return out
 
+def provisional_individual(fb, fs, ib, ins):
+    # KIS 037은 개인 순위 자체를 제공하지 않는다.
+    # 외국인+기관의 반대편을 개인 잠정 후보로 표시하며 FINAL로 위장하지 않는다.
+    d={}
+    for rows, sign in ((fb,-1),(fs,1),(ib,-1),(ins,1)):
+        for x in rows:
+            z=d.setdefault(x["code"],{"code":x["code"],"name":x["name"],"raw_amount":0})
+            z["raw_amount"] += sign*abs(x["raw_amount"])
+    vals=list(d.values())
+    buy=sorted([x for x in vals if x["raw_amount"]>0], key=lambda x:x["raw_amount"], reverse=True)[:10]
+    sell=sorted([x for x in vals if x["raw_amount"]<0], key=lambda x:x["raw_amount"])[:10]
+    for x in buy+sell:
+        x["source"]="PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
+    return buy, sell
 
-def generate_data_json(compiled_items: List[Dict], today_str: str):
-    """KRX 정규장 실제 순매수대금 기준 개인/외국인/기관 TOP10+TOP10을 생성한다. 추정치/더미 fallback은 사용하지 않는다."""
-    now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
-    payload = {
-        "base_date": today_str,
-        "last_updated": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
-        "session": "KRX_REGULAR",
-        "close_time": "15:30",
-        "basis": "net_buy_amount",
-        "unit": "KRW",
-        "source": "KIS_OPEN_API",
-        "status": "ERROR",
-        "count": 0,
-        "valid": False,
-        "validation": {"valid": False, "count": 0, "expected": 60, "render_allowed": False, "errors": []},
-        "individual": {"buy": [], "sell": []},
-        "foreign": {"buy": [], "sell": []},
-        "institution": {"buy": [], "sell": []},
+def main():
+    now=datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+    payload={
+        "base_date":now.strftime("%Y-%m-%d"),
+        "last_updated":now.strftime("%Y-%m-%d %H:%M:%S"),
+        "status":"ERROR","count":0,
+        "validation":{"valid":False,"expected":60,"render_allowed":False,"errors":[]}
     }
-
     try:
-        token = get_kis_access_token()
-        universe = fetch_full_stock_universe(get_headers())
-        print(f"[수급] 전체 보통주 유니버스 {len(universe)}개 / KIS 실제 순매수대금 수집 시작")
-        actual = []
-        for idx, stock in enumerate(universe, 1):
-            inv = fetch_kis_investor_amount(stock["ticker"], token, today_str)
-            if inv is not None:
-                actual.append({
-                    "code": stock["ticker"], "name": stock["name"], "market": stock["market"],
-                    "individual": inv["individual"], "foreign": inv["foreign"], "institution": inv["institution"],
-                    "individual_qty": inv["individual_qty"], "foreign_qty": inv["foreign_qty"], "institution_qty": inv["institution_qty"],
-                })
-            if idx % 100 == 0:
-                print(f"[수급] {idx}/{len(universe)} 조회 · 정상 {len(actual)}")
+        print("[1/3] KIS token")
+        tok=token()
+        print("TOKEN OK")
+        print("[2/3] KIS ranking 4 calls")
+        fb=call_rank(tok,"foreign","buy")
+        fs=call_rank(tok,"foreign","sell")
+        ib=call_rank(tok,"institution","buy")
+        ins=call_rank(tok,"institution","sell")
+        print("foreign",len(fb),len(fs),"institution",len(ib),len(ins))
+        pb,ps=provisional_individual(fb,fs,ib,ins)
 
-        for investor in ("individual", "foreign", "institution"):
-            payload[investor]["buy"] = _top10(actual, investor, True)
-            payload[investor]["sell"] = _top10(actual, investor, False)
+        def rank(rows):
+            return [dict({"rank":i+1},**x) for i,x in enumerate(rows)]
 
-        lists = [payload[i][s] for i in ("individual", "foreign", "institution") for s in ("buy", "sell")]
-        count = sum(len(x) for x in lists)
-        errors = []
-        if len(actual) < max(100, int(len(universe) * 0.90)):
-            errors.append(f"전체 유니버스 조회 불완전: {len(actual)}/{len(universe)}")
-        for investor in ("individual", "foreign", "institution"):
-            for side in ("buy", "sell"):
-                rows = payload[investor][side]
-                if len(rows) != 10:
-                    errors.append(f"{investor}.{side}={len(rows)}/10")
-                codes = [r["code"] for r in rows]
-                if len(codes) != len(set(codes)):
-                    errors.append(f"{investor}.{side} 종목코드 중복")
-
-        valid = count == 60 and not errors
-        payload["count"] = count
-        payload["valid"] = valid
-        payload["status"] = "FINAL" if valid else "INCOMPLETE"
-        payload["validation"] = {
-            "valid": valid, "count": count, "expected": 60,
-            "render_allowed": valid, "universe_count": len(universe),
-            "fetched_count": len(actual), "errors": errors,
-        }
+        actual=len(fb)+len(fs)+len(ib)+len(ins)
+        total=actual+len(pb)+len(ps)
+        payload.update({
+            "status":"PROVISIONAL" if actual==40 else "INCOMPLETE",
+            "count":total,
+            "foreign":{"buy":rank(fb),"sell":rank(fs)},
+            "institution":{"buy":rank(ib),"sell":rank(ins)},
+            "individual":{"buy":rank(pb),"sell":rank(ps)},
+            "validation":{
+                "valid":False,
+                "expected":60,
+                "actual_verified_rows":actual,
+                "provisional_rows":len(pb)+len(ps),
+                "render_allowed":False,
+                "errors":[
+                    "개인 TOP20은 잠정치이며 KIS 037 직접 순위가 아님",
+                    "금액 단위는 raw_amount로 보존; 공식 단위 확인 전 억원 변환 금지"
+                ]
+            }
+        })
+        print("[3/3] data.json generated")
     except Exception as e:
-        payload["validation"]["errors"].append(str(e))
-        print(f"[수급 오류] {e}")
+        payload["validation"]["errors"]=[str(e)]
+        print("ERROR:",e)
 
-    with open("data.json", "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    print(f"[수급] data.json 생성: {payload['count']}/60 · {payload['status']} · render={payload['validation']['render_allowed']}")
+    with open("data.json","w",encoding="utf-8") as f:
+        json.dump(payload,f,ensure_ascii=False,indent=2)
+    print("status=",payload["status"],"count=",payload["count"])
 
-def collect_market_data():
-    now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
-    today_str = now_kst.strftime("%Y-%m-%d")
-    headers = get_headers()
-    compiled_items = []
-
-    print("=" * 70)
-    print(f"[{today_str}] TRIPLE D PAPA 국내 종목 고속 병렬 수집 시작 (Thread={MAX_WORKERS})")
-    print("=" * 70)
-
-    raw_stock_list = []
-    seen_tickers = set()
-
-    for market in ["KOSPI", "KOSDAQ"]:
-        for page in range(1, STOCK_PAGES + 1):
-            stocks_list = fetch_stock_page(market, page, headers)
-            if not stocks_list:
-                break
-            for it in stocks_list:
-                ticker = str(it.get("itemCode") or it.get("code") or "").strip()
-                name = str(it.get("stockName") or it.get("name") or "").strip()
-                if ticker and ticker not in seen_tickers and is_pure_stock(ticker, name):
-                    seen_tickers.add(ticker)
-                    raw_stock_list.append((it, market))
-
-    print(f"총 분석 대상: {len(raw_stock_list)}개 주도주 (병렬 분석 진행)")
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = [
-            executor.submit(parse_stock_item, it, mkt, today_str, headers)
-            for it, mkt in raw_stock_list
-        ]
-        for future in as_completed(futures):
-            try:
-                res = future.result()
-                if res:
-                    compiled_items.append(res)
-                    print(f"   ✓ [{res['market']}] {res['name']} ({res['total_score']}점 [{res['grade']}])")
-            except Exception:
-                pass
-
-    print(f"\n총 {len(compiled_items)}건 데이터 Supabase 일괄 저장 중...")
-    saved = 0
-    batch_size = 50
-    for i in range(0, len(compiled_items), batch_size):
-        batch = compiled_items[i:i + batch_size]
-        try:
-            supabase.table("TRIPLE D PAPA").upsert(batch).execute()
-            saved += len(batch)
-        except Exception as e:
-            print(f"[배치 저장 실패] {e}")
-
-    generate_data_json(compiled_items, today_str)
-
-    print("=" * 70)
-    print(f"[완료] 총 {len(compiled_items)}건 수집 및 {saved}건 Supabase 저장 완료")
-    print("=" * 70)
-
-
-if __name__ == "__main__":
-    collect_market_data()
+if __name__=="__main__":
+    main()

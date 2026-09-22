@@ -1,8 +1,8 @@
 import datetime
 import json
 import time
+import os
 import xml.etree.ElementTree as ET
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple, Optional
 
@@ -528,82 +528,209 @@ def fetch_stock_page(market: str, page: int, headers: Dict[str, str]) -> List[Di
         return []
 
 
-def generate_data_json(compiled_items: List[Dict], today_str: str):
-    """수급 탭용 data.json 생성.
+def get_kis_access_token() -> str:
+    """KIS 실전 REST 접근토큰. GitHub Secrets의 KIS_APP_KEY/KIS_APP_SECRET 사용."""
+    app_key = os.getenv("KIS_APP_KEY", "").strip()
+    app_secret = os.getenv("KIS_APP_SECRET", "").strip()
+    if not app_key or not app_secret:
+        raise RuntimeError("KIS_APP_KEY / KIS_APP_SECRET 환경변수가 없습니다.")
 
-    현재 Naver trend가 제공하는 순매수수량 × 종가로 금액을 산출하므로 ESTIMATED로 표시한다.
-    더미 데이터는 절대 만들지 않으며 실제 금액 API가 연결되기 전에는 render_allowed=False다.
-    """
-    enriched = []
-    for item in compiled_items:
-        close_p = safe_int(item.get("close_price"))
-        if close_p <= 0:
-            continue
-        enriched.append({
-            "code": str(item.get("ticker") or "").zfill(6),
-            "name": item.get("name") or "",
-            "market": item.get("market") or "",
-            "net_amount_foreign": safe_int(item.get("foreign_net_buy")) * close_p,
-            "net_amount_institution": safe_int(item.get("inst_net_buy")) * close_p,
-            "net_amount_retail": safe_int(item.get("retail_net_buy")) * close_p,
-            "source": "NAVER_TREND_QTY_X_CLOSE",
-            "amount_status": "ESTIMATED",
-        })
+    url = "https://openapi.koreainvestment.com:9443/oauth2/tokenP"
+    res = requests.post(url, json={
+        "grant_type": "client_credentials",
+        "appkey": app_key,
+        "appsecret": app_secret,
+    }, timeout=15)
+    res.raise_for_status()
+    body = res.json()
+    token = body.get("access_token")
+    if not token:
+        raise RuntimeError(f"KIS 토큰 발급 실패: {body}")
+    return token
 
-    def top10(key: str, side: str, market: str = "ALL") -> List[Dict]:
-        rows = [x for x in enriched if market == "ALL" or x["market"] == market]
-        if side == "buy":
-            rows = [x for x in rows if x[key] > 0]
-            rows.sort(key=lambda x: x[key], reverse=True)
-        else:
-            rows = [x for x in rows if x[key] < 0]
-            rows.sort(key=lambda x: x[key])
-        out = []
-        for rank, x in enumerate(rows[:10], 1):
-            out.append({
-                "rank": rank, "code": x["code"], "name": x["name"], "market": x["market"],
-                "net_amount_krw": abs(int(x[key])), "source": x["source"],
-                "amount_status": x["amount_status"]
-            })
-        return out
 
-    def build_market(market: str) -> Dict:
-        individual = {"buy": top10("net_amount_retail", "buy", market), "sell": top10("net_amount_retail", "sell", market)}
-        foreign = {"buy": top10("net_amount_foreign", "buy", market), "sell": top10("net_amount_foreign", "sell", market)}
-        institution = {"buy": top10("net_amount_institution", "buy", market), "sell": top10("net_amount_institution", "sell", market)}
-        count = sum(len(v) for block in (individual, foreign, institution) for v in block.values())
-        return {"count": count, "individual": individual, "foreign": foreign, "institution": institution}
-
-    markets = {m: build_market(m) for m in ("ALL", "KOSPI", "KOSDAQ")}
-    all_count = markets["ALL"]["count"]
-    exact_amount = False  # 실제 순매수대금 API 연결 시에만 True로 변경
-
-    payload = {
-        "base_date": today_str,
-        "last_updated": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S"),
-        "session": "KRX_REGULAR",
-        "close_time": "15:30",
-        "status": "ESTIMATED",
-        "basis": "NET_BUY_QTY_X_CLOSE",
-        "amount_status": "ESTIMATED",
-        "coverage": f"collector universe {len(enriched)} stocks",
-        "count": all_count,
-        "valid": bool(all_count == 60 and exact_amount),
-        "validation": {
-            "valid": bool(all_count == 60 and exact_amount),
-            "count": all_count, "expected": 60,
-            "render_allowed": bool(all_count == 60 and exact_amount),
-            "reason": "순매수수량×종가 추정치. 실제 순매수대금 원본 연결 전 인포 확정 금지"
-        },
-        "markets": markets,
-        **markets["ALL"]
+def kis_headers(token: str, tr_id: str) -> Dict[str, str]:
+    return {
+        "content-type": "application/json; charset=utf-8",
+        "authorization": f"Bearer {token}",
+        "appkey": os.getenv("KIS_APP_KEY", "").strip(),
+        "appsecret": os.getenv("KIS_APP_SECRET", "").strip(),
+        "tr_id": tr_id,
+        "custtype": "P",
     }
 
-    output_path = Path(__file__).resolve().parent / "data.json"
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-    print(f"[완료] {output_path} 생성 · {all_count}/60 · ESTIMATED (더미 없음)")
 
+def fetch_full_stock_universe(headers: Dict[str, str]) -> List[Dict]:
+    """네이버 시가총액 목록을 끝까지 순회해 KOSPI/KOSDAQ 보통주 유니버스를 만든다."""
+    result, seen = [], set()
+    for market in ("KOSPI", "KOSDAQ"):
+        for page in range(1, 151):
+            rows = fetch_stock_page(market, page, headers)
+            if not rows:
+                break
+            added = 0
+            for item in rows:
+                ticker = str(item.get("itemCode") or item.get("code") or "").strip()
+                name = str(item.get("stockName") or item.get("name") or "").strip()
+                if ticker in seen or not is_pure_stock(ticker, name):
+                    continue
+                seen.add(ticker)
+                result.append({"ticker": ticker, "name": name, "market": market})
+                added += 1
+            if len(rows) < 20:
+                break
+            if added == 0 and page > 120:
+                break
+    return result
+
+
+def fetch_kis_investor_amount(ticker: str, token: str, target_date: str) -> Optional[Dict]:
+    """
+    KIS 주식현재가 투자자(FHKST01010900).
+    당일 데이터는 장 종료 후 제공. *_ntby_tr_pbmn 단위는 백만원이므로 원으로 변환한다.
+    """
+    url = "https://openapi.koreainvestment.com:9443/uapi/domestic-stock/v1/quotations/inquire-investor"
+    params = {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": ticker}
+    interval = max(0.05, safe_float(os.getenv("KIS_REQUEST_INTERVAL", "0.08"), 0.08))
+
+    for attempt in range(4):
+        try:
+            res = requests.get(url, headers=kis_headers(token, "FHKST01010900"), params=params, timeout=10)
+            if res.status_code == 429:
+                time.sleep(0.8 * (attempt + 1))
+                continue
+            res.raise_for_status()
+            body = res.json()
+            if str(body.get("rt_cd", "0")) != "0":
+                time.sleep(0.25 * (attempt + 1))
+                continue
+            rows = body.get("output") or []
+            if isinstance(rows, dict):
+                rows = [rows]
+            wanted = target_date.replace("-", "")
+            row = next((x for x in rows if str(x.get("stck_bsop_date", "")) == wanted), None)
+            if row is None and rows:
+                row = rows[0]
+            if not row:
+                return None
+
+            row_date = str(row.get("stck_bsop_date", ""))
+            if row_date and row_date != wanted:
+                return None
+
+            def pbmn_to_won(key: str) -> int:
+                # KIS 공식 샘플: 순매수 거래대금 단위 = 백만원
+                return safe_int(row.get(key), 0) * 1_000_000
+
+            return {
+                "date": row_date or wanted,
+                "individual": pbmn_to_won("prsn_ntby_tr_pbmn"),
+                "foreign": pbmn_to_won("frgn_ntby_tr_pbmn"),
+                "institution": pbmn_to_won("orgn_ntby_tr_pbmn"),
+                "individual_qty": safe_int(row.get("prsn_ntby_qty"), 0),
+                "foreign_qty": safe_int(row.get("frgn_ntby_qty"), 0),
+                "institution_qty": safe_int(row.get("orgn_ntby_qty"), 0),
+            }
+        except Exception:
+            if attempt == 3:
+                return None
+            time.sleep(0.35 * (attempt + 1))
+        finally:
+            time.sleep(interval)
+    return None
+
+
+def _top10(rows: List[Dict], key: str, buy: bool) -> List[Dict]:
+    filtered = [x for x in rows if (x[key] > 0 if buy else x[key] < 0)]
+    filtered.sort(key=lambda x: x[key], reverse=buy)
+    out = []
+    for rank, x in enumerate(filtered[:10], 1):
+        out.append({
+            "rank": rank,
+            "code": x["code"],
+            "name": x["name"],
+            "market": x["market"],
+            # 매도도 화면 합계 계산을 위해 절대값으로 저장하되 side로 방향을 명시
+            "net_amount_krw": abs(int(x[key])),
+            "signed_net_amount_krw": int(x[key]),
+            "net_qty": int(x.get(key + "_qty", 0)),
+            "source": "KIS_OPEN_API",
+            "status": "FINAL",
+            "side": "BUY" if buy else "SELL",
+        })
+    return out
+
+
+def generate_data_json(compiled_items: List[Dict], today_str: str):
+    """KRX 정규장 실제 순매수대금 기준 개인/외국인/기관 TOP10+TOP10을 생성한다."""
+    now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+    payload = {
+        "base_date": today_str,
+        "last_updated": now_kst.strftime("%Y-%m-%d %H:%M:%S"),
+        "session": "KRX_REGULAR",
+        "close_time": "15:30",
+        "basis": "net_buy_amount",
+        "unit": "KRW",
+        "source": "KIS_OPEN_API",
+        "status": "ERROR",
+        "count": 0,
+        "valid": False,
+        "validation": {"valid": False, "count": 0, "expected": 60, "render_allowed": False, "errors": []},
+        "individual": {"buy": [], "sell": []},
+        "foreign": {"buy": [], "sell": []},
+        "institution": {"buy": [], "sell": []},
+    }
+
+    try:
+        token = get_kis_access_token()
+        universe = fetch_full_stock_universe(get_headers())
+        print(f"[수급] 전체 보통주 유니버스 {len(universe)}개 / KIS 실제 순매수대금 수집 시작")
+        actual = []
+        for idx, stock in enumerate(universe, 1):
+            inv = fetch_kis_investor_amount(stock["ticker"], token, today_str)
+            if inv is not None:
+                actual.append({
+                    "code": stock["ticker"], "name": stock["name"], "market": stock["market"],
+                    "individual": inv["individual"], "foreign": inv["foreign"], "institution": inv["institution"],
+                    "individual_qty": inv["individual_qty"], "foreign_qty": inv["foreign_qty"], "institution_qty": inv["institution_qty"],
+                })
+            if idx % 100 == 0:
+                print(f"[수급] {idx}/{len(universe)} 조회 · 정상 {len(actual)}")
+
+        for investor in ("individual", "foreign", "institution"):
+            payload[investor]["buy"] = _top10(actual, investor, True)
+            payload[investor]["sell"] = _top10(actual, investor, False)
+
+        lists = [payload[i][s] for i in ("individual", "foreign", "institution") for s in ("buy", "sell")]
+        count = sum(len(x) for x in lists)
+        errors = []
+        if len(actual) < max(100, int(len(universe) * 0.90)):
+            errors.append(f"전체 유니버스 조회 불완전: {len(actual)}/{len(universe)}")
+        for investor in ("individual", "foreign", "institution"):
+            for side in ("buy", "sell"):
+                rows = payload[investor][side]
+                if len(rows) != 10:
+                    errors.append(f"{investor}.{side}={len(rows)}/10")
+                codes = [r["code"] for r in rows]
+                if len(codes) != len(set(codes)):
+                    errors.append(f"{investor}.{side} 종목코드 중복")
+
+        valid = count == 60 and not errors
+        payload["count"] = count
+        payload["valid"] = valid
+        payload["status"] = "FINAL" if valid else "INCOMPLETE"
+        payload["validation"] = {
+            "valid": valid, "count": count, "expected": 60,
+            "render_allowed": valid, "universe_count": len(universe),
+            "fetched_count": len(actual), "errors": errors,
+        }
+    except Exception as e:
+        payload["validation"]["errors"].append(str(e))
+        print(f"[수급 오류] {e}")
+
+    with open("data.json", "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print(f"[수급] data.json 생성: {payload['count']}/60 · {payload['status']} · render={payload['validation']['render_allowed']}")
 
 def collect_market_data():
     now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))

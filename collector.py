@@ -599,7 +599,12 @@ def fetch_kis_investor_amount(ticker: str, token: str, target_date: str) -> Opti
         "https://openapi.koreainvestment.com:9443"
         "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
     )
-    wanted = target_date.replace("-", "")
+    # KIS 일별 투자자 API는 당일 결산 전 TIME LIMIT가 날 수 있어
+    # 조회 기준일을 충분히 이전으로 잡고 응답 중 최신 거래일을 사용한다.
+    target_dt = datetime.datetime.strptime(target_date, "%Y-%m-%d").date()
+    query_dt = target_dt - datetime.timedelta(days=7)
+    wanted = query_dt.strftime("%Y%m%d")
+    target_yyyymmdd = target_dt.strftime("%Y%m%d")
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": ticker,
@@ -607,7 +612,7 @@ def fetch_kis_investor_amount(ticker: str, token: str, target_date: str) -> Opti
         "FID_ORG_ADJ_PRC": "",
         "FID_ETC_CLS_CODE": "",
     }
-    interval = max(0.06, safe_float(os.getenv("KIS_REQUEST_INTERVAL", "0.08"), 0.08))
+    interval = max(0.40, safe_float(os.getenv("KIS_REQUEST_INTERVAL", "0.40"), 0.40))
 
     for attempt in range(5):
         try:
@@ -634,18 +639,19 @@ def fetch_kis_investor_amount(ticker: str, token: str, target_date: str) -> Opti
             if isinstance(rows, dict):
                 rows = [rows]
 
-            row = next(
-                (x for x in rows if str(x.get("stck_bsop_date", "")) == wanted),
-                None,
-            )
-            if row is None and rows and not rows[0].get("stck_bsop_date"):
+            dated_rows = [
+                x for x in rows
+                if str(x.get("stck_bsop_date", "")).isdigit()
+                and str(x.get("stck_bsop_date", "")) <= target_yyyymmdd
+            ]
+            if dated_rows:
+                row = max(dated_rows, key=lambda x: str(x.get("stck_bsop_date", "")))
+            elif rows and not rows[0].get("stck_bsop_date"):
                 row = rows[0]
-            if not row:
+            else:
                 return None
 
-            row_date = str(row.get("stck_bsop_date", wanted))
-            if row_date and row_date != wanted:
-                return None
+            row_date = str(row.get("stck_bsop_date", target_yyyymmdd))
 
             def pbmn_to_won(key: str) -> int:
                 return safe_int(row.get(key), 0) * 1_000_000

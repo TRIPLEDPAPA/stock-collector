@@ -5,9 +5,15 @@ on:
     - cron: '*/30 0-14 * * 1-5'
   workflow_dispatch:
 
+concurrency:
+  group: pages-build-and-deployment
+  cancel-in-progress: false
+
 jobs:
   collect:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 👈 Git 푸시 권한 부여
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -24,3 +30,12 @@ jobs:
       - name: Run Collector
         run: |
           python collector.py
+
+      # 👇 [핵심 추가] 생성된 data.json 파일을 자동으로 깃헙에 푸시합니다!
+      - name: Commit and push data.json
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.io"
+          git add data.json
+          git commit -m "Auto Update data.json: $(date +'%Y-%m-%d %H:%M:%S')" || exit 0
+          git push

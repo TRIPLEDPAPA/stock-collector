@@ -1,41 +1,451 @@
 {
-  "base_date": "2026-09-08",
-  "last_updated": "2026-09-08 11:36:14",
-  "status": "09시 분석 완료",
-  "summary": {
-    "total_count": 2,
-    "conditions": "시가 > 전일 종가, 5>10>20일선 정배열, 거래량 50만주+, PER/PBR/ROE 충족"
+  "base_date": "2026-09-22",
+  "last_updated": "2026-09-22 21:43:43",
+  "status": "정규장 분석 완료",
+  "count": 60,
+  "valid": true,
+  "validation": {
+    "valid": true,
+    "count": 60,
+    "expected": 60,
+    "render_allowed": true
   },
-  "items": [
-    {
-      "code": "005930",
-      "name": "삼성전자",
-      "open": 75500,
-      "prev_close": 74500,
-      "close": 76000,
-      "gap_pct": 1.34,
-      "diff_pct": 2.01,
-      "volume": 1280000,
-      "ma_status": "5>10>20 정배열",
-      "per": 12.4,
-      "pbr": 1.25,
-      "roe": 11.2,
-      "rsi14": 62.1
-    },
-    {
-      "code": "035420",
-      "name": "NAVER",
-      "open": 215000,
-      "prev_close": 210000,
-      "close": 218000,
-      "gap_pct": 2.38,
-      "diff_pct": 3.81,
-      "volume": 610000,
-      "ma_status": "5>10>20 정배열",
-      "per": 14.8,
-      "pbr": 1.35,
-      "roe": 10.5,
-      "rsi14": 58.2
-    }
-  ]
+  "individual": {
+    "buy": [
+      {
+        "rank": 1,
+        "code": "034020",
+        "name": "두산에너빌리티",
+        "market": "KOSPI",
+        "net_amount_krw": 44957957000
+      },
+      {
+        "rank": 2,
+        "code": "373220",
+        "name": "LG에너지솔루션",
+        "market": "KOSPI",
+        "net_amount_krw": 34719520000
+      },
+      {
+        "rank": 3,
+        "code": "006400",
+        "name": "삼성SDI",
+        "market": "KOSPI",
+        "net_amount_krw": 30963672000
+      },
+      {
+        "rank": 4,
+        "code": "036930",
+        "name": "주성엔지니어링",
+        "market": "KOSDAQ",
+        "net_amount_krw": 23952153500
+      },
+      {
+        "rank": 5,
+        "code": "000270",
+        "name": "기아",
+        "market": "KOSPI",
+        "net_amount_krw": 23513686000
+      },
+      {
+        "rank": 6,
+        "code": "005380",
+        "name": "현대차",
+        "market": "KOSPI",
+        "net_amount_krw": 21570494000
+      },
+      {
+        "rank": 7,
+        "code": "010170",
+        "name": "대한광통신",
+        "market": "KOSDAQ",
+        "net_amount_krw": 20345822700
+      },
+      {
+        "rank": 8,
+        "code": "087010",
+        "name": "펩트론",
+        "market": "KOSDAQ",
+        "net_amount_krw": 20238699600
+      },
+      {
+        "rank": 9,
+        "code": "028260",
+        "name": "삼성물산",
+        "market": "KOSPI",
+        "net_amount_krw": 19380829500
+      },
+      {
+        "rank": 10,
+        "code": "068270",
+        "name": "셀트리온",
+        "market": "KOSPI",
+        "net_amount_krw": 15800767700
+      }
+    ],
+    "sell": [
+      {
+        "rank": 1,
+        "code": "005930",
+        "name": "삼성전자",
+        "market": "KOSPI",
+        "net_amount_krw": 751317930000
+      },
+      {
+        "rank": 2,
+        "code": "000660",
+        "name": "SK하이닉스",
+        "market": "KOSPI",
+        "net_amount_krw": 400102689000
+      },
+      {
+        "rank": 3,
+        "code": "009150",
+        "name": "삼성전기",
+        "market": "KOSPI",
+        "net_amount_krw": 314904143000
+      },
+      {
+        "rank": 4,
+        "code": "066570",
+        "name": "LG전자",
+        "market": "KOSPI",
+        "net_amount_krw": 134951200000
+      },
+      {
+        "rank": 5,
+        "code": "402340",
+        "name": "SK스퀘어",
+        "market": "KOSPI",
+        "net_amount_krw": 77437458000
+      },
+      {
+        "rank": 6,
+        "code": "222800",
+        "name": "심텍",
+        "market": "KOSDAQ",
+        "net_amount_krw": 37178543200
+      },
+      {
+        "rank": 7,
+        "code": "035420",
+        "name": "NAVER",
+        "market": "KOSPI",
+        "net_amount_krw": 28559688000
+      },
+      {
+        "rank": 8,
+        "code": "011070",
+        "name": "LG이노텍",
+        "market": "KOSPI",
+        "net_amount_krw": 25789860000
+      },
+      {
+        "rank": 9,
+        "code": "298040",
+        "name": "효성중공업",
+        "market": "KOSPI",
+        "net_amount_krw": 20336673000
+      },
+      {
+        "rank": 10,
+        "code": "042700",
+        "name": "한미반도체",
+        "market": "KOSPI",
+        "net_amount_krw": 17647649500
+      }
+    ]
+  },
+  "foreign": {
+    "buy": [
+      {
+        "rank": 1,
+        "code": "009150",
+        "name": "삼성전기",
+        "market": "KOSPI",
+        "net_amount_krw": 191938056000
+      },
+      {
+        "rank": 2,
+        "code": "005930",
+        "name": "삼성전자",
+        "market": "KOSPI",
+        "net_amount_krw": 183108652500
+      },
+      {
+        "rank": 3,
+        "code": "402340",
+        "name": "SK스퀘어",
+        "market": "KOSPI",
+        "net_amount_krw": 81926964000
+      },
+      {
+        "rank": 4,
+        "code": "066570",
+        "name": "LG전자",
+        "market": "KOSPI",
+        "net_amount_krw": 79716195000
+      },
+      {
+        "rank": 5,
+        "code": "222800",
+        "name": "심텍",
+        "market": "KOSDAQ",
+        "net_amount_krw": 32095246100
+      },
+      {
+        "rank": 6,
+        "code": "096770",
+        "name": "SK이노베이션",
+        "market": "KOSPI",
+        "net_amount_krw": 25059837600
+      },
+      {
+        "rank": 7,
+        "code": "035420",
+        "name": "NAVER",
+        "market": "KOSPI",
+        "net_amount_krw": 20884905000
+      },
+      {
+        "rank": 8,
+        "code": "036540",
+        "name": "SFA반도체",
+        "market": "KOSDAQ",
+        "net_amount_krw": 20417848880
+      },
+      {
+        "rank": 9,
+        "code": "010950",
+        "name": "S-Oil",
+        "market": "KOSPI",
+        "net_amount_krw": 19062982400
+      },
+      {
+        "rank": 10,
+        "code": "017670",
+        "name": "SK텔레콤",
+        "market": "KOSPI",
+        "net_amount_krw": 18877579200
+      }
+    ],
+    "sell": [
+      {
+        "rank": 1,
+        "code": "000660",
+        "name": "SK하이닉스",
+        "market": "KOSPI",
+        "net_amount_krw": 400520596000
+      },
+      {
+        "rank": 2,
+        "code": "034020",
+        "name": "두산에너빌리티",
+        "market": "KOSPI",
+        "net_amount_krw": 35064599800
+      },
+      {
+        "rank": 3,
+        "code": "105560",
+        "name": "KB금융",
+        "market": "KOSPI",
+        "net_amount_krw": 31966380200
+      },
+      {
+        "rank": 4,
+        "code": "005380",
+        "name": "현대차",
+        "market": "KOSPI",
+        "net_amount_krw": 28200162000
+      },
+      {
+        "rank": 5,
+        "code": "036930",
+        "name": "주성엔지니어링",
+        "market": "KOSDAQ",
+        "net_amount_krw": 20932213500
+      },
+      {
+        "rank": 6,
+        "code": "010170",
+        "name": "대한광통신",
+        "market": "KOSDAQ",
+        "net_amount_krw": 20846283150
+      },
+      {
+        "rank": 7,
+        "code": "028260",
+        "name": "삼성물산",
+        "market": "KOSPI",
+        "net_amount_krw": 20446263000
+      },
+      {
+        "rank": 8,
+        "code": "316140",
+        "name": "우리금융지주",
+        "market": "KOSPI",
+        "net_amount_krw": 18243778200
+      },
+      {
+        "rank": 9,
+        "code": "000720",
+        "name": "현대건설",
+        "market": "KOSPI",
+        "net_amount_krw": 18043815400
+      },
+      {
+        "rank": 10,
+        "code": "240810",
+        "name": "원익IPS",
+        "market": "KOSDAQ",
+        "net_amount_krw": 14089693500
+      }
+    ]
+  },
+  "institution": {
+    "buy": [
+      {
+        "rank": 1,
+        "code": "009150",
+        "name": "삼성전기",
+        "market": "KOSPI",
+        "net_amount_krw": 122199252000
+      },
+      {
+        "rank": 2,
+        "code": "005930",
+        "name": "삼성전자",
+        "market": "KOSPI",
+        "net_amount_krw": 71999872500
+      },
+      {
+        "rank": 3,
+        "code": "066570",
+        "name": "LG전자",
+        "market": "KOSPI",
+        "net_amount_krw": 50248940000
+      },
+      {
+        "rank": 4,
+        "code": "105560",
+        "name": "KB금융",
+        "market": "KOSPI",
+        "net_amount_krw": 25954083800
+      },
+      {
+        "rank": 5,
+        "code": "000150",
+        "name": "두산",
+        "market": "KOSPI",
+        "net_amount_krw": 23909754000
+      },
+      {
+        "rank": 6,
+        "code": "011070",
+        "name": "LG이노텍",
+        "market": "KOSPI",
+        "net_amount_krw": 19377360000
+      },
+      {
+        "rank": 7,
+        "code": "034730",
+        "name": "SK",
+        "market": "KOSPI",
+        "net_amount_krw": 15874236000
+      },
+      {
+        "rank": 8,
+        "code": "095340",
+        "name": "ISC",
+        "market": "KOSDAQ",
+        "net_amount_krw": 11949095000
+      },
+      {
+        "rank": 9,
+        "code": "058470",
+        "name": "리노공업",
+        "market": "KOSDAQ",
+        "net_amount_krw": 11780642500
+      },
+      {
+        "rank": 10,
+        "code": "003670",
+        "name": "포스코퓨처엠",
+        "market": "KOSPI",
+        "net_amount_krw": 8629084800
+      }
+    ],
+    "sell": [
+      {
+        "rank": 1,
+        "code": "000660",
+        "name": "SK하이닉스",
+        "market": "KOSPI",
+        "net_amount_krw": 293969039000
+      },
+      {
+        "rank": 2,
+        "code": "278470",
+        "name": "에이피알",
+        "market": "KOSPI",
+        "net_amount_krw": 22542826000
+      },
+      {
+        "rank": 3,
+        "code": "006400",
+        "name": "삼성SDI",
+        "market": "KOSPI",
+        "net_amount_krw": 22042341000
+      },
+      {
+        "rank": 4,
+        "code": "373220",
+        "name": "LG에너지솔루션",
+        "market": "KOSPI",
+        "net_amount_krw": 19465952000
+      },
+      {
+        "rank": 5,
+        "code": "036540",
+        "name": "SFA반도체",
+        "market": "KOSDAQ",
+        "net_amount_krw": 16492253660
+      },
+      {
+        "rank": 6,
+        "code": "000270",
+        "name": "기아",
+        "market": "KOSPI",
+        "net_amount_krw": 15713236000
+      },
+      {
+        "rank": 7,
+        "code": "010950",
+        "name": "S-Oil",
+        "market": "KOSPI",
+        "net_amount_krw": 14384407600
+      },
+      {
+        "rank": 8,
+        "code": "207940",
+        "name": "삼성바이오로직스",
+        "market": "KOSPI",
+        "net_amount_krw": 13424448000
+      },
+      {
+        "rank": 9,
+        "code": "108490",
+        "name": "로보티즈",
+        "market": "KOSDAQ",
+        "net_amount_krw": 13157540000
+      },
+      {
+        "rank": 10,
+        "code": "196170",
+        "name": "알테오젠",
+        "market": "KOSDAQ",
+        "net_amount_krw": 12495459000
+      }
+    ]
+  }
 }

@@ -712,20 +712,23 @@
   }
 
   function renderInvestorRanking(data) {
+    const view = (data.markets && data.markets[currentFlowMarket]) ? data.markets[currentFlowMarket] : data;
     const info = document.getElementById("flowBaseInfo");
-    info.textContent = `${data.base_date || "-"} · KRX 정규장 15:30 · ${data.status || "FINAL"}`;
+    info.textContent = `${data.base_date || "-"} · KRX 정규장 15:30 · ${data.status || "UNKNOWN"} · ${currentFlowMarket}`;
 
-    renderInvestorSide("individual", data.individual);
-    renderInvestorSide("foreign", data.foreign);
-    renderInvestorSide("institution", data.institution);
+    renderInvestorSide("individual", view.individual);
+    renderInvestorSide("foreign", view.foreign);
+    renderInvestorSide("institution", view.institution);
 
     const validation = document.getElementById("flowValidation");
-    if (data.validation?.valid === true || data.count === 60) {
+    const count = Number(view.count ?? data.count ?? 0);
+    const exactValid = currentFlowMarket === "ALL" && data.validation?.valid === true;
+    if (exactValid) {
       validation.className = "flow-validation valid";
-      validation.textContent = `✅ 60/60 검증 완료 · 개인 20 / 외국인 20 / 기관 20 · 인포 제작 가능`;
+      validation.textContent = `✅ 60/60 금액 검증 완료 · 개인 20 / 외국인 20 / 기관 20 · 인포 제작 가능`;
     } else {
       validation.className = "flow-validation invalid";
-      validation.textContent = `⚠️ ${data.count || 0}/60 · 데이터 미완성 · 인포 제작 차단`;
+      validation.textContent = `⚠️ ${count}/60 · ${data.amount_status || "미검증"} · ${data.validation?.reason || "인포 확정 데이터 아님"}`;
     }
   }
 
@@ -771,6 +774,8 @@
     currentFlowMarket = market;
     document.querySelectorAll(".flow-market-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
+    if (investorRankingData) renderInvestorRanking(investorRankingData);
+    else fetchInvestorRanking();
   }
 
   async function copyInvestorJSON() {

@@ -100,7 +100,7 @@
       margin-right: 4px;
     }
 
-    /* 메인 탭 (5분할: 전체/코스피/코스닥/수급/설명서) */
+    /* 메인 탭 (5분할) */
     .market-tabs {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -248,9 +248,7 @@
       border-radius: 4px;
     }
 
-    .market-tag.kosdaq {
-      background: #0d9488;
-    }
+    .market-tag.kosdaq { background: #0d9488; }
 
     .stock-title {
       font-size: 1.04rem;
@@ -898,7 +896,7 @@
   }
 
   /* =========================================================
-     수급 TOP60 로직
+     수급 TOP60 로직 (GitHub Pages 경로 자동 감지)
   ========================================================= */
   async function fetchInvestorRanking() {
     const validation = document.getElementById("flowValidation");
@@ -906,8 +904,11 @@
     validation.textContent = "수급 데이터 불러오는 중...";
 
     try {
-      // GitHub Pages 정적 경로 지정 (필요 시 파일명 경로 조정 가능)
-      const url = `./investor_ranking.json?t=${new Date().getTime()}`;
+      // GitHub Pages 서브디렉토리 주소 자동 감지 (예: /stock-collector/investor_ranking.json)
+      const pathSegments = window.location.pathname.split("/").filter(Boolean);
+      const repoName = (window.location.hostname.includes("github.io") && pathSegments.length > 0) ? `/${pathSegments[0]}` : "";
+      const url = `${repoName}/investor_ranking.json?t=${new Date().getTime()}`;
+
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
@@ -916,7 +917,7 @@
     } catch (error) {
       console.error(error);
       validation.className = "flow-validation invalid";
-      validation.textContent = "❌ 수급 데이터(investor_ranking.json)를 불러오지 못했습니다.";
+      validation.textContent = "❌ 수급 데이터(investor_ranking.json)를 불러오지 못했습니다. 레포지토리에 파일이 푸시되었는지 확인하세요.";
     }
   }
 
@@ -980,7 +981,6 @@
     currentFlowMarket = market;
     document.querySelectorAll(".flow-market-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    // 시장별 필터링 분기가 필요할 경우 이곳에서 추가 처리 가능
   }
 
   async function copyInvestorJSON() {

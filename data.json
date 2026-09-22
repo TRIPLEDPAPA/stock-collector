@@ -1,6 +1,6 @@
 {
   "base_date": "2026-09-22",
-  "last_updated": "2026-09-22 22:14:38",
+  "last_updated": "2026-09-22 22:41:08",
   "session": "KRX_REGULAR",
   "close_time": "15:30",
   "basis": "net_buy_amount",
@@ -15,7 +15,7 @@
     "expected": 60,
     "render_allowed": false,
     "errors": [
-      "KIS_APP_KEY / KIS_APP_SECRET 환경변수가 없습니다."
+      "403 Client Error: Forbidden for url: https://openapi.koreainvestment.com:9443/oauth2/tokenP"
     ]
   },
   "individual": {

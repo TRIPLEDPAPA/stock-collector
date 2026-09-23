@@ -160,7 +160,7 @@
   <div class="header-bar">
     <div>
       <div class="brand-title">TRIPLE D PAPA</div>
-      <div class="brand-date" id="baseDate">기준일자: -</div>
+      <div class="brand-date" id="baseDate">기준일자: 불러오는 중...</div>
       <div class="live-clock" id="liveClock">실시간 시각: 연동 중...</div>
     </div>
 
@@ -292,7 +292,6 @@
 
   function gradeClass(score) { return score >= 80 ? "score-high" : ""; }
 
-  // 🔥 1초마다 KST 실시간 시계를 갱신하는 함수
   function startLiveClock() {
     const clockEl = document.getElementById("liveClock");
     if (!clockEl) return;
@@ -358,7 +357,23 @@
     list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
 
     try {
-      // 1. Supabase 데이터 로드
+      // 🔥 1. data.json을 최우선으로 불러와서 오늘의 정확한 base_date(2026-09-23)를 강제로 적용합니다.
+      let latestBaseDate = "-";
+      try {
+        const pathSegments = window.location.pathname.split("/").filter(Boolean);
+        const repoName = (window.location.hostname.includes("github.io") && pathSegments.length > 0) ? `/${pathSegments[0]}` : "";
+        const res = await fetch(`${repoName}/data.json?t=${new Date().getTime()}`);
+        if (res.ok) {
+          const jData = await res.json();
+          if (jData.base_date) {
+            latestBaseDate = jData.base_date;
+          }
+        }
+      } catch (e) {
+        console.warn("data.json 로드 실패, Supabase 날짜로 대체합니다.", e);
+      }
+
+      // 2. Supabase 데이터 로드
       const { data, error } = await supabaseClient
         .from("TRIPLE D PAPA")
         .select("*")
@@ -369,24 +384,12 @@
       if (error) throw error;
       const rawData = data || [];
 
-      // 2. 🔥 data.json을 우선적으로 가져와서 정확한 base_date(오늘 날짜)를 박아줍니다.
-      try {
-        const pathSegments = window.location.pathname.split("/").filter(Boolean);
-        const repoName = (window.location.hostname.includes("github.io") && pathSegments.length > 0) ? `/${pathSegments[0]}` : "";
-        const res = await fetch(`${repoName}/data.json?t=${new Date().getTime()}`);
-        if (res.ok) {
-          const jData = await res.json();
-          if (jData.base_date) {
-            document.getElementById("baseDate").innerText = `기준일자: ${jData.base_date}`;
-          } else {
-            document.getElementById("baseDate").innerText = `기준일자: ${rawData.length ? rawData[0].date : "데이터 없음"}`;
-          }
-        } else {
-          document.getElementById("baseDate").innerText = `기준일자: ${rawData.length ? rawData[0].date : "데이터 없음"}`;
-        }
-      } catch (e) {
-        document.getElementById("baseDate").innerText = `기준일자: ${rawData.length ? rawData[0].date : "데이터 없음"}`;
+      if (!latestBaseDate || latestBaseDate === "-") {
+        latestBaseDate = rawData.length ? rawData[0].date : "데이터 없음";
       }
+
+      // 🔥 화면 상단 기준일자에 최신 data.json의 base_date 강제 출력
+      document.getElementById("baseDate").innerText = `기준일자: ${latestBaseDate}`;
 
       if (!rawData.length) {
         allData = [];
@@ -441,7 +444,7 @@
       <div class="guide-box">
         <div class="guide-title">⏰ 데이터 동기화 & 리셋 안내</div>
         <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 8시 날짜 변경 및 장중 10분/30분 단위 자동 실행</li>
+          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 8시 및 장중 실시간 자동 갱신</li>
           <li><strong>화면 실시간 동기화</strong>: 언제든 새로고침 시 최신 데이터 자동 반영</li>
         </ul>
       </div>
@@ -568,18 +571,15 @@
     document.getElementById(`${prefix}Sell`).innerHTML = createFlowTable("순매도 TOP10", data.sell || [], "SELL");
   }
 
+  // 🔥 raw_amount를 확실하게 가져와 0억 오류를 방지하는 수급 테이블 생성 함수
   function createFlowTable(title, rows, side) {
     const isBuy = side === "BUY";
     const css = isBuy ? "flow-buy" : "flow-sell";
-    
-    // 🔥 raw_amount 데이터를 최우선으로 읽어와서 합산
     const total = rows.reduce((sum, item) => sum + Number(item.raw_amount || item.net_amount_krw || 0), 0);
 
     const body = rows.map((item, idx) => {
-      // 🔥 raw_amount(원 단위 또는 억 단위)를 정확히 가져와 억원으로 변환
       const raw = Number(item.raw_amount || item.net_amount_krw || 0);
-      const amount = raw / 100000000; // 억원 단위 변환
-      
+      const amount = raw / 100000000;
       return `
         <tr>
           <td>${item.rank || idx + 1}</td>
@@ -689,7 +689,6 @@
     }
   }
 
-  // 페이지 로드 시 데이터 로드 및 실시간 시계 구동 시작
   window.addEventListener("DOMContentLoaded", () => {
     fetchFromSupabase();
     startLiveClock();

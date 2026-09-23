@@ -1,6 +1,6 @@
 {
   "base_date": "2026-09-23",
-  "last_updated": "2026-09-23 17:06:23",
+  "last_updated": "2026-09-23 17:39:08",
   "status": "PROVISIONAL",
   "count": 60,
   "validation": {
@@ -26,7 +26,7 @@
         "rank": 2,
         "code": "005935",
         "name": "삼성전자우",
-        "raw_amount": 157658,
+        "raw_amount": 156943,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -35,7 +35,7 @@
         "rank": 3,
         "code": "096770",
         "name": "SK이노베이션",
-        "raw_amount": 23973,
+        "raw_amount": 24005,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -44,7 +44,7 @@
         "rank": 4,
         "code": "007660",
         "name": "이수페타시스",
-        "raw_amount": 20856,
+        "raw_amount": 20821,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -53,7 +53,7 @@
         "rank": 5,
         "code": "036930",
         "name": "주성엔지니어링",
-        "raw_amount": 20482,
+        "raw_amount": 20531,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -71,7 +71,7 @@
         "rank": 7,
         "code": "003230",
         "name": "삼양식품",
-        "raw_amount": 14616,
+        "raw_amount": 14628,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -80,7 +80,7 @@
         "rank": 8,
         "code": "247540",
         "name": "에코프로비엠",
-        "raw_amount": 13650,
+        "raw_amount": 13663,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -89,7 +89,7 @@
         "rank": 9,
         "code": "092870",
         "name": "엑시콘",
-        "raw_amount": 12600,
+        "raw_amount": 12542,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -109,7 +109,7 @@
         "rank": 1,
         "code": "000660",
         "name": "SK하이닉스",
-        "raw_amount": -998032,
+        "raw_amount": -995888,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -127,7 +127,7 @@
         "rank": 3,
         "code": "034020",
         "name": "두산에너빌리티",
-        "raw_amount": -96938,
+        "raw_amount": -97173,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -145,7 +145,7 @@
         "rank": 5,
         "code": "035420",
         "name": "NAVER",
-        "raw_amount": -60440,
+        "raw_amount": -60410,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -172,7 +172,7 @@
         "rank": 8,
         "code": "000720",
         "name": "현대건설",
-        "raw_amount": -31894,
+        "raw_amount": -31920,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -181,7 +181,7 @@
         "rank": 9,
         "code": "012450",
         "name": "한화에어로스페이스",
-        "raw_amount": -30780,
+        "raw_amount": -30810,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -190,7 +190,7 @@
         "rank": 10,
         "code": "066570",
         "name": "LG전자",
-        "raw_amount": -28560,
+        "raw_amount": -28492,
         "source_field": "frgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -212,7 +212,7 @@
         "rank": 2,
         "code": "000660",
         "name": "SK하이닉스",
-        "raw_amount": 169442,
+        "raw_amount": 169078,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -239,7 +239,7 @@
         "rank": 5,
         "code": "096770",
         "name": "SK이노베이션",
-        "raw_amount": 8338,
+        "raw_amount": 8350,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -248,7 +248,7 @@
         "rank": 6,
         "code": "055550",
         "name": "신한지주",
-        "raw_amount": 7803,
+        "raw_amount": 7796,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -266,7 +266,7 @@
         "rank": 8,
         "code": "084370",
         "name": "유진테크",
-        "raw_amount": 6850,
+        "raw_amount": 6821,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "buy",
         "source": "KIS FHPTJ04400000"
@@ -295,7 +295,7 @@
         "rank": 1,
         "code": "035420",
         "name": "NAVER",
-        "raw_amount": -23276,
+        "raw_amount": -23265,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -313,7 +313,7 @@
         "rank": 3,
         "code": "034020",
         "name": "두산에너빌리티",
-        "raw_amount": -18645,
+        "raw_amount": -18690,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -331,7 +331,7 @@
         "rank": 5,
         "code": "000720",
         "name": "현대건설",
-        "raw_amount": -15031,
+        "raw_amount": -15043,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -340,7 +340,7 @@
         "rank": 6,
         "code": "005935",
         "name": "삼성전자우",
-        "raw_amount": -11440,
+        "raw_amount": -11414,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -358,7 +358,7 @@
         "rank": 8,
         "code": "005490",
         "name": "POSCO홀딩스",
-        "raw_amount": -9034,
+        "raw_amount": -9019,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -376,7 +376,7 @@
         "rank": 10,
         "code": "036540",
         "name": "SFA반도체",
-        "raw_amount": -7770,
+        "raw_amount": -7733,
         "source_field": "orgn_ntby_tr_pbmn",
         "side": "sell",
         "source": "KIS FHPTJ04400000"
@@ -389,14 +389,14 @@
         "rank": 1,
         "code": "000660",
         "name": "SK하이닉스",
-        "raw_amount": 828590,
+        "raw_amount": 826810,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
         "rank": 2,
         "code": "034020",
         "name": "두산에너빌리티",
-        "raw_amount": 115583,
+        "raw_amount": 115863,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
@@ -410,7 +410,7 @@
         "rank": 4,
         "code": "035420",
         "name": "NAVER",
-        "raw_amount": 83716,
+        "raw_amount": 83675,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
@@ -431,7 +431,7 @@
         "rank": 7,
         "code": "000720",
         "name": "현대건설",
-        "raw_amount": 46925,
+        "raw_amount": 46963,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
@@ -445,14 +445,14 @@
         "rank": 9,
         "code": "012450",
         "name": "한화에어로스페이스",
-        "raw_amount": 30780,
+        "raw_amount": 30810,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
         "rank": 10,
         "code": "066570",
         "name": "LG전자",
-        "raw_amount": 28560,
+        "raw_amount": 28492,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       }
     ],
@@ -468,28 +468,28 @@
         "rank": 2,
         "code": "005935",
         "name": "삼성전자우",
-        "raw_amount": -146218,
+        "raw_amount": -145529,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
         "rank": 3,
         "code": "096770",
         "name": "SK이노베이션",
-        "raw_amount": -32311,
+        "raw_amount": -32355,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
         "rank": 4,
         "code": "007660",
         "name": "이수페타시스",
-        "raw_amount": -20856,
+        "raw_amount": -20821,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
         "rank": 5,
         "code": "036930",
         "name": "주성엔지니어링",
-        "raw_amount": -20482,
+        "raw_amount": -20531,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
@@ -510,21 +510,21 @@
         "rank": 8,
         "code": "003230",
         "name": "삼양식품",
-        "raw_amount": -14616,
+        "raw_amount": -14628,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
         "rank": 9,
         "code": "247540",
         "name": "에코프로비엠",
-        "raw_amount": -13650,
+        "raw_amount": -13663,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       },
       {
         "rank": 10,
         "code": "092870",
         "name": "엑시콘",
-        "raw_amount": -12600,
+        "raw_amount": -12542,
         "source": "PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
       }
     ]

@@ -1,655 +1,152 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>TRIPLE D PAPA - 20지표 주식 스코어 & 수급 분석</title>
+import os, json, datetime, requests
+from typing import List, Dict
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+BASE = "https://openapi.koreainvestment.com:9443"
+APPKEY = os.getenv("KIS_APP_KEY", "").strip()
+APPSECRET = os.getenv("KIS_APP_SECRET", "").strip()
+TIMEOUT = 15
 
-  <style>
-    :root {
-      --bg-dark: #0b111e;
-      --card-bg: #141d2e;
-      --card-border: #263348;
-      --accent-red: #ef4444;
-      --accent-down: #3b82f6;
-      --accent-blue: #38bdf8;
-      --accent-gold: #f59e0b;
-      --tag-green-bg: rgba(16, 185, 129, 0.15);
-      --tag-green-text: #10b981;
-      --tag-green-border: #059669;
-      --tag-gray-bg: rgba(30, 41, 59, 0.7);
-      --tag-gray-text: #64748b;
-      --text-main: #f8fafc;
-      --text-sub: #94a3b8;
+def num(v):
+    try:
+        return int(float(str(v or "0").replace(",", "")))
+    except:
+        return 0
+
+def token():
+    if not APPKEY or not APPSECRET:
+        raise RuntimeError("KIS_APP_KEY/KIS_APP_SECRET 없음")
+    r = requests.post(
+        BASE + "/oauth2/tokenP",
+        headers={"content-type":"application/json; charset=utf-8"},
+        json={"grant_type":"client_credentials","appkey":APPKEY,"appsecret":APPSECRET},
+        timeout=TIMEOUT,
+    )
+    if r.status_code != 200:
+        raise RuntimeError(f"KIS TOKEN HTTP {r.status_code}: {r.text[:800]}")
+    j=r.json()
+    t=j.get("access_token")
+    if not t:
+        raise RuntimeError(f"KIS TOKEN 응답 이상: {j}")
+    return t
+
+def call_rank(tok, investor: str, side: str) -> List[Dict]:
+    params={
+        "FID_COND_MRKT_DIV_CODE":"V",
+        "FID_COND_SCR_DIV_CODE":"16449",
+        "FID_INPUT_ISCD":"0000",
+        "FID_DIV_CLS_CODE":"1",
+        "FID_RANK_SORT_CLS_CODE":"0" if side=="buy" else "1",
+        "FID_ETC_CLS_CODE":"1" if investor=="foreign" else "2",
     }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
-    body {
-      background: var(--bg-dark);
-      color: var(--text-main);
-      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
-      padding: 16px 14px 50px;
+    h={
+        "content-type":"application/json; charset=utf-8",
+        "authorization":"Bearer "+tok,
+        "appkey":APPKEY,
+        "appsecret":APPSECRET,
+        "tr_id":"FHPTJ04400000",
+        "custtype":"P",
     }
-
-    .container { max-width: 620px; margin: 0 auto; }
-
-    .header-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 10px; }
-    .brand-title { font-size: 1.3rem; font-weight: 900; letter-spacing: -0.7px; }
-    .brand-date { font-size: 0.74rem; color: var(--text-sub); margin-top: 3px; }
-    .header-actions { display: flex; align-items: center; gap: 6px; }
-
-    .refresh-btn { background: #2563eb; color: #fff; border: none; padding: 7px 10px; border-radius: 8px; font-size: 0.72rem; font-weight: 800; cursor: pointer; }
-    .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 9px; border-radius: 8px; font-size: 0.68rem; font-weight: 800; }
-    .live-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; display: inline-block; margin-right: 4px; }
-
-    .market-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
-    .tab-btn { background: #1e293b; color: var(--text-sub); border: none; padding: 10px 0; border-radius: 8px; font-size: 0.78rem; font-weight: 800; cursor: pointer; text-align: center; }
-    .tab-btn.active { background: #38bdf8; color: #0f172a; }
-
-    .score-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
-    .score-filters::-webkit-scrollbar { display: none; }
-    .score-filter-chip { background: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 7px 12px; border-radius: 8px; font-size: 0.76rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
-    .score-filter-chip.active { background: #d97706; border-color: #f59e0b; color: #fff; }
-
-    .filter-toggle-group { display: flex; gap: 8px; margin-bottom: 12px; }
-    .toggle-card { flex: 1; background: #141e30; border: 1px solid #253347; border-radius: 9px; padding: 9px 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
-    .toggle-card.on { border-color: #f59e0b; box-shadow: 0 0 0 1px rgba(245,158,11,.15); }
-    .toggle-card-label { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 800; }
-    .toggle-card-count { color: #f59e0b; font-size: 0.76rem; font-weight: 800; }
-
-    .summary-bar { display: flex; justify-content: space-between; gap: 10px; font-size: 0.74rem; color: var(--text-sub); margin-bottom: 10px; padding: 0 2px; }
-    .card-list { display: flex; flex-direction: column; gap: 10px; }
-
-    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 13px; padding: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
-    .card.strong-buy-card { border-color: rgba(245, 158, 11, 0.65); background: linear-gradient(180deg, rgba(245, 158, 11, .08) 0%, rgba(20, 29, 46, 1) 100%); }
-    .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
-    .stock-info { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
-    .market-tag { background: #2563eb; color: #fff; font-size: .66rem; font-weight: 900; padding: 2px 6px; border-radius: 4px; }
-    .market-tag.kosdaq { background: #0d9488; }
-    .stock-title { font-size: 1.04rem; font-weight: 900; color: #fff; }
-
-    .strong-badge, .double-badge, .score-badge { font-size: .66rem; font-weight: 900; padding: 2px 6px; border-radius: 4px; }
-    .strong-badge { color: #fbbf24; background: rgba(245,158,11,.18); border: 1px solid #f59e0b; }
-    .double-badge { color: #f59e0b; background: rgba(120,53,15,.28); border: 1px solid #b45309; }
-    .score-badge { background: #1e293b; color: #38bdf8; border: 1px solid #334155; }
-    .score-high { color: #10b981; border-color: #059669; background: rgba(16,185,129,.15); }
-
-    .price-wrap { text-align: right; flex-shrink: 0; }
-    .current-price { font-size: 1.08rem; font-weight: 900; color: #fff; }
-    .rate-text { font-size: .8rem; font-weight: 800; margin-top: 2px; }
-    .rate-up { color: var(--accent-red); }
-    .rate-down { color: var(--accent-down); }
-
-    .investor-row { display: flex; gap: 6px; margin-bottom: 9px; flex-wrap: wrap; }
-    .investor-chip { font-size: .68rem; padding: 3px 6px; border-radius: 4px; font-weight: 800; }
-    .chip-foreign, .chip-inst { background: rgba(239,68,68,.14); color: #f87171; }
-    .chip-retail { background: rgba(59,130,246,.14); color: #60a5fa; }
-
-    .conditions-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
-    .cond-badge { font-size: .66rem; padding: 3px 6px; border-radius: 4px; font-weight: 700; border: 1px solid transparent; }
-    .cond-badge.pass { background: var(--tag-green-bg); color: var(--tag-green-text); border-color: var(--tag-green-border); }
-    .cond-badge.fail { background: var(--tag-gray-bg); color: var(--tag-gray-text); }
-
-    .card-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .75rem; padding-top: 7px; border-top: 1px dashed rgba(255,255,255,.08); }
-    .prev-close-price { color: var(--text-sub); }
-    .trade-amount { color: #f59e0b; font-weight: 800; }
-
-    .detail-btn { margin-top: 9px; width: 100%; background: #182234; border: 1px solid #2b3b52; color: #cbd5e1; padding: 7px 8px; border-radius: 7px; font-size: .7rem; font-weight: 800; cursor: pointer; }
-    .detail-panel { display: none; margin-top: 9px; padding: 9px; background: #0e1727; border-radius: 8px; border: 1px solid #243247; }
-    .detail-panel.open { display: block; }
-
-    .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
-    .score-item { display: flex; justify-content: space-between; gap: 8px; padding: 6px 7px; background: #141f31; border-radius: 5px; font-size: .67rem; }
-    .score-item-name { color: #cbd5e1; }
-    .score-item-value { color: #38bdf8; font-weight: 900; white-space: nowrap; }
-
-    .tech-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 7px; }
-    .tech-item { padding: 6px; background: #111b2b; border-radius: 5px; font-size: .63rem; color: #94a3b8; }
-    .tech-item strong { display: block; color: #e2e8f0; font-size: .68rem; margin-top: 2px; }
-
-    .flow-section { margin-top: 6px; }
-    .flow-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
-    .flow-header h2 { margin: 0; font-size: 1.15rem; }
-    .flow-base-info { margin-top: 5px; font-size: .75rem; color: var(--text-sub); }
-    .flow-actions { display: flex; gap: 6px; }
-    .flow-actions button { border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: #fff; border-radius: 8px; padding: 8px 10px; cursor: pointer; font-size: 0.72rem; font-weight: 800; }
-    .flow-validation { margin-bottom: 12px; padding: 10px 12px; border-radius: 9px; font-weight: 800; font-size: .8rem; background: rgba(245,158,11,.10); border: 1px solid rgba(245,158,11,.25); }
-    .flow-validation.valid { background: rgba(34,197,94,.10); border-color: rgba(34,197,94,.30); color: #22c55e; }
-    .flow-validation.invalid { background: rgba(239,68,68,.10); border-color: rgba(239,68,68,.30); color: #ef4444; }
-    .flow-market-filter { display: flex; gap: 6px; margin-bottom: 12px; }
-    .flow-market-btn { border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); color: var(--text-sub); padding: 7px 12px; border-radius: 999px; cursor: pointer; font-size: 0.75rem; font-weight: 700; }
-    .flow-market-btn.active { background: #2563eb; color: #fff; }
-    .flow-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
-    .flow-investor-card { background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 12px; }
-    .flow-investor-card h3 { text-align: center; margin: 2px 0 12px; font-size: 0.9rem; }
-    .flow-table-title { display: flex; justify-content: space-between; margin: 12px 0 6px; font-size: .78rem; font-weight: 800; }
-    .flow-buy { color: #ef4444; }
-    .flow-sell { color: #3b82f6; }
-    .flow-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
-    .flow-table th, .flow-table td { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,.06); }
-    .flow-table th { color: var(--text-sub); font-weight: 600; }
-    .flow-table td:nth-child(1) { width: 25px; text-align: center; }
-    .flow-table td:last-child { text-align: right; font-weight: 700; }
-    .flow-total { margin-top: 7px; text-align: right; font-size: .73rem; font-weight: 800; }
-
-    .guide-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-    .guide-title { font-size: 0.95rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-    .guide-list { list-style: none; padding: 0; font-size: 0.77rem; color: #cbd5e1; line-height: 1.7; }
-    .guide-list li { margin-bottom: 6px; position: relative; padding-left: 14px; }
-    .guide-list li::before { content: "•"; position: absolute; left: 2px; color: #38bdf8; font-weight: bold; }
-
-    .loading-box { text-align: center; padding: 60px 0; color: var(--text-sub); font-size: .84rem; }
-    .error-box { text-align: center; padding: 40px 10px; color: #f87171; line-height: 1.7; font-size: .8rem; }
-
-    @media (max-width: 900px) { .flow-grid { grid-template-columns: 1fr; } }
-    @media (max-width: 450px) {
-      .score-grid { grid-template-columns: 1fr; }
-      .tech-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-  </style>
-</head>
-
-<body>
-
-<div class="container">
-
-  <div class="header-bar">
-    <div>
-      <div class="brand-title">TRIPLE D PAPA</div>
-      <div class="brand-date" id="baseDate">기준일자: -</div>
-    </div>
-
-    <div class="header-actions">
-      <button class="refresh-btn" onclick="refreshCurrentTab()">⚡ 새로고침</button>
-      <div class="live-badge"><span class="live-dot"></span> LIVE</div>
-    </div>
-  </div>
-
-  <div class="market-tabs">
-    <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
-    <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
-    <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
-    <button class="tab-btn" onclick="setTab('FLOW', this)">💰 수급</button>
-    <button class="tab-btn" onclick="setTab('GUIDE', this)">📖 설명서</button>
-  </div>
-
-  <div class="score-filters" id="scoreFilters">
-    <button class="score-filter-chip active" onclick="setMinScore(0, this)">전체 점수</button>
-    <button class="score-filter-chip" onclick="setMinScore(80, this)">🔴 80점 이상</button>
-    <button class="score-filter-chip" onclick="setMinScore(70, this)">🟠 70점 이상</button>
-    <button class="score-filter-chip" onclick="setMinScore(60, this)">🟡 60점 이상</button>
-    <button class="score-filter-chip" onclick="setMinScore(50, this)">⚪ 50점 이상</button>
-  </div>
-
-  <div class="filter-toggle-group" id="filterToggleGroup">
-    <div class="toggle-card" id="doubleToggle" onclick="toggleDoubleOnly()">
-      <div class="toggle-card-label">
-        <input type="checkbox" id="doubleCheckbox" style="accent-color:#f59e0b;width:15px;height:15px;pointer-events:none;">
-        <span>🔥 쌍끌이만</span>
-      </div>
-      <div class="toggle-card-count" id="doubleCount">(0)</div>
-    </div>
-
-    <div class="toggle-card" id="strongToggle" onclick="toggleStrongBuyOnly()">
-      <div class="toggle-card-label">
-        <input type="checkbox" id="strongBuyCheckbox" style="accent-color:#fbbf24;width:15px;height:15px;pointer-events:none;">
-        <span>👑 강한 매수세</span>
-      </div>
-      <div class="toggle-card-count" id="strongBuyCount">(0)</div>
-    </div>
-  </div>
-
-  <div class="summary-bar" id="summaryBar">
-    <span id="filteredCount">선별 종목: 0개</span>
-    <span id="updatedTime">방금 갱신됨 (-)</span>
-  </div>
-
-  <div class="card-list" id="cardList">
-    <div class="loading-box">데이터를 불러오는 중입니다...</div>
-  </div>
-
-  <section id="flowSection" class="flow-section" style="display:none;">
-    <div class="flow-header">
-      <div>
-        <h2>💰 투자자 수급 TOP60</h2>
-        <div id="flowBaseInfo" class="flow-base-info">데이터 확인 중...</div>
-      </div>
-      <div class="flow-actions">
-        <button onclick="fetchInvestorRanking()">🔄 새로고침</button>
-        <button onclick="copyInvestorJSON()">📋 인포 데이터 복사</button>
-      </div>
-    </div>
-
-    <div id="flowValidation" class="flow-validation">60/60 검증 대기</div>
-
-    <div class="flow-market-filter">
-      <button class="flow-market-btn active" onclick="setFlowMarket('ALL', this)">전체</button>
-      <button class="flow-market-btn" onclick="setFlowMarket('KOSPI', this)">코스피</button>
-      <button class="flow-market-btn" onclick="setFlowMarket('KOSDAQ', this)">코스닥</button>
-    </div>
-
-    <div class="flow-grid">
-      <div class="flow-investor-card">
-        <h3>👤 개인</h3>
-        <div id="individualBuy"></div>
-        <div id="individualSell"></div>
-      </div>
-      <div class="flow-investor-card">
-        <h3>🌎 외국인</h3>
-        <div id="foreignBuy"></div>
-        <div id="foreignSell"></div>
-      </div>
-      <div class="flow-investor-card">
-        <h3>🏦 기관</h3>
-        <div id="institutionBuy"></div>
-        <div id="institutionSell"></div>
-      </div>
-    </div>
-  </section>
-
-</div>
-
-<script>
-  const SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-  const INDICATORS = [
-    ["score_01", "주가등락률", 7], ["score_02", "거래대금", 7], ["score_03", "거래량비율", 5],
-    ["score_04", "20일이평선", 6], ["score_05", "주가위치", 4], ["score_06", "양봉마감", 4],
-    ["score_07", "고가근접", 4], ["score_08", "윗꼬리제한", 3], ["score_09", "단기이평정배열", 6],
-    ["score_10", "외국인순매수", 6], ["score_11", "기관순매수", 5], ["score_12", "순매수비율", 5],
-    ["score_13", "5일이평선", 4], ["score_14", "60일이평선", 5], ["score_15", "120일이평선", 4],
-    ["score_16", "52주신고가", 5], ["score_17", "전고점돌파", 5], ["score_18", "RSI(14)", 4],
-    ["score_19", "이격도", 4], ["score_20", "MACD", 3]
-  ];
-
-  let allData = [];
-  let currentTab = "ALL";
-  let minScoreFilter = 0;
-  let isDoubleOnly = false;
-  let isStrongBuyOnly = false;
-  let investorRankingData = null;
-  let currentFlowMarket = "ALL";
-
-  function num(v) { return Number(v || 0); }
-  function formatStockVol(v) {
-    const value = num(v);
-    if (!value) return "0";
-    const sign = value > 0 ? "+" : "";
-    if (Math.abs(value) >= 10000) return `${sign}${(value / 10000).toFixed(1)}만`;
-    return `${sign}${value.toLocaleString()}`;
-  }
-  function formatPrice(v) { return Math.round(num(v)).toLocaleString(); }
-  function escapeHtml(value) {
-    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-  }
-
-  function gradeClass(score) { return score >= 80 ? "score-high" : ""; }
-
-  function renderCategoryBadges(item) {
-    const passedList = String(item.passed_tags || "").split(",").filter(Boolean);
-    const checks = [
-      { key: "가격", pass: passedList.includes("주가등락률") && passedList.includes("양봉마감") },
-      { key: "거래", pass: num(item.trade_amount) >= 30000000000 || num(item.volume_ratio) >= 150 },
-      { key: "수급", pass: num(item.foreign_net_buy) > 0 || num(item.inst_net_buy) > 0 },
-      { key: "추세", pass: passedList.includes("단기이평정배열") },
-      { key: "돌파", pass: passedList.includes("52주신고가") || passedList.includes("전고점돌파") },
-      { key: "과열/모멘텀", pass: passedList.includes("MACD") && passedList.includes("RSI(14)") }
-    ];
-    return checks.map(cat => `<span class="cond-badge ${cat.pass ? "pass" : "fail"}">${cat.pass ? "✓ " : ""}${cat.key}</span>`).join("");
-  }
-
-  function renderScoreDetails(item) {
-    const scoreHtml = INDICATORS.map(([key, label, max]) => `
-      <div class="score-item">
-        <span class="score-item-name">${label}</span>
-        <span class="score-item-value">${num(item[key])}/${max}</span>
-      </div>
-    `).join("");
-
-    const techHtml = [
-      ["거래량비율", `${num(item.volume_ratio).toFixed(1)}%`], ["MA5", formatPrice(item.ma5)],
-      ["MA10", formatPrice(item.ma10)], ["MA20", formatPrice(item.ma20)],
-      ["MA60", formatPrice(item.ma60)], ["MA120", formatPrice(item.ma120)],
-      ["52주고점", formatPrice(item.high_52w)], ["전고점", formatPrice(item.previous_high_60)],
-      ["RSI14", num(item.rsi14).toFixed(1)], ["이격도", `${num(item.disparity20).toFixed(1)}%`],
-      ["MACD", num(item.macd).toFixed(3)], ["MACD Signal", num(item.macd_signal).toFixed(3)]
-    ].map(([name, value]) => `<div class="tech-item">${name}<strong>${value}</strong></div>`).join("");
-
-    return `<div class="score-grid">${scoreHtml}</div><div class="tech-grid">${techHtml}</div>`;
-  }
-
-  function toggleDetail(ticker) {
-    const panel = document.getElementById(`detail-${ticker}`);
-    if (!panel) return;
-    panel.classList.toggle("open");
-    const button = document.querySelector(`[data-detail-btn="${ticker}"]`);
-    if (button) {
-      button.innerText = panel.classList.contains("open") ? "▲ 20개 지표 접기" : "▼ 20개 지표 상세보기";
-    }
-  }
-
-  async function fetchFromSupabase() {
-    const list = document.getElementById("cardList");
-    list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
-
-    try {
-      const { data, error } = await supabaseClient
-        .from("TRIPLE D PAPA")
-        .select("*")
-        .order("date", { ascending:false })
-        .order("created_at", { ascending:false })
-        .order("trade_amount", { ascending:false });
-
-      if (error) throw error;
-      const rawData = data || [];
-
-      if (!rawData.length) {
-        allData = [];
-        document.getElementById("baseDate").innerText = "기준일자: 데이터 없음";
-        renderList();
-        return;
-      }
-
-      document.getElementById("baseDate").innerText = `기준일자: ${rawData[0].date}`;
-
-      const seen = new Set();
-      const unique = [];
-      for (const item of rawData) {
-        if (item.market === "INDEX") continue;
-        const key = `${item.date}_${item.market}_${item.ticker}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        unique.push(item);
-      }
-
-      allData = unique;
-      const now = new Date();
-      document.getElementById("updatedTime").innerText = `방금 갱신됨 (${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초)`;
-
-      updateCounts();
-      renderList();
-
-    } catch (err) {
-      console.error(err);
-      list.innerHTML = `<div class="error-box">데이터 로드 실패<br><small>${escapeHtml(err.message || err)}</small></div>`;
-    }
-  }
-
-  function isDouble(item) {
-    return Boolean(item.double_buy || (num(item.foreign_net_buy) > 0 && num(item.inst_net_buy) > 0) || String(item.passed_tags || "").includes("쌍끌이"));
-  }
-  function isStrongBuy(item) { return (num(item.total_score) >= 80 && isDouble(item)); }
-
-  function updateCounts() {
-    document.getElementById("doubleCount").innerText = `(${allData.filter(isDouble).length})`;
-    document.getElementById("strongBuyCount").innerText = `(${allData.filter(isStrongBuy).length})`;
-    document.getElementById("doubleCheckbox").checked = isDoubleOnly;
-    document.getElementById("strongBuyCheckbox").checked = isStrongBuyOnly;
-    document.getElementById("doubleToggle").classList.toggle("on", isDoubleOnly);
-    document.getElementById("strongToggle").classList.toggle("on", isStrongBuyOnly);
-  }
-
-  function renderList() {
-    if (currentTab === "GUIDE" || currentTab === "FLOW") return;
-    renderStockTab(document.getElementById("cardList"));
-  }
-
-  function renderGuideTab(container) {
-    container.innerHTML = `
-      <div class="guide-box">
-        <div class="guide-title">⏰ 데이터 동기화 & 리셋 안내</div>
-        <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 8시 및 장중 10분/30분 단위 자동 실행</li>
-          <li><strong>화면 실시간 동기화</strong>: 언제든 새로고침 시 최신 데이터 자동 반영</li>
-        </ul>
-      </div>
-    `;
-  }
-
-  function renderStockTab(container) {
-    let filtered = allData.filter(item => {
-      if (currentTab !== "ALL" && item.market !== currentTab) return false;
-      if (minScoreFilter > 0 && num(item.total_score) < minScoreFilter) return false;
-      if (isDoubleOnly && !isDouble(item)) return false;
-      if (isStrongBuyOnly && !isStrongBuy(item)) return false;
-      return true;
-    });
-
-    filtered.sort((a,b) => {
-      const strongDiff = Number(isStrongBuy(b)) - Number(isStrongBuy(a));
-      if (strongDiff !== 0) return strongDiff;
-      const scoreDiff = num(b.total_score) - num(a.total_score);
-      if (scoreDiff !== 0) return scoreDiff;
-      return (num(b.trade_amount) - num(a.trade_amount));
-    });
-
-    document.getElementById("filteredCount").innerText = `선별 종목: ${filtered.length}개`;
-
-    if (!filtered.length) {
-      container.innerHTML = `<div class="loading-box">조건에 맞는 종목이 없습니다.</div>`;
-      return;
-    }
-
-    container.innerHTML = filtered.map(renderStockCard).join("");
-  }
-
-  function renderStockCard(item) {
-    const closeP = num(item.close_price);
-    const rate = num(item.change_rate);
-    const score = num(item.total_score);
-    const strong = isStrongBuy(item);
-    const double = isDouble(item);
-    const prevClose = num(item.prev_close) || (rate !== -100 && closeP > 0 ? closeP / (1 + rate / 100) : 0);
-    const rateClass = rate > 0 ? "rate-up" : rate < 0 ? "rate-down" : "";
-    const sign = rate > 0 ? "+" : "";
-    const dealInEok = Math.round(num(item.trade_amount) / 100000000);
-    const ticker = String(item.ticker || "").replace(/[^a-zA-Z0-9_-]/g, "");
-
-    const badgeHtml = strong ? `<span class="strong-badge">👑 강한 매수세</span>` : double ? `<span class="double-badge">🔥 쌍끌이</span>` : "";
-
-    return `
-      <div class="card ${strong ? "strong-buy-card" : ""}">
-        <div class="card-head">
-          <div class="stock-info">
-            <span class="market-tag ${item.market === "KOSDAQ" ? "kosdaq" : ""}">${escapeHtml(item.market)}</span>
-            <span class="stock-title">${escapeHtml(item.name)}</span>
-            ${badgeHtml}
-            <span class="score-badge ${gradeClass(score)}">${score}점 ${escapeHtml(item.grade || "")}</span>
-          </div>
-          <div class="price-wrap">
-            <div class="current-price">${Math.round(closeP).toLocaleString()}원</div>
-            <div class="rate-text ${rateClass}">${sign}${rate.toFixed(2)}%</div>
-          </div>
-        </div>
-        <div class="investor-row">
-          <span class="investor-chip chip-foreign">외인 ${formatStockVol(item.foreign_net_buy)}</span>
-          <span class="investor-chip chip-inst">기관 ${formatStockVol(item.inst_net_buy)}</span>
-          <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
-        </div>
-        <div class="conditions-grid">${renderCategoryBadges(item)}</div>
-        <div class="card-footer">
-          <span class="prev-close-price">전일종가 ${Math.round(prevClose).toLocaleString()}원</span>
-          <span class="trade-amount">거래대금 ${dealInEok.toLocaleString()}억</span>
-        </div>
-        <button class="detail-btn" data-detail-btn="${ticker}" onclick="toggleDetail('${ticker}')">▼ 20개 지표 상세보기</button>
-        <div class="detail-panel" id="detail-${ticker}">${renderScoreDetails(item)}</div>
-      </div>
-    `;
-  }
-
-  async function fetchInvestorRanking() {
-    const validation = document.getElementById("flowValidation");
-    validation.className = "flow-validation";
-    validation.textContent = "수급 데이터 불러오는 중...";
-
-    try {
-      const pathSegments = window.location.pathname.split("/").filter(Boolean);
-      const repoName = (window.location.hostname.includes("github.io") && pathSegments.length > 0) ? `/${pathSegments[0]}` : "";
-      const url = `${repoName}/data.json?t=${new Date().getTime()}`;
-
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      investorRankingData = data;
-      renderInvestorRanking(data);
-    } catch (error) {
-      console.error(error);
-      validation.className = "flow-validation invalid";
-      validation.textContent = "❌ 수급 데이터(data.json)를 불러오지 못했습니다.";
-    }
-  }
-
-  function renderInvestorRanking(data) {
-    const info = document.getElementById("flowBaseInfo");
-    info.textContent = `${data.base_date || "-"} · KRX 정규장 15:30 · ${data.status || "PROVISIONAL"}`;
-
-    renderInvestorSide("individual", data.individual);
-    renderInvestorSide("foreign", data.foreign);
-    renderInvestorSide("institution", data.institution);
-
-    const validation = document.getElementById("flowValidation");
-    const count = Number(data.count || 0);
+    r=requests.get(
+        BASE+"/uapi/domestic-stock/v1/quotations/foreign-institution-total",
+        headers=h, params=params, timeout=TIMEOUT
+    )
+    if r.status_code != 200:
+        raise RuntimeError(f"KIS RANK {investor}/{side} HTTP {r.status_code}: {r.text[:800]}")
+    j=r.json()
+    if str(j.get("rt_cd","0")) != "0":
+        raise RuntimeError(f"KIS RANK {investor}/{side}: {j.get('msg_cd')} {j.get('msg1')}")
+    rows=j.get("output") or []
+    out=[]
+    field="frgn_ntby_tr_pbmn" if investor=="foreign" else "orgn_ntby_tr_pbmn"
+    for x in rows:
+        code=str(x.get("mksc_shrn_iscd") or "").zfill(6)
+        name=str(x.get("hts_kor_isnm") or "").strip()
+        amount=num(x.get(field))
+        if not code.isdigit() or not name or amount == 0:
+            continue
+        out.append({
+            "code":code, "name":name,
+            "raw_amount":amount,
+            "source_field":field,
+            "side":side,
+            "source":"KIS FHPTJ04400000"
+        })
+        if len(out)==10: break
+    return out
+
+def provisional_individual(fb, fs, ib, ins):
+    d={}
+    for rows, sign in ((fb,-1),(fs,1),(ib,-1),(ins,1)):
+        for x in rows:
+            z=d.setdefault(x["code"],{"code":x["code"],"name":x["name"],"raw_amount":0})
+            z["raw_amount"] += sign*abs(x["raw_amount"])
+    vals=list(d.values())
+    buy=sorted([x for x in vals if x["raw_amount"]>0], key=lambda x:x["raw_amount"], reverse=True)[:10]
+    sell=sorted([x for x in vals if x["raw_amount"]<0], key=lambda x:x["raw_amount"])[:10]
+    for x in buy+sell:
+        x["source"]="PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
+    return buy, sell
+
+def main():
+    # 🔥 한국 시간(KST, UTC+9) 기준 현재 시각 및 자정 전후 분기 로그 확인
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    now = datetime.datetime.now(kst)
+    today_str = now.strftime("%Y-%m-%d")
     
-    if (count === 60) {
-      validation.className = "flow-validation valid";
-      validation.textContent = `✅ 60/60 · ${data.status} · 수급 TOP60 데이터 로드 완료 · 인포 제작 가능`;
-    } else {
-      validation.className = "flow-validation invalid";
-      const errors = (data.validation?.errors || []).join(" / ");
-      validation.textContent = `⚠️ ${count}/60 · ${data.status || "INCOMPLETE"} · 인포 제작 차단${errors ? " · " + errors : ""}`;
+    print(f"[Collector] KST Time: {now.strftime('%Y-%m-%d %H:%M:%S')} | Base Date: {today_str}")
+    
+    payload={
+        "base_date": today_str,
+        "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "status":"ERROR","count":0,
+        "validation":{"valid":False,"expected":60,"render_allowed":False,"errors":[]}
     }
-  }
+    try:
+        print("[1/3] KIS token")
+        tok=token()
+        print("TOKEN OK")
+        print("[2/3] KIS ranking 4 calls")
+        fb=call_rank(tok,"foreign","buy")
+        fs=call_rank(tok,"foreign","sell")
+        ib=call_rank(tok,"institution","buy")
+        ins=call_rank(tok,"institution","sell")
+        print("foreign",len(fb),len(fs),"institution",len(ib),len(ins))
+        pb,ps=provisional_individual(fb,fs,ib,ins)
 
-  function renderInvestorSide(prefix, data) {
-    if (!data) return;
-    document.getElementById(`${prefix}Buy`).innerHTML = createFlowTable("순매수 TOP10", data.buy || [], "BUY");
-    document.getElementById(`${prefix}Sell`).innerHTML = createFlowTable("순매도 TOP10", data.sell || [], "SELL");
-  }
+        def rank(rows):
+            return [dict({"rank":i+1},**x) for i,x in enumerate(rows)]
 
-  function createFlowTable(title, rows, side) {
-    const isBuy = side === "BUY";
-    const css = isBuy ? "flow-buy" : "flow-sell";
-    const total = rows.reduce((sum, item) => sum + Number(item.net_amount_krw || item.raw_amount || 0), 0);
+        actual=len(fb)+len(fs)+len(ib)+len(ins)
+        total=actual+len(pb)+len(ps)
+        
+        is_ready = (total == 60)
 
-    const body = rows.map((item, idx) => {
-      const raw = Number(item.net_amount_krw || item.raw_amount || 0);
-      const amount = raw / 100000000;
-      return `
-        <tr>
-          <td>${item.rank || idx + 1}</td>
-          <td>
-            ${escapeHtml(item.name)}
-            <div style="font-size:.62rem;opacity:.55;">${escapeHtml(item.code)}</div>
-          </td>
-          <td class="${css}">${amount.toLocaleString("ko-KR", {maximumFractionDigits:1})}억</td>
-        </tr>
-      `;
-    }).join("");
+        payload.update({
+            "status":"PROVISIONAL" if actual==40 else "INCOMPLETE",
+            "count":total,
+            "foreign":{"buy":rank(fb),"sell":rank(fs)},
+            "institution":{"buy":rank(ib),"sell":rank(ins)},
+            "individual":{"buy":rank(pb),"sell":rank(ps)},
+            "validation":{
+                "valid": is_ready,
+                "expected":60,
+                "actual_verified_rows":actual,
+                "provisional_rows":len(pb)+len(ps),
+                "render_allowed": is_ready,
+                "errors":[] if is_ready else [
+                    "개인 TOP20은 잠정치이며 KIS 037 직접 순위가 아님",
+                    "금액 단위는 억원"
+                ]
+            }
+        })
+        print("[3/3] data.json generated successfully")
+    except Exception as e:
+        payload["validation"]["errors"]=[str(e)]
+        print("ERROR:",e)
 
-    return `
-      <div class="flow-table-title">
-        <span class="${css}">${title}</span>
-        <span>${rows.length}/10</span>
-      </div>
-      <table class="flow-table">
-        <thead><tr><th>#</th><th>종목</th><th>금액</th></tr></thead>
-        <tbody>${body}</tbody>
-      </table>
-      <div class="flow-total ${css}">TOP10 합계 ${(total / 100000000).toLocaleString("ko-KR", {maximumFractionDigits:1})}억원</div>
-    `;
-  }
+    with open("data.json","w",encoding="utf-8") as f:
+        json.dump(payload,f,ensure_ascii=False,indent=2)
+    print("status=",payload["status"],"count=",payload["count"])
 
-  function setFlowMarket(market, btn) {
-    currentFlowMarket = market;
-    document.querySelectorAll(".flow-market-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-  }
-
-  async function copyInvestorJSON() {
-    if (!investorRankingData) {
-      alert("먼저 수급 데이터를 불러오세요.");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(investorRankingData, null, 2));
-      alert("인포용 수급 JSON을 복사했습니다.");
-    } catch (error) {
-      console.error(error);
-      alert("클립보드 복사에 실패했습니다.");
-    }
-  }
-
-  function setTab(tab, btn) {
-    currentTab = tab;
-    document.querySelectorAll(".market-tabs .tab-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-
-    const cardListEl = document.getElementById("cardList");
-    const flowSection = document.getElementById("flowSection");
-    const scoreFiltersEl = document.getElementById("scoreFilters");
-    const toggleGroupEl = document.getElementById("filterToggleGroup");
-    const summaryBarEl = document.getElementById("summaryBar");
-
-    if (tab === "FLOW") {
-      scoreFiltersEl.style.display = "none";
-      toggleGroupEl.style.display = "none";
-      summaryBarEl.style.display = "none";
-      cardListEl.style.display = "none";
-      flowSection.style.display = "block";
-      fetchInvestorRanking();
-      return;
-    }
-
-    flowSection.style.display = "none";
-    cardListEl.style.display = "flex";
-
-    if (tab === "GUIDE") {
-      scoreFiltersEl.style.display = "none";
-      toggleGroupEl.style.display = "none";
-      summaryBarEl.style.display = "none";
-      renderGuideTab(cardListEl);
-    } else {
-      scoreFiltersEl.style.display = "flex";
-      toggleGroupEl.style.display = "flex";
-      summaryBarEl.style.display = "flex";
-      renderStockTab(cardListEl);
-    }
-  }
-
-  function setMinScore(scoreThreshold, btn) {
-    minScoreFilter = scoreThreshold;
-    document.querySelectorAll(".score-filters .score-filter-chip").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    renderList();
-  }
-
-  function toggleDoubleOnly() {
-    isDoubleOnly = !isDoubleOnly;
-    updateCounts();
-    renderList();
-  }
-
-  function toggleStrongBuyOnly() {
-    isStrongBuyOnly = !isStrongBuyOnly;
-    updateCounts();
-    renderList();
-  }
-
-  function refreshCurrentTab() {
-    if (currentTab === "FLOW") {
-      fetchInvestorRanking();
-    } else {
-      fetchFromSupabase();
-    }
-  }
-
-  window.addEventListener("DOMContentLoaded", fetchFromSupabase);
-</script>
-
-</body>
-</html>
+if __name__=="__main__":
+    main()

@@ -88,15 +88,15 @@ def provisional_individual(fb, fs, ib, ins):
     return buy, sell
 
 def main():
-    # 🔥 UTC 시간에 9시간을 더해 한국 시간(KST) 기준 날짜를 정확히 가져옵니다.
+    # 🔥 한국 시간(KST) 기준으로 날짜 고정
     now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
     today_str = now.strftime("%Y-%m-%d")
     
-    payload = {
+    payload={
         "base_date": today_str,
         "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
-        "status": "ERROR", "count": 0,
-        "validation": {"valid": False, "expected": 60, "render_allowed": False, "errors": []}
+        "status":"ERROR","count":0,
+        "validation":{"valid":False,"expected":60,"render_allowed":False,"errors":[]}
     }
     try:
         print("[1/3] KIS token")
@@ -116,7 +116,6 @@ def main():
         actual=len(fb)+len(fs)+len(ib)+len(ins)
         total=actual+len(pb)+len(ps)
         
-        # 60개 채워지면 PROVISIONAL 상태여도 인포 제작 허용
         is_ready = (total == 60)
 
         payload.update({

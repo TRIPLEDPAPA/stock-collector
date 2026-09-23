@@ -3,8 +3,17 @@ name: Stock Data Collector FAST
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 23 * * 1-5'         # KST 평일 오전 8:00 정각 수집
-    - cron: '*/10 3-6 * * 1-5'     # KST 평일 12:00 ~ 15:00 장중 10분 간격 체크
+    # 1. KST 평일 오전 8:00 정각 (UTC 전날 23:00) - 날짜 변경 및 아침 수급
+    - cron: '0 23 * * 0-4'
+    
+    # 2. KST 평일 오전 9:00, 10:00, 11:00 정각 (UTC 00:00 ~ 02:00)
+    - cron: '0 0-2 * * 1-5'
+    
+    # 3. KST 평일 12:00 ~ 15:30 장중 10분 간격 (UTC 03:00 ~ 06:30)
+    - cron: '*/10 3-6 * * 1-5'
+    
+    # 4. KST 평일 15:30 이후 장 마감/시간외 30분 간격 (UTC 06:30 ~ 09:00)
+    - cron: '0,30 6-9 * * 1-5'
 
 concurrency:
   group: stock-data-collector-fast

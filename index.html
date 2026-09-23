@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>TRIPLE D PAPA - 20지표 주식 스코어 & 수급 분석</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
   <style>
     :root {
       --bg-dark: #0b111e;
@@ -220,7 +218,7 @@
         <div id="flowBaseInfo" class="flow-base-info">데이터 확인 중...</div>
       </div>
       <div class="flow-actions">
-        <button onclick="fetchInvestorRanking()">🔄 새로고침</button>
+        <button onclick="fetchData()">🔄 새로고침</button>
         <button onclick="copyInvestorJSON()">📋 인포 데이터 복사</button>
       </div>
     </div>
@@ -255,26 +253,12 @@
 </div>
 
 <script>
-  const SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-  const INDICATORS = [
-    ["score_01", "주가등락률", 7], ["score_02", "거래대금", 7], ["score_03", "거래량비율", 5],
-    ["score_04", "20일이평선", 6], ["score_05", "주가위치", 4], ["score_06", "양봉마감", 4],
-    ["score_07", "고가근접", 4], ["score_08", "윗꼬리제한", 3], ["score_09", "단기이평정배열", 6],
-    ["score_10", "외국인순매수", 6], ["score_11", "기관순매수", 5], ["score_12", "순매수비율", 5],
-    ["score_13", "5일이평선", 4], ["score_14", "60일이평선", 5], ["score_15", "120일이평선", 4],
-    ["score_16", "52주신고가", 5], ["score_17", "전고점돌파", 5], ["score_18", "RSI(14)", 4],
-    ["score_19", "이격도", 4], ["score_20", "MACD", 3]
-  ];
-
   let allData = [];
   let currentTab = "ALL";
   let minScoreFilter = 0;
   let isDoubleOnly = false;
   let isStrongBuyOnly = false;
-  let investorRankingData = null;
+  let masterJsonData = null;
   let currentFlowMarket = "ALL";
 
   function num(v) { return Number(v || 0); }
@@ -309,105 +293,31 @@
     }, 1000);
   }
 
-  function renderCategoryBadges(item) {
-    const passedList = String(item.passed_tags || "").split(",").filter(Boolean);
-    const checks = [
-      { key: "가격", pass: passedList.includes("주가등락률") && passedList.includes("양봉마감") },
-      { key: "거래", pass: num(item.trade_amount) >= 30000000000 || num(item.volume_ratio) >= 150 },
-      { key: "수급", pass: num(item.foreign_net_buy) > 0 || num(item.inst_net_buy) > 0 },
-      { key: "추세", pass: passedList.includes("단기이평정배열") },
-      { key: "돌파", pass: passedList.includes("52주신고가") || passedList.includes("전고점돌파") },
-      { key: "과열/모멘텀", pass: passedList.includes("MACD") && passedList.includes("RSI(14)") }
-    ];
-    return checks.map(cat => `<span class="cond-badge ${cat.pass ? "pass" : "fail"}">${cat.pass ? "✓ " : ""}${cat.key}</span>`).join("");
-  }
-
-  function renderScoreDetails(item) {
-    const scoreHtml = INDICATORS.map(([key, label, max]) => `
-      <div class="score-item">
-        <span class="score-item-name">${label}</span>
-        <span class="score-item-value">${num(item[key])}/${max}</span>
-      </div>
-    `).join("");
-
-    const techHtml = [
-      ["거래량비율", `${num(item.volume_ratio).toFixed(1)}%`], ["MA5", formatPrice(item.ma5)],
-      ["MA10", formatPrice(item.ma10)], ["MA20", formatPrice(item.ma20)],
-      ["MA60", formatPrice(item.ma60)], ["MA120", formatPrice(item.ma120)],
-      ["52주고점", formatPrice(item.high_52w)], ["전고점", formatPrice(item.previous_high_60)],
-      ["RSI14", num(item.rsi14).toFixed(1)], ["이격도", `${num(item.disparity20).toFixed(1)}%`],
-      ["MACD", num(item.macd).toFixed(3)], ["MACD Signal", num(item.macd_signal).toFixed(3)]
-    ].map(([name, value]) => `<div class="tech-item">${name}<strong>${value}</strong></div>`).join("");
-
-    return `<div class="score-grid">${scoreHtml}</div><div class="tech-grid">${techHtml}</div>`;
-  }
-
-  function toggleDetail(ticker) {
-    const panel = document.getElementById(`detail-${ticker}`);
-    if (!panel) return;
-    panel.classList.toggle("open");
-    const button = document.querySelector(`[data-detail-btn="${ticker}"]`);
-    if (button) {
-      button.innerText = panel.classList.contains("open") ? "▲ 20개 지표 접기" : "▼ 20개 지표 상세보기";
-    }
-  }
-
-  async function fetchFromSupabase() {
+  async function fetchData() {
     const list = document.getElementById("cardList");
     list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
 
     try {
-      let latestBaseDate = "-";
-      try {
-        const pathSegments = window.location.pathname.split("/").filter(Boolean);
-        const repoName = (window.location.hostname.includes("github.io") && pathSegments.length > 0) ? `/${pathSegments[0]}` : "";
-        const res = await fetch(`${repoName}/data.json?t=${new Date().getTime()}`);
-        if (res.ok) {
-          const jData = await res.json();
-          if (jData.base_date) latestBaseDate = jData.base_date;
-        }
-      } catch (e) {
-        console.warn("data.json 로드 실패", e);
-      }
+      const pathSegments = window.location.pathname.split("/").filter(Boolean);
+      const repoName = (window.location.hostname.includes("github.io") && pathSegments.length > 0) ? `/${pathSegments[0]}` : "";
+      const res = await fetch(`${repoName}/data.json?t=${new Date().getTime()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      
+      const data = await res.json();
+      masterJsonData = data;
 
-      const { data, error } = await supabaseClient
-        .from("TRIPLE D PAPA")
-        .select("*")
-        .order("date", { ascending:false })
-        .order("created_at", { ascending:false })
-        .order("trade_amount", { ascending:false });
+      document.getElementById("baseDate").innerText = `기준일자: ${data.base_date || "데이터 없음"}`;
 
-      if (error) throw error;
-      const rawData = data || [];
-
-      if (!latestBaseDate || latestBaseDate === "-") {
-        latestBaseDate = rawData.length ? rawData[0].date : "데이터 없음";
-      }
-
-      document.getElementById("baseDate").innerText = `기준일자: ${latestBaseDate}`;
-
-      if (!rawData.length) {
-        allData = [];
-        renderList();
-        return;
-      }
-
-      const seen = new Set();
-      const unique = [];
-      for (const item of rawData) {
-        if (item.market === "INDEX") continue;
-        const key = `${item.date}_${item.market}_${item.ticker}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        unique.push(item);
-      }
-
-      allData = unique;
+      allData = data.stocks || [];
       const now = new Date();
       document.getElementById("updatedTime").innerText = `방금 갱신됨 (${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초)`;
 
       updateCounts();
       renderList();
+
+      if (currentTab === "FLOW") {
+        renderInvestorRanking(data);
+      }
 
     } catch (err) {
       console.error(err);
@@ -434,18 +344,6 @@
     renderStockTab(document.getElementById("cardList"));
   }
 
-  function renderGuideTab(container) {
-    container.innerHTML = `
-      <div class="guide-box">
-        <div class="guide-title">⏰ 데이터 동기화 & 리셋 안내</div>
-        <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 및 장 마감 후 자동 갱신</li>
-          <li><strong>화면 실시간 동기화</strong>: 최신 수급 및 스코어 데이터 자동 반영</li>
-        </ul>
-      </div>
-    `;
-  }
-
   function renderStockTab(container) {
     let filtered = allData.filter(item => {
       if (currentTab !== "ALL" && item.market !== currentTab) return false;
@@ -466,7 +364,7 @@
     document.getElementById("filteredCount").innerText = `선별 종목: ${filtered.length}개`;
 
     if (!filtered.length) {
-      container.innerHTML = `<div class="loading-box">조건에 맞는 종목이 없습니다.</div>`;
+      container.innerHTML = `<div class="loading-box">조건에 맞는 종목이 없습니다. (현재 등록된 종목 데이터가 없습니다)</div>`;
       return;
     }
 
@@ -506,37 +404,12 @@
           <span class="investor-chip chip-inst">기관 ${formatStockVol(item.inst_net_buy)}</span>
           <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
         </div>
-        <div class="conditions-grid">${renderCategoryBadges(item)}</div>
         <div class="card-footer">
           <span class="prev-close-price">전일종가 ${Math.round(prevClose).toLocaleString()}원</span>
           <span class="trade-amount">거래대금 ${dealInEok.toLocaleString()}억</span>
         </div>
-        <button class="detail-btn" data-detail-btn="${ticker}" onclick="toggleDetail('${ticker}')">▼ 20개 지표 상세보기</button>
-        <div class="detail-panel" id="detail-${ticker}">${renderScoreDetails(item)}</div>
       </div>
     `;
-  }
-
-  async function fetchInvestorRanking() {
-    const validation = document.getElementById("flowValidation");
-    validation.className = "flow-validation";
-    validation.textContent = "수급 데이터 불러오는 중...";
-
-    try {
-      const pathSegments = window.location.pathname.split("/").filter(Boolean);
-      const repoName = (window.location.hostname.includes("github.io") && pathSegments.length > 0) ? `/${pathSegments[0]}` : "";
-      const url = `${repoName}/data.json?t=${new Date().getTime()}`;
-
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      investorRankingData = data;
-      renderInvestorRanking(data);
-    } catch (error) {
-      console.error(error);
-      validation.className = "flow-validation invalid";
-      validation.textContent = "❌ 수급 데이터(data.json)를 불러오지 못했습니다.";
-    }
   }
 
   function renderInvestorRanking(data) {
@@ -555,8 +428,7 @@
       validation.textContent = `✅ 60/60 · ${data.status} · 수급 TOP60 데이터 로드 완료`;
     } else {
       validation.className = "flow-validation invalid";
-      const errors = (data.validation?.errors || []).join(" / ");
-      validation.textContent = `⚠️ ${count}/60 · ${data.status || "INCOMPLETE"}${errors ? " · " + errors : ""}`;
+      validation.textContent = `⚠️ ${count}/60 · ${data.status || "INCOMPLETE"}`;
     }
   }
 
@@ -566,14 +438,13 @@
     document.getElementById(`${prefix}Sell`).innerHTML = createFlowTable("순매도 TOP10", data.sell || [], "SELL");
   }
 
-  // 🔥 raw_amount를 확실하게 읽어와 0원 오류를 원천 차단하는 수급 테이블 생성 함수
   function createFlowTable(title, rows, side) {
     const isBuy = side === "BUY";
     const css = isBuy ? "flow-buy" : "flow-sell";
-    const total = rows.reduce((sum, item) => sum + Number(item.raw_amount || item.net_amount_krw || 0), 0);
+    const total = rows.reduce((sum, item) => sum + Number(item.raw_amount || 0), 0);
 
     const body = rows.map((item, idx) => {
-      const raw = Number(item.raw_amount || item.net_amount_krw || 0);
+      const raw = Number(item.raw_amount || 0);
       const amount = raw / 100000000;
       return `
         <tr>
@@ -607,16 +478,15 @@
   }
 
   async function copyInvestorJSON() {
-    if (!investorRankingData) {
-      alert("먼저 수급 데이터를 불러오세요.");
+    if (!masterJsonData) {
+      alert("데이터를 먼저 불러오세요.");
       return;
     }
     try {
-      await navigator.clipboard.writeText(JSON.stringify(investorRankingData, null, 2));
-      alert("인포용 수급 JSON을 복사했습니다.");
-    } catch (error) {
-      console.error(error);
-      alert("클립보드 복사에 실패했습니다.");
+      await navigator.clipboard.writeText(JSON.stringify(masterJsonData, null, 2));
+      alert("인포용 데이터 복사 완료!");
+    } catch (e) {
+      alert("복사 실패");
     }
   }
 
@@ -637,7 +507,7 @@
       summaryBarEl.style.display = "none";
       cardListEl.style.display = "none";
       flowSection.style.display = "block";
-      fetchInvestorRanking();
+      if (masterJsonData) renderInvestorRanking(masterJsonData);
       return;
     }
 
@@ -648,7 +518,7 @@
       scoreFiltersEl.style.display = "none";
       toggleGroupEl.style.display = "none";
       summaryBarEl.style.display = "none";
-      renderGuideTab(cardListEl);
+      cardListEl.innerHTML = `<div class="guide-box"><div class="guide-title">📖 안내</div><p style="font-size:0.78rem;color:#cbd5e1;">data.json 단일 파일 모드로 작동 중입니다.</p></div>`;
     } else {
       scoreFiltersEl.style.display = "flex";
       toggleGroupEl.style.display = "flex";
@@ -677,15 +547,11 @@
   }
 
   function refreshCurrentTab() {
-    if (currentTab === "FLOW") {
-      fetchInvestorRanking();
-    } else {
-      fetchFromSupabase();
-    }
+    fetchData();
   }
 
   window.addEventListener("DOMContentLoaded", () => {
-    fetchFromSupabase();
+    fetchData();
     startLiveClock();
   });
 </script>

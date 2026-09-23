@@ -88,9 +88,12 @@ def provisional_individual(fb, fs, ib, ins):
     return buy, sell
 
 def main():
-    # 🔥 한국 시간(KST) 기준으로 날짜를 정확히 생성
-    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+    # 🔥 한국 시간(KST, UTC+9) 기준 현재 시각 및 자정 전후 분기 로그 확인
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    now = datetime.datetime.now(kst)
     today_str = now.strftime("%Y-%m-%d")
+    
+    print(f"[Collector] KST Time: {now.strftime('%Y-%m-%d %H:%M:%S')} | Base Date: {today_str}")
     
     payload={
         "base_date": today_str,
@@ -136,7 +139,7 @@ def main():
                 ]
             }
         })
-        print("[3/3] data.json generated")
+        print("[3/3] data.json generated successfully")
     except Exception as e:
         payload["validation"]["errors"]=[str(e)]
         print("ERROR:",e)

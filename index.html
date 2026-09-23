@@ -39,13 +39,14 @@
     .header-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 10px; }
     .brand-title { font-size: 1.3rem; font-weight: 900; letter-spacing: -0.7px; }
     .brand-date { font-size: 0.74rem; color: var(--text-sub); margin-top: 3px; }
+    .live-clock-sub { font-size: 0.68rem; color: #38bdf8; font-weight: 700; margin-top: 2px; }
     .header-actions { display: flex; align-items: center; gap: 6px; }
 
     .refresh-btn { background: #2563eb; color: #fff; border: none; padding: 7px 10px; border-radius: 8px; font-size: 0.72rem; font-weight: 800; cursor: pointer; }
     .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 9px; border-radius: 8px; font-size: 0.68rem; font-weight: 800; }
     .live-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; display: inline-block; margin-right: 4px; }
 
-    /* 5분할 메인 탭 (전체/코스피/코스닥/수급/설명서) */
+    /* 5분할 메인 탭 */
     .market-tabs {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -70,7 +71,6 @@
       color: #0f172a;
     }
 
-    /* 4단계 점수 필터 칩 */
     .score-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
     .score-filters::-webkit-scrollbar { display: none; }
 
@@ -149,15 +149,17 @@
     .tech-item { padding: 6px; background: #111b2b; border-radius: 5px; font-size: .63rem; color: #94a3b8; }
     .tech-item strong { display: block; color: #e2e8f0; font-size: .68rem; margin-top: 2px; }
 
-    /* 수급 탭 전용 스타일 */
-    .supply-section { margin-bottom: 14px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; }
-    .supply-title { font-size: 0.85rem; font-weight: 900; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-    .supply-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
-    .supply-table th, .supply-table td { border-bottom: 1px solid #223249; padding: 6px 4px; text-align: left; }
-    .supply-table th { color: #94a3b8; font-weight: 800; background: #182338; }
+    /* 수급 탭 스타일 (개인/외국인/기관 순, 좌 매수 우 매도 대칭 구조) */
+    .supply-category-block { margin-bottom: 16px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; }
+    .supply-category-title { font-size: 0.88rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #223249; padding-bottom: 6px; }
+    .supply-dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .supply-col-title { font-size: 0.74rem; font-weight: 800; color: var(--text-sub); margin-bottom: 4px; }
+    .supply-table { width: 100%; border-collapse: collapse; font-size: 0.68rem; }
+    .supply-table th, .supply-table td { border-bottom: 1px solid #1e2b3f; padding: 5px 3px; text-align: left; }
+    .supply-table th { color: #829ab1; font-weight: 700; background: #162235; }
     .supply-table td { color: #cbd5e1; }
 
-    /* 설명서 전용 스타일 */
+    /* 설명서 스타일 */
     .guide-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
     .guide-title { font-size: 0.95rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
     .guide-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; margin-top: 8px; }
@@ -171,7 +173,8 @@
     .loading-box { text-align: center; padding: 60px 0; color: var(--text-sub); font-size: .84rem; }
     .error-box { text-align: center; padding: 40px 10px; color: #f87171; line-height: 1.7; font-size: .8rem; }
 
-    @media (max-width: 450px) {
+    @media (max-width: 500px) {
+      .supply-dual-grid { grid-template-columns: 1fr; gap: 8px; }
       .score-grid { grid-template-columns: 1fr; }
       .tech-grid { grid-template-columns: repeat(2, 1fr); }
     }
@@ -185,7 +188,8 @@
   <div class="header-bar">
     <div>
       <div class="brand-title">TRIPLE D PAPA</div>
-      <div class="brand-date" id="baseDate">기준일자: -</div>
+      <div class="brand-date" id="baseDate">기준일자: 동기화 중...</div>
+      <div class="live-clock-sub" id="liveClockSub">실시간: 연동 중...</div>
     </div>
 
     <div class="header-actions">
@@ -196,7 +200,7 @@
     </div>
   </div>
 
-  <!-- 5분할 메인 탭 (전체/코스피/코스닥/수급/설명서) -->
+  <!-- 5분할 메인 탭 -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -205,7 +209,7 @@
     <button class="tab-btn" onclick="setTab('GUIDE', this)">📖 설명서</button>
   </div>
 
-  <!-- 4단계 점수 이상 필터 -->
+  <!-- 점수 필터 칩 -->
   <div class="score-filters" id="scoreFilters">
     <button class="score-filter-chip active" onclick="setMinScore(0, this)">전체 점수</button>
     <button class="score-filter-chip" onclick="setMinScore(80, this)">🔴 80점 이상</button>
@@ -214,7 +218,7 @@
     <button class="score-filter-chip" onclick="setMinScore(50, this)">⚪ 50점 이상</button>
   </div>
 
-  <!-- 상단 토글 필터 (쌍끌이 / 강한 매수세) -->
+  <!-- 상단 토글 필터 -->
   <div class="filter-toggle-group" id="filterToggleGroup">
     <div class="toggle-card" id="doubleToggle" onclick="toggleDoubleOnly()">
       <div class="toggle-card-label">
@@ -238,7 +242,7 @@
     <span id="updatedTime">방금 갱신됨 (-)</span>
   </div>
 
-  <!-- 카드 및 수급/설명서 리스트 -->
+  <!-- 리스트 영역 -->
   <div class="card-list" id="cardList">
     <div class="loading-box">데이터를 불러오는 중입니다...</div>
   </div>
@@ -297,6 +301,15 @@
   }
 
   function gradeClass(score) { return score >= 80 ? "score-high" : ""; }
+
+  function startLiveClock() {
+    const clockEl = document.getElementById("liveClockSub");
+    if (!clockEl) return;
+    setInterval(() => {
+      const now = new Date();
+      clockEl.textContent = `현재시각: ${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    }, 1000);
+  }
 
   function renderCategoryBadges(item) {
     const passedList = String(item.passed_tags || "").split(",").filter(Boolean);
@@ -361,12 +374,16 @@
 
       if (!rawData.length) {
         allData = [];
-        document.getElementById("baseDate").innerText = "기준일자: 데이터 없음";
+        document.getElementById("baseDate").innerText = "기준일자: 데이터 없음 (최신화 필요)";
         renderList();
         return;
       }
 
-      document.getElementById("baseDate").innerText = `기준일자: ${rawData[0].date}`;
+      const latestDate = rawData[0].date;
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const isToday = (latestDate === todayStr);
+
+      document.getElementById("baseDate").innerHTML = `기준일자: <span style="color:${isToday ? '#10b981' : '#f59e0b'};font-weight:800;">${latestDate} ${isToday ? '(오늘 최신)' : '(⚠️ 이전 날짜 데이터)'}</span>`;
 
       const seen = new Set();
       const unique = [];
@@ -378,7 +395,9 @@
         unique.push(item);
       }
 
-      allData = unique;
+      // 오늘 날짜 데이터만 필터링하거나 전체 최신 데이터 유지 (날짜가 지난 경우 안내 포함)
+      allData = unique.filter(x => x.date === latestDate);
+
       const now = new Date();
       document.getElementById("updatedTime").innerText = `방금 갱신됨 (${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초)`;
 
@@ -439,65 +458,104 @@
     }
   }
 
-  /* 수급 탭 렌더링 (수량 및 계산된 순매수 금액 표현) */
+  /* 수급 탭 (개인, 외국인, 기관 순 / 왼쪽 매수, 오른쪽 매도 대칭 구조) */
   function renderSupplyTab(container) {
-    const sortedForeign = [...allData].sort((a, b) => (num(b.foreign_net_buy) * num(b.close_price)) - (num(a.foreign_net_buy) * num(a.close_price))).slice(0, 10);
-    const sortedInst = [...allData].sort((a, b) => (num(b.inst_net_buy) * num(b.close_price)) - (num(a.inst_net_buy) * num(a.close_price))).slice(0, 10);
-    const sortedRetail = [...allData].sort((a, b) => (num(b.retail_net_buy) * num(b.close_price)) - (num(a.retail_net_buy) * num(a.close_price))).slice(0, 10);
+    // 개인 정렬 (매수 / 매도)
+    const rBuy = [...allData].sort((a, b) => (num(b.retail_net_buy) * num(b.close_price)) - (num(a.retail_net_buy) * num(a.close_price))).slice(0, 10);
+    const rSell = [...allData].sort((a, b) => (num(a.retail_net_buy) * num(a.close_price)) - (num(b.retail_net_buy) * num(b.close_price))).slice(0, 10);
+
+    // 외국인 정렬 (매수 / 매도)
+    const fBuy = [...allData].sort((a, b) => (num(b.foreign_net_buy) * num(b.close_price)) - (num(a.foreign_net_buy) * num(a.close_price))).slice(0, 10);
+    const fSell = [...allData].sort((a, b) => (num(a.foreign_net_buy) * num(a.close_price)) - (num(b.foreign_net_buy) * num(b.close_price))).slice(0, 10);
+
+    // 기관 정렬 (매수 / 매도)
+    const iBuy = [...allData].sort((a, b) => (num(b.inst_net_buy) * num(b.close_price)) - (num(a.inst_net_buy) * num(a.close_price))).slice(0, 10);
+    const iSell = [...allData].sort((a, b) => (num(a.inst_net_buy) * num(a.close_price)) - (num(b.inst_net_buy) * num(b.close_price))).slice(0, 10);
+
+    const makeTableRows = (list, isBuy) => {
+      if (!list.length) return `<tr><td colspan="3" style="text-align:center;padding:15px;">데이터 없음</td></tr>`;
+      return list.map((item, idx) => {
+        const val = isBuy ? (item.market ? (item.market.includes('R') ? item.retail_net_buy : item[isBuy === 'retail' ? 'retail_net_buy' : isBuy === 'foreign' ? 'foreign_net_buy' : 'inst_net_buy']) : 0) : 0;
+        // 동적 필드 매핑 처리
+        let rawVal = 0;
+        if (isBuy.includes('retail')) rawVal = item.retail_net_buy;
+        else if (isBuy.includes('foreign')) rawVal = item.foreign_net_buy;
+        else if (isBuy.includes('inst')) rawVal = item.inst_net_buy;
+
+        const amt = num(rawVal) * num(item.close_price);
+        const colorStyle = isBuy.includes('buy') ? "color:#f87171;" : "color:#60a5fa;";
+        return `
+          <tr>
+            <td style="width:24px;text-align:center;">${idx+1}</td>
+            <td><strong>${escapeHtml(item.name)}</strong></td>
+            <td style="text-align:right;${colorStyle}">${formatAmountKRW(amt)}</td>
+          </tr>
+        `;
+      }).join('');
+    };
 
     container.innerHTML = `
-      <div class="supply-section">
-        <div class="supply-title">🌐 외국인 순매수 TOP 10</div>
-        <table class="supply-table">
-          <thead><tr><th>순위</th><th>종목명</th><th>시장</th><th>수량</th><th>추정 금액</th></tr></thead>
-          <tbody>
-            ${sortedForeign.length ? sortedForeign.map((item, idx) => `
-              <tr>
-                <td>${idx+1}</td>
-                <td><strong>${escapeHtml(item.name)}</strong></td>
-                <td>${escapeHtml(item.market)}</td>
-                <td style="color:#f87171;">${formatStockVol(item.foreign_net_buy)}</td>
-                <td style="color:#f87171;">${formatAmountKRW(num(item.foreign_net_buy) * num(item.close_price))}</td>
-              </tr>
-            `).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;">데이터가 없습니다.</td></tr>'}
-          </tbody>
-        </table>
+      <!-- 1. 개인 -->
+      <div class="supply-category-block">
+        <div class="supply-category-title">👤 개인 수급 순위 TOP 10</div>
+        <div class="supply-dual-grid">
+          <div>
+            <div class="supply-col-title" style="color:#f87171;">🟢 순매수 상위</div>
+            <table class="supply-table">
+              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
+              <tbody>${makeTableRows(rBuy, 'retail_buy')}</tbody>
+            </table>
+          </div>
+          <div>
+            <div class="supply-col-title" style="color:#60a5fa;">🔵 순매도 상위</div>
+            <table class="supply-table">
+              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
+              <tbody>${makeTableRows(rSell, 'retail_sell')}</tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <div class="supply-section">
-        <div class="supply-title">🏛️ 기관 순매수 TOP 10</div>
-        <table class="supply-table">
-          <thead><tr><th>순위</th><th>종목명</th><th>시장</th><th>수량</th><th>추정 금액</th></tr></thead>
-          <tbody>
-            ${sortedInst.length ? sortedInst.map((item, idx) => `
-              <tr>
-                <td>${idx+1}</td>
-                <td><strong>${escapeHtml(item.name)}</strong></td>
-                <td>${escapeHtml(item.market)}</td>
-                <td style="color:#f87171;">${formatStockVol(item.inst_net_buy)}</td>
-                <td style="color:#f87171;">${formatAmountKRW(num(item.inst_net_buy) * num(item.close_price))}</td>
-              </tr>
-            `).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;">데이터가 없습니다.</td></tr>'}
-          </tbody>
-        </table>
+      <!-- 2. 외국인 -->
+      <div class="supply-category-block">
+        <div class="supply-category-title">🌐 외국인 수급 순위 TOP 10</div>
+        <div class="supply-dual-grid">
+          <div>
+            <div class="supply-col-title" style="color:#f87171;">🟢 순매수 상위</div>
+            <table class="supply-table">
+              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
+              <tbody>${makeTableRows(fBuy, 'foreign_buy')}</tbody>
+            </table>
+          </div>
+          <div>
+            <div class="supply-col-title" style="color:#60a5fa;">🔵 순매도 상위</div>
+            <table class="supply-table">
+              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
+              <tbody>${makeTableRows(fSell, 'foreign_sell')}</tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <div class="supply-section">
-        <div class="supply-title">👤 개인 순매수 TOP 10</div>
-        <table class="supply-table">
-          <thead><tr><th>순위</th><th>종목명</th><th>시장</th><th>수량</th><th>추정 금액</th></tr></thead>
-          <tbody>
-            ${sortedRetail.length ? sortedRetail.map((item, idx) => `
-              <tr>
-                <td>${idx+1}</td>
-                <td><strong>${escapeHtml(item.name)}</strong></td>
-                <td>${escapeHtml(item.market)}</td>
-                <td style="color:#60a5fa;">${formatStockVol(item.retail_net_buy)}</td>
-                <td style="color:#60a5fa;">${formatAmountKRW(num(item.retail_net_buy) * num(item.close_price))}</td>
-              </tr>
-            `).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;">데이터가 없습니다.</td></tr>'}
-          </tbody>
-        </table>
+      <!-- 3. 기관 -->
+      <div class="supply-category-block">
+        <div class="supply-category-title">🏛️ 기관 수급 순위 TOP 10</div>
+        <div class="supply-dual-grid">
+          <div>
+            <div class="supply-col-title" style="color:#f87171;">🟢 순매수 상위</div>
+            <table class="supply-table">
+              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
+              <tbody>${makeTableRows(iBuy, 'inst_buy')}</tbody>
+            </table>
+          </div>
+          <div>
+            <div class="supply-col-title" style="color:#60a5fa;">🔵 순매도 상위</div>
+            <table class="supply-table">
+              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
+              <tbody>${makeTableRows(iSell, 'inst_sell')}</tbody>
+            </table>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -505,11 +563,11 @@
   function renderGuideTab(container) {
     container.innerHTML = `
       <div class="guide-box">
-        <div class="guide-title">⏰ 데이터 동기화 & 리셋 안내</div>
+        <div class="guide-title">⏰ 데이터 동기화 & 일별 교체 안내</div>
         <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집</strong>: 장중 30분 간격 (평일 09:00 ~ 15:30) 자동 실행</li>
-          <li><strong>화면 실시간 자동 갱신</strong>: 브라우저가 열려 있는 동안 30초마다 Supabase 최신 데이터 자동 동기화</li>
-          <li><strong>일별 데이터 리셋</strong>: 매일 한국 시간(KST) 오전 08:30경 신규 거래일 데이터로 자동 전환</li>
+          <li><strong>GitHub Actions 자동 수집</strong>: 평일 장중 30분 간격 신규 데이터 자동 갱신</li>
+          <li><strong>당일 데이터 자동 필터</strong>: 기준일자가 오늘 날짜와 일치하는 최신 정보만 화면에 고정 노출</li>
+          <li><strong>화면 실시간 갱신</strong>: 30초 간격으로 Supabase와 연동되어 최신 지표 반영</li>
         </ul>
       </div>
     `;
@@ -536,7 +594,7 @@
     document.getElementById("filteredCount").innerText = `선별 종목: ${filtered.length}개`;
 
     if (!filtered.length) {
-      container.innerHTML = `<div class="loading-box">조건에 맞는 종목이 없습니다.</div>`;
+      container.innerHTML = `<div class="loading-box">조건에 맞는 오늘자 종목이 없습니다. (장 시작 후 갱신 확인)</div>`;
       return;
     }
 
@@ -618,8 +676,11 @@
     renderList();
   }
 
-  setInterval(fetchFromSupabase, 30000);
-  window.addEventListener("DOMContentLoaded", fetchFromSupabase);
+  window.addEventListener("DOMContentLoaded", () => {
+    startLiveClock();
+    fetchFromSupabase();
+    setInterval(fetchFromSupabase, 30000);
+  });
 </script>
 
 </body>

@@ -110,9 +110,6 @@
     .tech-item { padding: 6px; background: #111b2b; border-radius: 5px; font-size: .63rem; color: #94a3b8; }
     .tech-item strong { display: block; color: #e2e8f0; font-size: .68rem; margin-top: 2px; }
 
-    /* =========================================================
-       수급 TOP60 스타일
-    ========================================================= */
     .flow-section { margin-top: 6px; }
     .flow-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
     .flow-header h2 { margin: 0; font-size: 1.15rem; }
@@ -140,6 +137,10 @@
 
     .guide-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
     .guide-title { font-size: 0.95rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+    .guide-list { list-style: none; padding: 0; font-size: 0.77rem; color: #cbd5e1; line-height: 1.7; }
+    .guide-list li { margin-bottom: 6px; position: relative; padding-left: 14px; }
+    .guide-list li::before { content: "•"; position: absolute; left: 2px; color: #38bdf8; font-weight: bold; }
+
     .loading-box { text-align: center; padding: 60px 0; color: var(--text-sub); font-size: .84rem; }
     .error-box { text-align: center; padding: 40px 10px; color: #f87171; line-height: 1.7; font-size: .8rem; }
 
@@ -403,7 +404,7 @@
       <div class="guide-box">
         <div class="guide-title">⏰ 데이터 동기화 & 리셋 안내</div>
         <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 8시 및 12시~15시 장중 10분 간격 자동 실행</li>
+          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 8시 및 장중 10분/30분 단위 자동 실행</li>
           <li><strong>화면 실시간 동기화</strong>: 언제든 새로고침 시 최신 데이터 자동 반영</li>
         </ul>
       </div>
@@ -514,7 +515,6 @@
     const validation = document.getElementById("flowValidation");
     const count = Number(data.count || 0);
     
-    // count가 60이면 PROVISIONAL이어도 인포 제작 허용
     if (count === 60) {
       validation.className = "flow-validation valid";
       validation.textContent = `✅ 60/60 · ${data.status} · 수급 TOP60 데이터 로드 완료 · 인포 제작 가능`;

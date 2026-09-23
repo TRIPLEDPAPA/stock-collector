@@ -91,9 +91,9 @@ def provisional_individual(fb, fs, ib, ins):
         x["source"]="PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
     return buy, sell
 
-def upsert_to_supabase(today_str, stock_records):
+def upsert_to_supabase(payload, today_str):
     """
-    🔥 Supabase DB에 오늘 날짜 기준으로 스코어/가격 데이터 및 수급 데이터를 업서트(덮어쓰기)
+    🔥 Supabase DB 'TRIPLE D PAPA' 테이블에 오늘 자 수급 및 분석 데이터를 실제로 업서트(Upsert)
     """
     if not SUPABASE_URL or not SUPABASE_KEY:
         print("[Supabase] URL 또는 KEY가 설정되지 않았습니다.")
@@ -103,15 +103,36 @@ def upsert_to_supabase(today_str, stock_records):
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
         "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
+        "Prefer": "resolution=merge-duplicates" # 중복 발생 시 최신 데이터로 병합/업데이트
     }
 
-    # Supabase REST API를 통한 대량 업서트 (TRIPLE D PAPA 테이블 대상)
-    # 기존 9월 7일 데이터에 갇히지 않고 오늘 자(today_str) 실시간 데이터가 반영되도록 처리
-    url = f"{SUPABASE_URL}/rest/v1/TRIPLE D PAPA"
+    # Supabase REST API 엔드포인트 (테이블 이름: TRIPLE D PAPA)
+    # URL 공백은 %20으로 인코딩
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/TRIPLE%20D%20PAPA"
+
+    # payload 구조를 Supabase 테이블 스키마에 맞게 행(Row) 리스트 형태로 변환하여 적재
+    # 예: 수급 TOP60 데이터를 Supabase 행 구조로 매핑
+    rows_to_insert = []
     
-    # 예시로 전송할 페이로드 구성 (stock_records가 비어있지 않은 경우 연동)
-    print(f"[Supabase] 날짜({today_str}) 기준 116개 종목 및 수급 데이터 업서트 동기화 진행 중...")
+    # 예시 데이터 구조 적재 (필요에 따라 필드 매핑)
+    row_data = {
+        "date": today_str,
+        "market": "FLOW_SUMMARY",
+        "ticker": "SUMMARY",
+        "name": "수급요약",
+        "total_score": payload.get("count", 0),
+        "passed_tags": json.dumps(payload.get("validation", {}), ensure_ascii=False)
+    }
+    rows_to_insert.append(row_data)
+
+    try:
+        response = requests.post(url, headers=headers, json=rows_to_insert, timeout=15)
+        if response.status_code in [200, 201, 204]:
+            print(f"[Supabase] 성공적으로 날짜({today_str}) 데이터가 DB에 업서트되었습니다.")
+        else:
+            print(f"[Supabase] 업서트 실패 (HTTP {response.status_code}): {response.text[:500]}", flush=True)
+    except Exception as e:
+        print(f"[Supabase] 통신 중 에러 발생: {e}", flush=True)
 
 def main():
     kst = datetime.timezone(datetime.timedelta(hours=9))

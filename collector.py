@@ -88,7 +88,7 @@ def provisional_individual(fb, fs, ib, ins):
     return buy, sell
 
 def main():
-    # 🔥 한국 시간(KST) 기준으로 날짜 고정
+    # 🔥 한국 시간(KST) 기준으로 날짜를 정확히 생성
     now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
     today_str = now.strftime("%Y-%m-%d")
     

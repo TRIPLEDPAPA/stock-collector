@@ -25,12 +25,7 @@
       --text-sub: #94a3b8;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      -webkit-tap-highlight-color: transparent;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     body {
       background: var(--bg-dark);
@@ -39,227 +34,44 @@
       padding: 16px 14px 50px;
     }
 
-    .container {
-      max-width: 620px;
-      margin: 0 auto;
-    }
+    .container { max-width: 620px; margin: 0 auto; }
 
-    .header-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 14px;
-      gap: 10px;
-    }
+    .header-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 10px; }
+    .brand-title { font-size: 1.3rem; font-weight: 900; letter-spacing: -0.7px; }
+    .brand-date { font-size: 0.74rem; color: var(--text-sub); margin-top: 3px; }
+    .header-actions { display: flex; align-items: center; gap: 6px; }
 
-    .brand-title {
-      font-size: 1.3rem;
-      font-weight: 900;
-      letter-spacing: -0.7px;
-    }
+    .refresh-btn { background: #2563eb; color: #fff; border: none; padding: 7px 10px; border-radius: 8px; font-size: 0.72rem; font-weight: 800; cursor: pointer; }
+    .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 9px; border-radius: 8px; font-size: 0.68rem; font-weight: 800; }
+    .live-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; display: inline-block; margin-right: 4px; }
 
-    .brand-date {
-      font-size: 0.74rem;
-      color: var(--text-sub);
-      margin-top: 3px;
-    }
+    .market-tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
+    .tab-btn { background: #1e293b; color: var(--text-sub); border: none; padding: 10px 0; border-radius: 8px; font-size: 0.78rem; font-weight: 800; cursor: pointer; text-align: center; }
+    .tab-btn.active { background: #38bdf8; color: #0f172a; }
 
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .refresh-btn {
-      background: #2563eb;
-      color: #fff;
-      border: none;
-      padding: 7px 10px;
-      border-radius: 8px;
-      font-size: 0.72rem;
-      font-weight: 800;
-      cursor: pointer;
-    }
-
-    .live-badge {
-      background: rgba(16, 185, 129, 0.15);
-      color: #10b981;
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      padding: 6px 9px;
-      border-radius: 8px;
-      font-size: 0.68rem;
-      font-weight: 800;
-    }
-
-    .live-dot {
-      width: 6px;
-      height: 6px;
-      background: #10b981;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 4px;
-    }
-
-    .market-tabs {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 5px;
-      margin-bottom: 10px;
-    }
-
-    .tab-btn {
-      background: #1e293b;
-      color: var(--text-sub);
-      border: none;
-      padding: 10px 0;
-      border-radius: 8px;
-      font-size: 0.78rem;
-      font-weight: 800;
-      cursor: pointer;
-      text-align: center;
-    }
-
-    .tab-btn.active {
-      background: #38bdf8;
-      color: #0f172a;
-    }
-
-    .score-filters {
-      display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      white-space: nowrap;
-      margin-bottom: 10px;
-      padding-bottom: 4px;
-      scrollbar-width: none;
-    }
+    .score-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
     .score-filters::-webkit-scrollbar { display: none; }
+    .score-filter-chip { background: #182234; border: 1px solid #283548; color: var(--text-sub); padding: 7px 12px; border-radius: 8px; font-size: 0.76rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+    .score-filter-chip.active { background: #d97706; border-color: #f59e0b; color: #fff; }
 
-    .score-filter-chip {
-      background: #182234;
-      border: 1px solid #283548;
-      color: var(--text-sub);
-      padding: 7px 12px;
-      border-radius: 8px;
-      font-size: 0.76rem;
-      font-weight: 700;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
+    .filter-toggle-group { display: flex; gap: 8px; margin-bottom: 12px; }
+    .toggle-card { flex: 1; background: #141e30; border: 1px solid #253347; border-radius: 9px; padding: 9px 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+    .toggle-card.on { border-color: #f59e0b; box-shadow: 0 0 0 1px rgba(245,158,11,.15); }
+    .toggle-card-label { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 800; }
+    .toggle-card-count { color: #f59e0b; font-size: 0.76rem; font-weight: 800; }
 
-    .score-filter-chip.active {
-      background: #d97706;
-      border-color: #f59e0b;
-      color: #fff;
-    }
+    .summary-bar { display: flex; justify-content: space-between; gap: 10px; font-size: 0.74rem; color: var(--text-sub); margin-bottom: 10px; padding: 0 2px; }
+    .card-list { display: flex; flex-direction: column; gap: 10px; }
 
-    .filter-toggle-group {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .toggle-card {
-      flex: 1;
-      background: #141e30;
-      border: 1px solid #253347;
-      border-radius: 9px;
-      padding: 9px 10px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .toggle-card.on {
-      border-color: #f59e0b;
-      box-shadow: 0 0 0 1px rgba(245,158,11,.15);
-    }
-
-    .toggle-card-label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.76rem;
-      font-weight: 800;
-    }
-
-    .toggle-card-count {
-      color: #f59e0b;
-      font-size: 0.76rem;
-      font-weight: 800;
-    }
-
-    .summary-bar {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      font-size: 0.74rem;
-      color: var(--text-sub);
-      margin-bottom: 10px;
-      padding: 0 2px;
-    }
-
-    .card-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 13px;
-      padding: 13px;
-      box-shadow: 0 4px 12px rgba(0,0,0,.18);
-    }
-
-    .card.strong-buy-card {
-      border-color: rgba(245, 158, 11, 0.65);
-      background: linear-gradient(180deg, rgba(245, 158, 11, .08) 0%, rgba(20, 29, 46, 1) 100%);
-    }
-
-    .card-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .stock-info {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      flex-wrap: wrap;
-      min-width: 0;
-    }
-
-    .market-tag {
-      background: #2563eb;
-      color: #fff;
-      font-size: .66rem;
-      font-weight: 900;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
+    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 13px; padding: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+    .card.strong-buy-card { border-color: rgba(245, 158, 11, 0.65); background: linear-gradient(180deg, rgba(245, 158, 11, .08) 0%, rgba(20, 29, 46, 1) 100%); }
+    .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+    .stock-info { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
+    .market-tag { background: #2563eb; color: #fff; font-size: .66rem; font-weight: 900; padding: 2px 6px; border-radius: 4px; }
     .market-tag.kosdaq { background: #0d9488; }
+    .stock-title { font-size: 1.04rem; font-weight: 900; color: #fff; }
 
-    .stock-title {
-      font-size: 1.04rem;
-      font-weight: 900;
-      color: #fff;
-    }
-
-    .strong-badge, .double-badge, .score-badge {
-      font-size: .66rem;
-      font-weight: 900;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
+    .strong-badge, .double-badge, .score-badge { font-size: .66rem; font-weight: 900; padding: 2px 6px; border-radius: 4px; }
     .strong-badge { color: #fbbf24; background: rgba(245,158,11,.18); border: 1px solid #f59e0b; }
     .double-badge { color: #f59e0b; background: rgba(120,53,15,.28); border: 1px solid #b45309; }
     .score-badge { background: #1e293b; color: #38bdf8; border: 1px solid #334155; }
@@ -328,14 +140,6 @@
 
     .guide-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
     .guide-title { font-size: 0.95rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-    .guide-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; margin-top: 8px; }
-    .guide-table th, .guide-table td { border: 1px solid #223249; padding: 7px 8px; text-align: left; }
-    .guide-table th { background: #182338; color: #94a3b8; font-weight: 800; }
-    .guide-table td { color: #cbd5e1; }
-    .guide-list { list-style: none; padding: 0; font-size: 0.77rem; color: #cbd5e1; line-height: 1.7; }
-    .guide-list li { margin-bottom: 6px; position: relative; padding-left: 14px; }
-    .guide-list li::before { content: "•"; position: absolute; left: 2px; color: #38bdf8; font-weight: bold; }
-
     .loading-box { text-align: center; padding: 60px 0; color: var(--text-sub); font-size: .84rem; }
     .error-box { text-align: center; padding: 40px 10px; color: #f87171; line-height: 1.7; font-size: .8rem; }
 
@@ -359,13 +163,10 @@
 
     <div class="header-actions">
       <button class="refresh-btn" onclick="refreshCurrentTab()">⚡ 새로고침</button>
-      <div class="live-badge">
-        <span class="live-dot"></span> LIVE
-      </div>
+      <div class="live-badge"><span class="live-dot"></span> LIVE</div>
     </div>
   </div>
 
-  <!-- 5분할 메인 탭 -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -374,7 +175,6 @@
     <button class="tab-btn" onclick="setTab('GUIDE', this)">📖 설명서</button>
   </div>
 
-  <!-- 점수 필터 칩 -->
   <div class="score-filters" id="scoreFilters">
     <button class="score-filter-chip active" onclick="setMinScore(0, this)">전체 점수</button>
     <button class="score-filter-chip" onclick="setMinScore(80, this)">🔴 80점 이상</button>
@@ -383,7 +183,6 @@
     <button class="score-filter-chip" onclick="setMinScore(50, this)">⚪ 50점 이상</button>
   </div>
 
-  <!-- 상단 토글 필터 -->
   <div class="filter-toggle-group" id="filterToggleGroup">
     <div class="toggle-card" id="doubleToggle" onclick="toggleDoubleOnly()">
       <div class="toggle-card-label">
@@ -407,12 +206,10 @@
     <span id="updatedTime">방금 갱신됨 (-)</span>
   </div>
 
-  <!-- 주식 스코어 카드 영역 -->
   <div class="card-list" id="cardList">
     <div class="loading-box">데이터를 불러오는 중입니다...</div>
   </div>
 
-  <!-- 투자자 수급 TOP60 영역 (data.json 활용) -->
   <section id="flowSection" class="flow-section" style="display:none;">
     <div class="flow-header">
       <div>
@@ -457,7 +254,6 @@
 <script>
   const SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co";
   const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
-
   const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const INDICATORS = [
@@ -475,7 +271,6 @@
   let minScoreFilter = 0;
   let isDoubleOnly = false;
   let isStrongBuyOnly = false;
-
   let investorRankingData = null;
   let currentFlowMarket = "ALL";
 
@@ -608,8 +403,8 @@
       <div class="guide-box">
         <div class="guide-title">⏰ 데이터 동기화 & 리셋 안내</div>
         <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집</strong>: 장중 자동 실행 및 Supabase/JSON 갱신</li>
-          <li><strong>화면 실시간 동기화</strong>: 30초마다 최신 데이터 자동 반영</li>
+          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 8시 및 12시~15시 장중 10분 간격 자동 실행</li>
+          <li><strong>화면 실시간 동기화</strong>: 언제든 새로고침 시 최신 데이터 자동 반영</li>
         </ul>
       </div>
     `;
@@ -686,9 +481,6 @@
     `;
   }
 
-  /* =========================================================
-     수급 TOP60 로직 (data.json 연동)
-  ========================================================= */
   async function fetchInvestorRanking() {
     const validation = document.getElementById("flowValidation");
     validation.className = "flow-validation";
@@ -713,21 +505,23 @@
 
   function renderInvestorRanking(data) {
     const info = document.getElementById("flowBaseInfo");
-    info.textContent = `${data.base_date || "-"} · KRX 정규장 15:30 · ${data.status || "FINAL"}`;
+    info.textContent = `${data.base_date || "-"} · KRX 정규장 15:30 · ${data.status || "PROVISIONAL"}`;
 
     renderInvestorSide("individual", data.individual);
     renderInvestorSide("foreign", data.foreign);
     renderInvestorSide("institution", data.institution);
 
     const validation = document.getElementById("flowValidation");
-    const isFinal = data.status === "FINAL" && data.validation?.valid === true && data.validation?.render_allowed === true && data.count === 60;
-    if (isFinal) {
+    const count = Number(data.count || 0);
+    
+    // count가 60이면 PROVISIONAL이어도 인포 제작 허용
+    if (count === 60) {
       validation.className = "flow-validation valid";
-      validation.textContent = `✅ 60/60 · FINAL · 실제 순매수대금(KIS) · 인포 제작 가능`;
+      validation.textContent = `✅ 60/60 · ${data.status} · 수급 TOP60 데이터 로드 완료 · 인포 제작 가능`;
     } else {
       validation.className = "flow-validation invalid";
       const errors = (data.validation?.errors || []).join(" / ");
-      validation.textContent = `⚠️ ${data.count || 0}/60 · ${data.status || "INCOMPLETE"} · 인포 제작 차단${errors ? " · " + errors : ""}`;
+      validation.textContent = `⚠️ ${count}/60 · ${data.status || "INCOMPLETE"} · 인포 제작 차단${errors ? " · " + errors : ""}`;
     }
   }
 
@@ -740,10 +534,11 @@
   function createFlowTable(title, rows, side) {
     const isBuy = side === "BUY";
     const css = isBuy ? "flow-buy" : "flow-sell";
-    const total = rows.reduce((sum, item) => sum + Number(item.net_amount_krw || 0), 0);
+    const total = rows.reduce((sum, item) => sum + Number(item.net_amount_krw || item.raw_amount || 0), 0);
 
     const body = rows.map((item, idx) => {
-      const amount = Number(item.net_amount_krw || 0) / 100000000;
+      const raw = Number(item.net_amount_krw || item.raw_amount || 0);
+      const amount = raw / 100000000;
       return `
         <tr>
           <td>${item.rank || idx + 1}</td>

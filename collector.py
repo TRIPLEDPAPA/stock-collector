@@ -5,9 +5,6 @@ BASE = "https://openapi.koreainvestment.com:9443"
 APPKEY = os.getenv("KIS_APP_KEY", "").strip()
 APPSECRET = os.getenv("KIS_APP_SECRET", "").strip()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://xnjnknhwezminpdmsrtm.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn")
-
 TIMEOUT = 15
 
 def num(v):
@@ -91,42 +88,6 @@ def provisional_individual(fb, fs, ib, ins):
         x["source"]="PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
     return buy, sell
 
-def upsert_to_supabase(payload: Dict, today_str: str):
-    """
-    🔥 Supabase DB 'TRIPLE D PAPA' 테이블에 오늘 자 데이터를 안전하게 업서트하는 함수
-    """
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        print("[Supabase] URL 또는 KEY가 설정되지 않았습니다.")
-        return
-
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
-    }
-
-    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/TRIPLE%20D%20PAPA"
-
-    validation_info = payload.get("validation", {})
-    row_data = {
-        "date": today_str,
-        "market": "FLOW_SUMMARY",
-        "ticker": "SUMMARY",
-        "name": "수급요약",
-        "total_score": payload.get("count", 0),
-        "passed_tags": json.dumps(validation_info, ensure_ascii=False)
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=[row_data], timeout=15)
-        if response.status_code in [200, 201, 204]:
-            print(f"[Supabase] 날짜({today_str}) 데이터 업서트 성공.")
-        else:
-            print(f"[Supabase] 업서트 응답 (HTTP {response.status_code}): {response.text[:300]}")
-    except Exception as e:
-        print(f"[Supabase] 통신 중 에러 발생: {e}")
-
 def main():
     kst = datetime.timezone(datetime.timedelta(hours=9))
     now = datetime.datetime.now(kst)
@@ -138,7 +99,8 @@ def main():
         "base_date": today_str,
         "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
         "status":"ERROR","count":0,
-        "validation":{"valid":False,"expected":60,"render_allowed":False,"errors":[]}
+        "validation":{"valid":False,"expected":60,"render_allowed":False,"errors":[]},
+        "stocks": [] # 116개 종목 및 스코어 데이터 저장 공간
     }
     try:
         print("[1/3] KIS token")
@@ -178,9 +140,6 @@ def main():
                 ]
             }
         })
-        
-        # 🔥 Supabase 업서트 실행 (payload 딕셔너리 객체와 today_str 문자열을 정확히 전달)
-        upsert_to_supabase(payload, today_str)
         
         print("[3/3] data.json generated successfully")
     except Exception as e:

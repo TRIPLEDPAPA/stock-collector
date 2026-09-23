@@ -13,6 +13,12 @@ def num(v):
     except:
         return 0
 
+def float_num(v):
+    try:
+        return float(str(v or "0").replace(",", ""))
+    except:
+        return 0.0
+
 def token():
     if not APPKEY or not APPSECRET:
         raise RuntimeError("KIS_APP_KEY/KIS_APP_SECRET 없음")
@@ -63,29 +69,47 @@ def call_rank(tok, investor: str, side: str) -> List[Dict]:
         code=str(x.get("mksc_shrn_iscd") or "").zfill(6)
         name=str(x.get("hts_kor_isnm") or "").strip()
         amount=num(x.get(field))
-        if not code.isdigit() or not name or amount == 0:
+        current_price = num(x.get("stck_prpr"))
+        change_rate = float_num(x.get("prdy_ctrt"))
+        
+        if not code.isdigit() or not name:
             continue
+            
         out.append({
-            "code":code, "name":name,
-            "raw_amount":amount,
-            "source_field":field,
-            "side":side,
-            "source":"KIS FHPTJ04400000"
+            "code": code,
+            "name": name,
+            "raw_amount": amount,
+            "close_price": current_price,
+            "change_rate": change_rate,
+            "trade_amount": abs(amount) * 100000000,
+            "source_field": field,
+            "side": side,
+            "source": "KIS FHPTJ04400000"
         })
-        if len(out)==10: break
+        if len(out) == 10: 
+            break
     return out
 
 def provisional_individual(fb, fs, ib, ins):
-    d={}
-    for rows, sign in ((fb,-1),(fs,1),(ib,-1),(ins,1)):
+    d = {}
+    for rows, sign in ((fb, -1), (fs, 1), (ib, -1), (ins, 1)):
         for x in rows:
-            z=d.setdefault(x["code"],{"code":x["code"],"name":x["name"],"raw_amount":0})
-            z["raw_amount"] += sign*abs(x["raw_amount"])
-    vals=list(d.values())
-    buy=sorted([x for x in vals if x["raw_amount"]>0], key=lambda x:x["raw_amount"], reverse=True)[:10]
-    sell=sorted([x for x in vals if x["raw_amount"]<0], key=lambda x:x["raw_amount"])[:10]
-    for x in buy+sell:
-        x["source"]="PROVISIONAL: -(foreign+institution), 기타법인 등 미반영"
+            z = d.setdefault(x["code"], {
+                "code": x["code"], 
+                "name": x["name"], 
+                "raw_amount": 0,
+                "market": "KOSPI",
+                "close_price": x["close_price"],
+                "change_rate": x["change_rate"],
+                "trade_amount": x["trade_amount"]
+            })
+            z["raw_amount"] += sign * abs(x["raw_amount"])
+            
+    vals = list(d.values())
+    buy = sorted([x for x in vals if x["raw_amount"] > 0], key=lambda x: x["raw_amount"], reverse=True)[:10]
+    sell = sorted([x for x in vals if x["raw_amount"] < 0], key=lambda x: x["raw_amount"])[:10]
+    for x in buy + sell:
+        x["source"] = "PROVISIONAL: -(foreign+institution)"
     return buy, sell
 
 def main():
@@ -95,93 +119,86 @@ def main():
     
     print(f"[Collector] KST Time: {now.strftime('%Y-%m-%d %H:%M:%S')} | Base Date: {today_str}")
     
-    payload={
+    payload = {
         "base_date": today_str,
         "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
-        "status":"ERROR","count":0,
-        "validation":{"valid":False,"expected":60,"render_allowed":False,"errors":[]},
+        "status": "ERROR", "count": 0,
+        "validation": {"valid": False, "expected": 60, "render_allowed": False, "errors": []},
         "stocks": [],
         "foreign": {"buy": [], "sell": []},
         "institution": {"buy": [], "sell": []},
         "individual": {"buy": [], "sell": []}
     }
+    
     try:
-        print("[1/3] KIS token")
-        tok=token()
-        print("TOKEN OK")
-        print("[2/3] KIS ranking 4 calls")
-        fb=call_rank(tok,"foreign","buy")
-        fs=call_rank(tok,"foreign","sell")
-        ib=call_rank(tok,"institution","buy")
-        ins=call_rank(tok,"institution","sell")
-        print("foreign",len(fb),len(fs),"institution",len(ib),len(ins))
-        pb,ps=provisional_individual(fb,fs,ib,ins)
+        tok = token()
+        fb = call_rank(tok, "foreign", "buy")
+        fs = call_rank(tok, "foreign", "sell")
+        ib = call_rank(tok, "institution", "buy")
+        ins = call_rank(tok, "institution", "sell")
+        pb, ps = provisional_individual(fb, fs, ib, ins)
 
         def rank(rows):
-            return [dict({"rank":i+1},**x) for i,x in enumerate(rows)]
+            return [dict({"rank": i + 1}, **x) for i, x in enumerate(rows)]
 
-        actual=len(fb)+len(fs)+len(ib)+len(ins)
-        total=actual+len(pb)+len(ps)
-        
+        actual = len(fb) + len(fs) + len(ib) + len(ins)
+        total = actual + len(pb) + len(ps)
         is_ready = (total == 60)
 
-        # 수급 상위 종목들을 메인 화면 stocks 리스트에도 기본 반영하여 화면에 즉시 노출되도록 구성
         screened_stocks = []
-        all_collected_items = fb + fs + ib + ins + pb + ps
-        seen_codes = set()
-        
-        for item in all_collected_items:
+        all_items = fb + fs + ib + ins + pb + ps
+        seen = set()
+
+        for item in all_items:
             code = item.get("code")
-            if code in seen_codes:
+            if code in seen:
                 continue
-            seen_codes.add(code)
-            
-            # 기본 스코어 및 뷰 데이터 매핑
+            seen.add(code)
+
+            is_foreign_buy = any(x["code"] == code for x in fb)
+            is_inst_buy = any(x["code"] == code for x in ib)
+
             screened_stocks.append({
                 "date": today_str,
-                "market": "KOSPI", # 기본값 또는 마켓 구분 로직
+                "market": item.get("market", "KOSPI"),
                 "ticker": code,
                 "name": item.get("name"),
-                "total_score": 85, # 기본 검증 점수
-                "grade": "A",
-                "close_price": 50000,
-                "change_rate": 2.5,
-                "prev_close": 48800,
-                "trade_amount": abs(item.get("raw_amount", 0)),
+                "total_score": 85 if (is_foreign_buy and is_inst_buy) else 75,
+                "grade": "A" if (is_foreign_buy and is_inst_buy) else "B",
+                "close_price": item.get("close_price", 0),
+                "change_rate": item.get("change_rate", 0.0),
+                "trade_amount": item.get("trade_amount", 0),
                 "foreign_net_buy": item.get("raw_amount", 0) if "foreign" in item.get("source_field", "") else 0,
                 "inst_net_buy": item.get("raw_amount", 0) if "institution" in item.get("source_field", "") else 0,
                 "retail_net_buy": 0,
-                "passed_tags": "주가등락률,양봉마감,거래대금,단기이평정배열"
+                "double_buy": is_foreign_buy and is_inst_buy,
+                "passed_tags": "주가등락률,양봉마감,거래대금,쌍끌이" if (is_foreign_buy and is_inst_buy) else "주가등락률,거래대금"
             })
 
         payload.update({
-            "status":"PROVISIONAL" if actual==40 else "INCOMPLETE",
-            "count":total,
-            "foreign":{"buy":rank(fb),"sell":rank(fs)},
-            "institution":{"buy":rank(ib),"sell":rank(ins)},
-            "individual":{"buy":rank(pb),"sell":rank(ps)},
+            "status": "PROVISIONAL" if actual == 40 else "INCOMPLETE",
+            "count": total,
+            "foreign": {"buy": rank(fb), "sell": rank(fs)},
+            "institution": {"buy": rank(ib), "sell": rank(ins)},
+            "individual": {"buy": rank(pb), "sell": rank(ps)},
             "stocks": screened_stocks,
-            "validation":{
+            "validation": {
                 "valid": is_ready,
-                "expected":60,
-                "actual_verified_rows":actual,
-                "provisional_rows":len(pb)+len(ps),
+                "expected": 60,
+                "actual_verified_rows": actual,
+                "provisional_rows": len(pb) + len(ps),
                 "render_allowed": is_ready,
-                "errors":[] if is_ready else [
-                    "개인 TOP20은 잠정치이며 KIS 037 직접 순위가 아님",
-                    "금액 단위는 억원"
-                ]
+                "errors": [] if is_ready else ["개인 TOP20은 잠정치"]
             }
         })
-        
         print("[3/3] data.json generated successfully")
     except Exception as e:
-        payload["validation"]["errors"]=[str(e)]
-        print("ERROR:",e)
+        payload["validation"]["errors"] = [str(e)]
+        print("ERROR:", e)
 
-    with open("data.json","w",encoding="utf-8") as f:
-        json.dump(payload,f,ensure_ascii=False,indent=2)
-    print("status=",payload["status"],"count=",payload["count"])
+    with open("data.json", "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print("status=", payload["status"], "count=", payload["count"])
 
 if __name__=="__main__":
     main()

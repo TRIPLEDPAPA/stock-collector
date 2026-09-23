@@ -100,7 +100,7 @@ def main():
         "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
         "status":"ERROR","count":0,
         "validation":{"valid":False,"expected":60,"render_allowed":False,"errors":[]},
-        "stocks": [] # 116개 종목 및 스코어 데이터 저장 공간
+        "stocks": [] # 조건에 따라 동적으로 필터링된 종목 리스트
     }
     try:
         print("[1/3] KIS token")

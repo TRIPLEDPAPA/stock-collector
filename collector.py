@@ -88,12 +88,15 @@ def provisional_individual(fb, fs, ib, ins):
     return buy, sell
 
 def main():
-    now=datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
-    payload={
-        "base_date":now.strftime("%Y-%m-%d"),
-        "last_updated":now.strftime("%Y-%m-%d %H:%M:%S"),
-        "status":"ERROR","count":0,
-        "validation":{"valid":False,"expected":60,"render_allowed":False,"errors":[]}
+    # 🔥 UTC 시간에 9시간을 더해 한국 시간(KST) 기준 날짜를 정확히 가져옵니다.
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
+    today_str = now.strftime("%Y-%m-%d")
+    
+    payload = {
+        "base_date": today_str,
+        "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "status": "ERROR", "count": 0,
+        "validation": {"valid": False, "expected": 60, "render_allowed": False, "errors": []}
     }
     try:
         print("[1/3] KIS token")

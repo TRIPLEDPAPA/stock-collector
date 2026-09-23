@@ -358,6 +358,7 @@
     list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
 
     try {
+      // 1. Supabase 데이터 로드
       const { data, error } = await supabaseClient
         .from("TRIPLE D PAPA")
         .select("*")
@@ -368,14 +369,30 @@
       if (error) throw error;
       const rawData = data || [];
 
+      // 2. 🔥 data.json을 우선적으로 가져와서 정확한 base_date(오늘 날짜)를 박아줍니다.
+      try {
+        const pathSegments = window.location.pathname.split("/").filter(Boolean);
+        const repoName = (window.location.hostname.includes("github.io") && pathSegments.length > 0) ? `/${pathSegments[0]}` : "";
+        const res = await fetch(`${repoName}/data.json?t=${new Date().getTime()}`);
+        if (res.ok) {
+          const jData = await res.json();
+          if (jData.base_date) {
+            document.getElementById("baseDate").innerText = `기준일자: ${jData.base_date}`;
+          } else {
+            document.getElementById("baseDate").innerText = `기준일자: ${rawData.length ? rawData[0].date : "데이터 없음"}`;
+          }
+        } else {
+          document.getElementById("baseDate").innerText = `기준일자: ${rawData.length ? rawData[0].date : "데이터 없음"}`;
+        }
+      } catch (e) {
+        document.getElementById("baseDate").innerText = `기준일자: ${rawData.length ? rawData[0].date : "데이터 없음"}`;
+      }
+
       if (!rawData.length) {
         allData = [];
-        document.getElementById("baseDate").innerText = "기준일자: 데이터 없음";
         renderList();
         return;
       }
-
-      document.getElementById("baseDate").innerText = `기준일자: ${rawData[0].date}`;
 
       const seen = new Set();
       const unique = [];

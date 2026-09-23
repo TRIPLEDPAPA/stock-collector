@@ -357,7 +357,6 @@
     list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
 
     try {
-      // 🔥 1. data.json을 최우선으로 불러와서 오늘의 정확한 base_date(2026-09-23)를 강제로 적용합니다.
       let latestBaseDate = "-";
       try {
         const pathSegments = window.location.pathname.split("/").filter(Boolean);
@@ -365,15 +364,12 @@
         const res = await fetch(`${repoName}/data.json?t=${new Date().getTime()}`);
         if (res.ok) {
           const jData = await res.json();
-          if (jData.base_date) {
-            latestBaseDate = jData.base_date;
-          }
+          if (jData.base_date) latestBaseDate = jData.base_date;
         }
       } catch (e) {
-        console.warn("data.json 로드 실패, Supabase 날짜로 대체합니다.", e);
+        console.warn("data.json 로드 실패", e);
       }
 
-      // 2. Supabase 데이터 로드
       const { data, error } = await supabaseClient
         .from("TRIPLE D PAPA")
         .select("*")
@@ -388,7 +384,6 @@
         latestBaseDate = rawData.length ? rawData[0].date : "데이터 없음";
       }
 
-      // 🔥 화면 상단 기준일자에 최신 data.json의 base_date 강제 출력
       document.getElementById("baseDate").innerText = `기준일자: ${latestBaseDate}`;
 
       if (!rawData.length) {
@@ -444,8 +439,8 @@
       <div class="guide-box">
         <div class="guide-title">⏰ 데이터 동기화 & 리셋 안내</div>
         <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 8시 및 장중 실시간 자동 갱신</li>
-          <li><strong>화면 실시간 동기화</strong>: 언제든 새로고침 시 최신 데이터 자동 반영</li>
+          <li><strong>GitHub Actions 자동 수집</strong>: 매일 아침 및 장 마감 후 자동 갱신</li>
+          <li><strong>화면 실시간 동기화</strong>: 최신 수급 및 스코어 데이터 자동 반영</li>
         </ul>
       </div>
     `;
@@ -557,11 +552,11 @@
     
     if (count === 60) {
       validation.className = "flow-validation valid";
-      validation.textContent = `✅ 60/60 · ${data.status} · 수급 TOP60 데이터 로드 완료 · 인포 제작 가능`;
+      validation.textContent = `✅ 60/60 · ${data.status} · 수급 TOP60 데이터 로드 완료`;
     } else {
       validation.className = "flow-validation invalid";
       const errors = (data.validation?.errors || []).join(" / ");
-      validation.textContent = `⚠️ ${count}/60 · ${data.status || "INCOMPLETE"} · 인포 제작 차단${errors ? " · " + errors : ""}`;
+      validation.textContent = `⚠️ ${count}/60 · ${data.status || "INCOMPLETE"}${errors ? " · " + errors : ""}`;
     }
   }
 
@@ -571,7 +566,7 @@
     document.getElementById(`${prefix}Sell`).innerHTML = createFlowTable("순매도 TOP10", data.sell || [], "SELL");
   }
 
-  // 🔥 raw_amount를 확실하게 가져와 0억 오류를 방지하는 수급 테이블 생성 함수
+  // 🔥 raw_amount를 확실하게 읽어와 0원 오류를 원천 차단하는 수급 테이블 생성 함수
   function createFlowTable(title, rows, side) {
     const isBuy = side === "BUY";
     const css = isBuy ? "flow-buy" : "flow-sell";

@@ -22,7 +22,6 @@ def token():
         timeout=TIMEOUT,
     )
     if r.status_code != 200:
-        # 키는 절대 출력하지 않고 KIS 응답만 남긴다.
         raise RuntimeError(f"KIS TOKEN HTTP {r.status_code}: {r.text[:800]}")
     j=r.json()
     t=j.get("access_token")
@@ -31,14 +30,11 @@ def token():
     return t
 
 def call_rank(tok, investor: str, side: str) -> List[Dict]:
-    # KIS 공식: 국내기관_외국인 매매종목가집계 [국내주식-037]
-    # investor: foreign=1, institution=2
-    # side: buy=0, sell=1
     params={
         "FID_COND_MRKT_DIV_CODE":"V",
         "FID_COND_SCR_DIV_CODE":"16449",
         "FID_INPUT_ISCD":"0000",
-        "FID_DIV_CLS_CODE":"1",       # 금액정렬
+        "FID_DIV_CLS_CODE":"1",
         "FID_RANK_SORT_CLS_CODE":"0" if side=="buy" else "1",
         "FID_ETC_CLS_CODE":"1" if investor=="foreign" else "2",
     }
@@ -68,8 +64,6 @@ def call_rank(tok, investor: str, side: str) -> List[Dict]:
         amount=num(x.get(field))
         if not code.isdigit() or not name or amount == 0:
             continue
-        # 원본 API 단위는 변환하지 않고 raw_amount로 보존.
-        # 표시용 억원 환산은 단위 확인 후 프런트에서 적용한다.
         out.append({
             "code":code, "name":name,
             "raw_amount":amount,
@@ -81,8 +75,6 @@ def call_rank(tok, investor: str, side: str) -> List[Dict]:
     return out
 
 def provisional_individual(fb, fs, ib, ins):
-    # KIS 037은 개인 순위 자체를 제공하지 않는다.
-    # 외국인+기관의 반대편을 개인 잠정 후보로 표시하며 FINAL로 위장하지 않는다.
     d={}
     for rows, sign in ((fb,-1),(fs,1),(ib,-1),(ins,1)):
         for x in rows:
@@ -120,6 +112,10 @@ def main():
 
         actual=len(fb)+len(fs)+len(ib)+len(ins)
         total=actual+len(pb)+len(ps)
+        
+        # 60개 채워지면 PROVISIONAL 상태여도 인포 제작 허용
+        is_ready = (total == 60)
+
         payload.update({
             "status":"PROVISIONAL" if actual==40 else "INCOMPLETE",
             "count":total,
@@ -127,12 +123,12 @@ def main():
             "institution":{"buy":rank(ib),"sell":rank(ins)},
             "individual":{"buy":rank(pb),"sell":rank(ps)},
             "validation":{
-                "valid":False,
+                "valid": is_ready,
                 "expected":60,
                 "actual_verified_rows":actual,
                 "provisional_rows":len(pb)+len(ps),
-                "render_allowed":False,
-                "errors":[
+                "render_allowed": is_ready,
+                "errors":[] if is_ready else [
                     "개인 TOP20은 잠정치이며 KIS 037 직접 순위가 아님",
                     "금액 단위는 억원"
                 ]

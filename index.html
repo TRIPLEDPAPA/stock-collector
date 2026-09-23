@@ -571,11 +571,15 @@
   function createFlowTable(title, rows, side) {
     const isBuy = side === "BUY";
     const css = isBuy ? "flow-buy" : "flow-sell";
-    const total = rows.reduce((sum, item) => sum + Number(item.net_amount_krw || item.raw_amount || 0), 0);
+    
+    // 🔥 raw_amount 데이터를 최우선으로 읽어와서 합산
+    const total = rows.reduce((sum, item) => sum + Number(item.raw_amount || item.net_amount_krw || 0), 0);
 
     const body = rows.map((item, idx) => {
-      const raw = Number(item.net_amount_krw || item.raw_amount || 0);
-      const amount = raw / 100000000;
+      // 🔥 raw_amount(원 단위 또는 억 단위)를 정확히 가져와 억원으로 변환
+      const raw = Number(item.raw_amount || item.net_amount_krw || 0);
+      const amount = raw / 100000000; // 억원 단위 변환
+      
       return `
         <tr>
           <td>${item.rank || idx + 1}</td>

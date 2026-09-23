@@ -161,6 +161,7 @@
     </div>
   </div>
 
+  <!-- 메인 5분할 탭 (전체/코스피/코스닥/지수/설명서) -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -169,6 +170,7 @@
     <button class="tab-btn" onclick="setTab('GUIDE', this)">📖 설명서</button>
   </div>
 
+  <!-- 지수 서브 탭 -->
   <div class="index-sub-tabs" id="indexSubTabs">
     <button class="sub-chip active" onclick="setIndexCategory('ALL', this)">전체</button>
     <button class="sub-chip" onclick="setIndexCategory('지수', this)">지수</button>
@@ -177,6 +179,7 @@
     <button class="sub-chip" onclick="setIndexCategory('에너지', this)">에너지</button>
   </div>
 
+  <!-- 점수 필터 칩 -->
   <div class="score-filters" id="scoreFilters">
     <button class="score-filter-chip active" onclick="setMinScore(0, this)">전체 점수</button>
     <button class="score-filter-chip" onclick="setMinScore(80, this)">🔴 80점 이상</button>

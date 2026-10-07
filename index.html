@@ -1,687 +1,913 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>TRIPLE D PAPA - 20지표 주식 스코어 & 수급 분석</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Flow - 통합 퀀트 & MONEY갤린더 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0b1320; color: #cbd5e1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .card { background-color: #111a2e; border: 1px solid #1e293b; }
+        .card-link { transition: all 0.2s; display: block; text-decoration: none; color: inherit; }
+        .card-link:hover { border-color: #06b6d4; background-color: #162238; transform: translateY(-2px); }
+        .table-container { background-color: #111a2e; border: 1px solid #1e293b; }
+        th { background-color: #0d1527; color: #64748b; font-weight: 600; font-size: 0.82rem; white-space: nowrap; }
+        td { border-bottom: 1px solid #1e293b; font-size: 0.88rem; white-space: nowrap; }
+        tr:hover td { background-color: #162238; }
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        .badge-leader { background-color: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 9999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; }
+        .badge-direct { background-color: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4); border-radius: 9999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 600; }
+        .badge-later { background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 9999px; padding: 3px 10px; font-size: 0.75rem; }
+        .badge-late { background-color: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.4); border-radius: 9999px; padding: 3px 10px; font-size: 0.75rem; }
 
-  <style>
-    :root {
-      --bg-dark: #0b111e;
-      --card-bg: #141d2e;
-      --card-border: #263348;
-      --accent-red: #ef4444;
-      --accent-down: #3b82f6;
-      --accent-blue: #38bdf8;
-      --accent-gold: #f59e0b;
-      --tag-green-bg: rgba(16, 185, 129, 0.15);
-      --tag-green-text: #10b981;
-      --tag-green-border: #059669;
-      --tag-gray-bg: rgba(30, 41, 59, 0.7);
-      --tag-gray-text: #64748b;
-      --text-main: #f8fafc;
-      --text-sub: #94a3b8;
-    }
+        .btn-tab { background-color: #132238; color: #94a3b8; border-radius: 9999px; padding: 4px 14px; font-size: 0.8rem; transition: all 0.2s; }
+        .btn-tab.active { background-color: #0d9488; color: #ffffff; font-weight: 600; }
+        .btn-detail { background-color: #00bcd4; color: #042f2e; font-weight: 600; border-radius: 4px; padding: 4px 12px; font-size: 0.8rem; }
+        .btn-detail:hover { opacity: 0.9; }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
-    body {
-      background: var(--bg-dark);
-      color: var(--text-main);
-      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
-      padding: 16px 14px 50px;
-    }
-
-    .container { max-width: 620px; margin: 0 auto; }
-
-    .header-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; gap: 10px; }
-    .brand-title { font-size: 1.3rem; font-weight: 900; letter-spacing: -0.7px; }
-    .brand-date { font-size: 0.74rem; color: var(--text-sub); margin-top: 3px; }
-    .live-clock-sub { font-size: 0.68rem; color: #38bdf8; font-weight: 700; margin-top: 2px; }
-    .header-actions { display: flex; align-items: center; gap: 6px; }
-
-    .refresh-btn { background: #2563eb; color: #fff; border: none; padding: 7px 10px; border-radius: 8px; font-size: 0.72rem; font-weight: 800; cursor: pointer; }
-    .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 9px; border-radius: 8px; font-size: 0.68rem; font-weight: 800; }
-    .live-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; display: inline-block; margin-right: 4px; }
-
-    /* 5분할 메인 탭 */
-    .market-tabs {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 5px;
-      margin-bottom: 10px;
-    }
-
-    .tab-btn {
-      background: #1e293b;
-      color: var(--text-sub);
-      border: none;
-      padding: 10px 0;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      font-weight: 800;
-      cursor: pointer;
-      text-align: center;
-    }
-
-    .tab-btn.active {
-      background: #38bdf8;
-      color: #0f172a;
-    }
-
-    .score-filters { display: flex; gap: 6px; overflow-x: auto; white-space: nowrap; margin-bottom: 10px; padding-bottom: 4px; scrollbar-width: none; }
-    .score-filters::-webkit-scrollbar { display: none; }
-
-    .score-filter-chip {
-      background: #182234;
-      border: 1px solid #283548;
-      color: var(--text-sub);
-      padding: 7px 12px;
-      border-radius: 8px;
-      font-size: 0.76rem;
-      font-weight: 700;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-
-    .score-filter-chip.active {
-      background: #d97706;
-      border-color: #f59e0b;
-      color: #fff;
-    }
-
-    .filter-toggle-group { display: flex; gap: 8px; margin-bottom: 12px; }
-    .toggle-card { flex: 1; background: #141e30; border: 1px solid #253347; border-radius: 9px; padding: 9px 10px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
-    .toggle-card.on { border-color: #f59e0b; box-shadow: 0 0 0 1px rgba(245,158,11,.15); }
-    .toggle-card-label { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 800; }
-    .toggle-card-count { color: #f59e0b; font-size: 0.76rem; font-weight: 800; }
-
-    .summary-bar { display: flex; justify-content: space-between; gap: 10px; font-size: 0.74rem; color: var(--text-sub); margin-bottom: 10px; padding: 0 2px; }
-    .card-list { display: flex; flex-direction: column; gap: 10px; }
-
-    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 13px; padding: 13px; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
-    .card.strong-buy-card { border-color: rgba(245, 158, 11, 0.65); background: linear-gradient(180deg, rgba(245, 158, 11, .08) 0%, rgba(20, 29, 46, 1) 100%); }
-
-    .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
-    .stock-info { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
-    .market-tag { background: #2563eb; color: #fff; font-size: .66rem; font-weight: 900; padding: 2px 6px; border-radius: 4px; }
-    .market-tag.kosdaq { background: #0d9488; }
-    .stock-title { font-size: 1.04rem; font-weight: 900; color: #fff; }
-
-    .strong-badge, .double-badge, .score-badge { font-size: .66rem; font-weight: 900; padding: 2px 6px; border-radius: 4px; }
-    .strong-badge { color: #fbbf24; background: rgba(245,158,11,.18); border: 1px solid #f59e0b; }
-    .double-badge { color: #f59e0b; background: rgba(120,53,15,.28); border: 1px solid #b45309; }
-    .score-badge { background: #1e293b; color: #38bdf8; border: 1px solid #334155; }
-    .score-high { color: #10b981; border-color: #059669; background: rgba(16,185,129,.15); }
-
-    .price-wrap { text-align: right; flex-shrink: 0; }
-    .current-price { font-size: 1.08rem; font-weight: 900; color: #fff; }
-    .rate-text { font-size: .8rem; font-weight: 800; margin-top: 2px; }
-    .rate-up { color: var(--accent-red); }
-    .rate-down { color: var(--accent-down); }
-
-    .investor-row { display: flex; gap: 6px; margin-bottom: 9px; flex-wrap: wrap; }
-    .investor-chip { font-size: .68rem; padding: 3px 6px; border-radius: 4px; font-weight: 800; }
-    .chip-foreign, .chip-inst { background: rgba(239,68,68,.14); color: #f87171; }
-    .chip-retail { background: rgba(59,130,246,.14); color: #60a5fa; }
-
-    .conditions-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
-    .cond-badge { font-size: .66rem; padding: 3px 6px; border-radius: 4px; font-weight: 700; border: 1px solid transparent; }
-    .cond-badge.pass { background: var(--tag-green-bg); color: var(--tag-green-text); border-color: var(--tag-green-border); }
-    .cond-badge.fail { background: var(--tag-gray-bg); color: var(--tag-gray-text); }
-
-    .card-footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .75rem; padding-top: 7px; border-top: 1px dashed rgba(255,255,255,.08); }
-    .prev-close-price { color: var(--text-sub); }
-    .trade-amount { color: #f59e0b; font-weight: 800; }
-
-    .detail-btn { margin-top: 9px; width: 100%; background: #182234; border: 1px solid #2b3b52; color: #cbd5e1; padding: 7px 8px; border-radius: 7px; font-size: .7rem; font-weight: 800; cursor: pointer; }
-    .detail-panel { display: none; margin-top: 9px; padding: 9px; background: #0e1727; border-radius: 8px; border: 1px solid #243247; }
-    .detail-panel.open { display: block; }
-
-    .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
-    .score-item { display: flex; justify-content: space-between; gap: 8px; padding: 6px 7px; background: #141f31; border-radius: 5px; font-size: .67rem; }
-    .score-item-name { color: #cbd5e1; }
-    .score-item-value { color: #38bdf8; font-weight: 900; white-space: nowrap; }
-
-    .tech-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 7px; }
-    .tech-item { padding: 6px; background: #111b2b; border-radius: 5px; font-size: .63rem; color: #94a3b8; }
-    .tech-item strong { display: block; color: #e2e8f0; font-size: .68rem; margin-top: 2px; }
-
-    /* 수급 탭 스타일 (개인/외국인/기관 순, 좌 매수 우 매도 대칭 구조) */
-    .supply-category-block { margin-bottom: 16px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; }
-    .supply-category-title { font-size: 0.88rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #223249; padding-bottom: 6px; }
-    .supply-dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .supply-col-title { font-size: 0.74rem; font-weight: 800; color: var(--text-sub); margin-bottom: 4px; }
-    .supply-table { width: 100%; border-collapse: collapse; font-size: 0.68rem; }
-    .supply-table th, .supply-table td { border-bottom: 1px solid #1e2b3f; padding: 5px 3px; text-align: left; }
-    .supply-table th { color: #829ab1; font-weight: 700; background: #162235; }
-    .supply-table td { color: #cbd5e1; }
-
-    /* 설명서 스타일 */
-    .guide-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
-    .guide-title { font-size: 0.95rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-    .guide-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; margin-top: 8px; }
-    .guide-table th, .guide-table td { border: 1px solid #223249; padding: 7px 8px; text-align: left; }
-    .guide-table th { background: #182338; color: #94a3b8; font-weight: 800; }
-    .guide-table td { color: #cbd5e1; }
-    .guide-list { list-style: none; padding: 0; font-size: 0.77rem; color: #cbd5e1; line-height: 1.7; }
-    .guide-list li { margin-bottom: 6px; position: relative; padding-left: 14px; }
-    .guide-list li::before { content: "•"; position: absolute; left: 2px; color: #38bdf8; font-weight: bold; }
-
-    .loading-box { text-align: center; padding: 60px 0; color: var(--text-sub); font-size: .84rem; }
-    .error-box { text-align: center; padding: 40px 10px; color: #f87171; line-height: 1.7; font-size: .8rem; }
-
-    @media (max-width: 500px) {
-      .supply-dual-grid { grid-template-columns: 1fr; gap: 8px; }
-      .score-grid { grid-template-columns: 1fr; }
-      .tech-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-  </style>
+        .industry-card-active { border: 1px solid #06b6d4 !important; background-color: #162a4a !important; }
+        .subtable-row { background-color: #131f36 !important; border-left: 4px solid #f59e0b; border-top: 1px solid rgba(245, 158, 11, 0.3); border-bottom: 1px solid rgba(245, 158, 11, 0.3); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
 </head>
+<body class="min-h-screen flex flex-col p-4 md:p-6 space-y-6">
 
-<body>
+    <!-- 고정 상단 네비게이션 탭 메뉴 -->
+    <header class="border-b border-slate-800 bg-slate-950 sticky top-0 z-50 -mx-4 -mt-4 md:-mx-6 md:-mt-6 px-4 md:px-6 h-14 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-4 overflow-x-auto no-scrollbar py-2 w-full">
+            <span class="text-base font-bold tracking-tight text-cyan-400 shrink-0">⚡ Money Flow</span>
+            <nav class="flex gap-4 text-sm font-medium text-slate-300 shrink-0">
+                <button onclick="switchTab('home')" id="nav-home" class="nav-btn text-cyan-400 font-semibold pb-1 border-b-2 border-cyan-400 whitespace-nowrap">홈</button>
+                <button onclick="switchTab('feed')" id="nav-feed" class="nav-btn hover:text-cyan-400 pb-1 whitespace-nowrap">공시 피드</button>
+                <button onclick="switchTab('money')" id="nav-money" class="nav-btn hover:text-cyan-400 pb-1 whitespace-nowrap">MONEY FLOW</button>
+                <button onclick="switchTab('calendar')" id="nav-calendar" class="nav-btn hover:text-cyan-400 pb-1 whitespace-nowrap">MONEY갤린더</button>
+                <button onclick="switchTab('buyback')" id="nav-buyback" class="nav-btn hover:text-cyan-400 pb-1 whitespace-nowrap">자사주소각</button>
+                <button onclick="switchTab('notice')" id="nav-notice" class="nav-btn hover:text-cyan-400 pb-1 whitespace-nowrap">공지</button>
+            </nav>
+        </div>
+    </header>
 
-<div class="container">
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="max-w-7xl mx-auto w-full flex-grow space-y-6">
 
-  <div class="header-bar">
-    <div>
-      <div class="brand-title">TRIPLE D PAPA</div>
-      <div class="brand-date" id="baseDate">기준일자: 동기화 중...</div>
-      <div class="live-clock-sub" id="liveClockSub">실시간: 연동 중...</div>
+        <!-- [ 홈 탭 ]: 원본 주요지표 및 야간/금리 대시보드 100% 보존 -->
+        <section id="tab-home" class="tab-content space-y-6">
+            <div class="card p-4 rounded-xl">
+                <div class="text-xs font-bold text-cyan-400 mb-3 flex items-center gap-1.5"><span>📊 주요지표</span></div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-2.5 text-center">
+                    <a href="https://www.google.com/finance/beta/quote/USD-KRW" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">미국 달러 / 원</div><div class="text-sm font-bold text-white" id="macro-usdkrw">--</div></a>
+                    <a href="https://kr.investing.com/indices/korea-200-futures" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">코스피 200선물</div><div class="text-sm font-bold text-white" id="macro-kospi200_fut">--</div></a>
+                    <a href="https://kr.investing.com/indices/kospi" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">코스피 지수</div><div class="text-sm font-bold text-white" id="macro-kospi">--</div></a>
+                    <a href="https://kr.investing.com/indices/kosdaq" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">코스닥 지수</div><div class="text-sm font-bold text-white" id="macro-kosdaq">--</div></a>
+                    <a href="https://kr.investing.com/indices/us-spx-500" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">S&P 500 (SPX)</div><div class="text-sm font-bold text-white" id="macro-spx">--</div></a>
+                    <a href="https://kr.investing.com/indices/us-30" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">다우존스 (DJI)</div><div class="text-sm font-bold text-white" id="macro-dji">--</div></a>
+                    <a href="https://kr.investing.com/indices/nasdaq-composite" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">나스닥종합 (IXIC)</div><div class="text-sm font-bold text-white" id="macro-nasdaq">--</div></a>
+                    <a href="https://kr.investing.com/commodities/crude-oil" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">WTI유 선물</div><div class="text-sm font-bold text-white" id="macro-wti">--</div></a>
+                    <a href="https://kr.investing.com/commodities/brent-oil" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">브렌트유 선물</div><div class="text-sm font-bold text-white" id="macro-brent">--</div></a>
+                    <a href="https://kr.investing.com/commodities/copper" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">구리 선물</div><div class="text-sm font-bold text-white" id="macro-copper">--</div></a>
+                    <a href="https://kr.investing.com/commodities/us-corn" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">미국 옥수수</div><div class="text-sm font-bold text-white" id="macro-corn">--</div></a>
+                    <a href="https://www.upbit.com/exchange?code=CRIX.UPBIT.KRW-BTC" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">비트코인</div><div class="text-sm font-bold text-white" id="macro-btc">--</div></a>
+                    <a href="https://www.upbit.com/exchange?code=CRIX.UPBIT.KRW-ETH" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">이더리움</div><div class="text-sm font-bold text-white" id="macro-eth">--</div></a>
+                    <a href="https://www.upbit.com/exchange?code=CRIX.UPBIT.KRW-XRP" target="_blank" class="card card-link p-3 rounded-lg flex flex-col justify-between"><div class="text-[10px] text-gray-400 mb-1">엑스알피(리플)</div><div class="text-sm font-bold text-white" id="macro-xrp">--</div></a>
+                </div>
+            </div>
+
+            <div class="card p-4 rounded-xl">
+                <div class="text-xs font-bold text-amber-400 mb-3 flex items-center gap-1.5"><span>🌙 야간 시세 및 심리 지표</span></div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 text-center">
+                    <a href="https://www.gate.com/futures/USDT/SAMSUNG_USDT" target="_blank" class="card card-link p-3 rounded-lg flex flex-col items-center justify-center"><div class="h-8 flex items-center justify-center mb-1"><svg viewBox="0 0 130 28" class="h-5 w-auto"><text x="2" y="21" font-family="Arial" font-weight="900" font-size="19" fill="#2563eb">SAMSUNG</text></svg></div><div class="text-xs font-bold text-white" id="night-samsung">--</div></a>
+                    <a href="https://www.gate.com/futures/USDT/SKHYNIX_USDT" target="_blank" class="card card-link p-3 rounded-lg flex flex-col items-center justify-center"><div class="h-8 flex items-center justify-center mb-1"><svg viewBox="0 0 130 28" class="h-5 w-auto"><text x="2" y="21" font-family="Arial" font-weight="900" font-size="18" fill="#e11d48">SK</text><text x="30" y="21" font-family="Arial" font-weight="700" font-size="15" fill="#f97316">hynix</text></svg></div><div class="text-xs font-bold text-white" id="night-hynix">--</div></a>
+                    <a href="https://www.gate.com/futures/USDT/HYUNDAI_USDT" target="_blank" class="card card-link p-3 rounded-lg flex flex-col items-center justify-center"><div class="h-8 flex items-center justify-center mb-1"><svg viewBox="0 0 120 28" class="h-5 w-auto"><ellipse cx="16" cy="14" rx="14" ry="9" fill="none" stroke="#38bdf8" stroke-width="2"/><path d="M9 10 L13 18 M23 10 L19 18 M11 14 L21 14" stroke="#38bdf8" stroke-width="2" stroke-linecap="round"/><text x="36" y="20" font-family="Arial" font-weight="900" font-size="14" fill="#38bdf8">HYUNDAI</text></svg></div><div class="text-xs font-bold text-white" id="night-hyundai">--</div></a>
+                    <a href="https://www.gate.com/futures/USDT/SAMSUNGEM_USDT" target="_blank" class="card card-link p-3 rounded-lg flex flex-col items-center justify-center"><div class="h-8 flex items-center justify-center mb-1"><svg viewBox="0 0 100 28" class="h-5 w-auto"><text x="2" y="21" font-family="sans-serif" font-weight="800" font-size="16" fill="#3b82f6">삼성전기</text></svg></div><div class="text-xs font-bold text-white" id="night-samsungem">--</div></a>
+                    <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" class="card card-link p-3 rounded-lg flex flex-col items-center justify-center"><div class="text-[10px] text-gray-400 mb-1">암호화폐 탐욕</div><div class="text-sm font-bold text-amber-400" id="night-crypto_fg">--</div></a>
+                    <a href="https://fastjusik.com/feargreed" target="_blank" class="card card-link p-3 rounded-lg flex flex-col items-center justify-center"><div class="text-[10px] text-gray-400 mb-1">코스피 탐욕</div><div class="text-sm font-bold text-emerald-400" id="night-kospi_fg">--</div></a>
+                </div>
+            </div>
+
+            <div class="card p-4 rounded-xl">
+                <div class="text-xs font-bold text-emerald-400 mb-3 flex items-center gap-1.5"><span>미국 국채 금리</span></div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                    <a href="https://datacenter.hankyung.com/rates-bonds" target="_blank" class="card card-link p-3 rounded-lg"><div class="text-[10px] text-gray-400 mb-1">미국 국채 2년</div><div class="text-sm font-black text-white mt-1" id="bond-2y">-- %</div></a>
+                    <a href="https://datacenter.hankyung.com/rates-bonds" target="_blank" class="card card-link p-3 rounded-lg"><div class="text-[10px] text-gray-400 mb-1">미국 국채 5년</div><div class="text-sm font-black text-white mt-1" id="bond-5y">-- %</div></a>
+                    <a href="https://datacenter.hankyung.com/rates-bonds" target="_blank" class="card card-link p-3 rounded-lg"><div class="text-[10px] text-gray-400 mb-1">미국 국채 10년</div><div class="text-sm font-black text-white mt-1" id="bond-10y">-- %</div></a>
+                    <a href="https://datacenter.hankyung.com/rates-bonds" target="_blank" class="card card-link p-3 rounded-lg"><div class="text-[10px] text-gray-400 mb-1">미국 국채 30년</div><div class="text-sm font-black text-white mt-1" id="bond-30y">-- %</div></a>
+                </div>
+            </div>
+        </section>
+
+        <!-- [ 공시 피드 탭 ] -->
+        <section id="tab-feed" class="tab-content hidden space-y-4">
+            <div class="card p-5 rounded-xl shadow-sm space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <h2 class="text-base font-bold text-white">DART 실시간 공시 피드</h2>
+                    <span class="text-xs text-emerald-400 font-medium">● 1분 주기 자동 동기화</span>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="filterDisclosures('전체')" id="cat-전체" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-600 text-white transition">전체</button>
+                    <button onclick="filterDisclosures('주요공시')" id="cat-주요공시" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-gray-300 hover:bg-slate-700 transition">주요공시</button>
+                    <button onclick="filterDisclosures('실적·수주')" id="cat-실적·수주" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-gray-300 hover:bg-slate-700 transition">실적·수주</button>
+                    <button onclick="filterDisclosures('연금관련')" id="cat-연금관련" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-gray-300 hover:bg-slate-700 transition">연금관련</button>
+                </div>
+                <div id="disclosure-list" class="space-y-3 h-[550px] overflow-y-auto pr-1"></div>
+            </div>
+        </section>
+
+        <!-- [ MONEY FLOW 탭 ]: 원본 사이드바 및 퀀트 스크리너 100% 보존 -->
+        <section id="tab-money" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-3 space-y-4">
+                    <div class="card p-4 rounded-xl mb-4">
+                        <div class="text-xs text-gray-400 mb-1">⚡ 전체 시장 스캔 상태</div>
+                        <div class="text-lg font-bold text-white tracking-tight">코스피·코스닥 전 종목 순회</div>
+                        <div class="text-xs text-gray-500 mt-1">2,500여 개 대상 청크 적재 활성화</div>
+                    </div>
+                    <div class="card p-4 rounded-xl mb-4 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs text-gray-400 mb-1">⏰ 분석 기준 시간</div>
+                            <div class="text-lg font-bold text-white" id="base-time">--:--</div>
+                        </div>
+                        <button onclick="triggerScan(true)" class="bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 border border-cyan-500/40 rounded-lg px-3 py-2 text-xs font-semibold flex items-center gap-1">
+                            <span id="refresh-spinner">🔄</span>
+                        </button>
+                    </div>
+                    <div class="card p-4 rounded-xl mb-4 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs text-gray-400 mb-1">📖 시스템 가이드</div>
+                            <div class="text-xs font-bold text-indigo-300">20개 지표 사용설명서</div>
+                        </div>
+                        <button onclick="openManualModal()" class="bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/40 rounded-lg px-2.5 py-1.5 text-xs font-semibold">열기</button>
+                    </div>
+
+                    <div class="card p-5 rounded-xl">
+                        <div class="flex items-center justify-between mb-2">
+                            <div>
+                                <div class="text-xs text-gray-400 mb-0.5">⚡ 머니 플로우</div>
+                                <h3 class="text-sm font-bold text-white">산업별 TOP 10</h3>
+                            </div>
+                        </div>
+                        <div class="text-xs text-cyan-400 mb-3 font-medium">거래대금 기준 상위 산업 집계</div>
+                        <div class="bg-[#121c33] border border-cyan-500/30 p-3 rounded-lg mb-3 text-xs text-gray-300 space-y-1">
+                            <div class="font-bold text-cyan-400 flex items-center gap-1 mb-1"><span>📡 오늘의 시장 신호</span></div>
+                            <div>• 주도 섹터: <span class="text-amber-400 font-semibold">반도체 / 배터리</span></div>
+                            <div>• 20개 지표 채점: <span class="text-emerald-400 font-semibold">95점 만점 실시간</span></div>
+                        </div>
+                        <div id="industry-list" class="space-y-2 max-h-[350px] overflow-y-auto">
+                            <div class="text-xs text-gray-500 py-4 text-center">산업 집계 중...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-9">
+                    <div class="table-container p-5 rounded-xl">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                            <div>
+                                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                                    <span id="table-title">분석 후보 전체</span>
+                                    <span class="text-cyan-400" id="table-total-count">0종목</span>
+                                    <button id="btn-reset-filter" onclick="clearIndustryFilter()" class="hidden ml-2 text-xs bg-gray-800 text-gray-300 px-2 py-0.5 rounded border border-gray-700">전체보기 ✕</button>
+                                </h2>
+                                <div class="text-xs text-amber-400/90 mt-0.5">전 종목 2,500개 대상 20개 정밀 퀀트 채점 결과</div>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="relative">
+                                    <input type="text" id="stock-search-input" placeholder="🔍 종목명 또는 코드 검색..." oninput="handleSearch(this.value)" class="bg-[#0d1527] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 w-48" />
+                                </div>
+                                <button class="btn-tab active" onclick="filterTab('ALL', this)">전체</button>
+                                <button class="btn-tab" onclick="filterTab('LEADER', this)">대장주</button>
+                                <button class="btn-tab" onclick="filterTab('DIRECT', this)">직접 수혜</button>
+                                <button class="btn-tab" onclick="filterTab('LATER', this)">후발 수혜</button>
+                                <button class="btn-tab" onclick="filterTab('FOREIGN', this)">외인+기관</button>
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-gray-800">
+                                        <th class="py-3 px-3">종목</th>
+                                        <th class="py-3 px-3 text-center">역할</th>
+                                        <th class="py-3 px-3 text-center">점수(95)</th>
+                                        <th class="py-3 px-3 text-right">현재가</th>
+                                        <th class="py-3 px-3 text-right">1일</th>
+                                        <th class="py-3 px-3 text-right">2일</th>
+                                        <th class="py-3 px-3 text-right">3일</th>
+                                        <th class="py-3 px-3 text-right">4일</th>
+                                        <th class="py-3 px-3 text-right">5일</th>
+                                        <th class="py-3 px-3 text-right">거래대금</th>
+                                        <th class="py-3 px-3 text-right">외인+기관 수급</th>
+                                        <th class="py-3 px-3 text-center">분석</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stock-tbody">
+                                    <tr><td colspan="12" class="py-12 text-center text-gray-500">데이터 로딩 중...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- [ MONEY갤린더 탭 ]: 2026~2030 다년도 동적 주차 이동 네비게이션 연동 -->
+        <section id="tab-calendar" class="tab-content hidden space-y-4">
+            <div class="flex justify-between items-center bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <div class="flex items-center gap-3">
+                    <button onclick="changeWeek(-1)" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition">〈</button>
+                    <span id="current-week-label" class="text-xs font-bold text-cyan-400 tracking-wide">2026년 9월 (09.14 - 09.20)</span>
+                    <button onclick="changeWeek(1)" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition">〉</button>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="switchCalendarSubTab('economic')" id="sub-eco" class="px-4 py-1.5 text-xs font-bold rounded-lg bg-cyan-600 text-white transition">미국경제 캘린더</button>
+                    <button onclick="switchCalendarSubTab('earnings')" id="sub-earn" class="px-4 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">실적발표 일정</button>
+                </div>
+                <span class="text-xs text-emerald-400 font-medium px-2">● 스마트 폴링 활성화 (1분 갱신)</span>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-4 card p-4 rounded-2xl h-[680px] overflow-y-auto space-y-3" id="calendar-timeline"></div>
+                <div class="lg:col-span-8 card p-6 rounded-2xl h-[680px] overflow-y-auto flex flex-col justify-between">
+                    <div id="calendar-detail" class="space-y-6">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span id="det-time" class="text-xs font-semibold px-2.5 py-1 rounded-md bg-blue-950 text-blue-400 border border-blue-800/50">--</span>
+                                <h2 id="det-title" class="text-xl font-bold mt-2">--</h2>
+                            </div>
+                            <button onclick="openModalGuide()" class="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                                <span>❓ 지표 안내</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 bg-slate-950/50 border border-slate-800 p-4 rounded-xl">
+                            <div>
+                                <span class="text-xs text-slate-400">실제치 (Actual)</span>
+                                <div id="det-actual" class="text-lg font-bold text-emerald-400 mt-0.5">--</div>
+                            </div>
+                            <div>
+                                <span class="text-xs text-slate-400">예측치 (Forecast)</span>
+                                <div id="det-forecast" class="text-lg font-bold text-slate-300 mt-0.5">--</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-950/70 border border-slate-800 p-5 rounded-xl space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm font-bold text-cyan-400">✨ 핵심만 짚은 AI 요약</span>
+                                <span id="det-source" class="text-xs text-slate-500">출처: --</span>
+                            </div>
+                            <p id="det-ai" class="text-sm text-slate-300 leading-relaxed">--</p>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-800 pt-4 text-xs text-slate-400 flex justify-between">
+                        <span>🔄 발표 시각 전후로 실시간 자동 갱신됩니다.</span>
+                        <span class="text-emerald-400">상태: 정상 연결</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-buyback" class="tab-content hidden space-y-4"><div class="card p-5 rounded-xl">자사주소각 영역</div></section>
+        <section id="tab-notice" class="tab-content hidden space-y-4"><div class="card p-5 rounded-xl">공지사항 영역</div></section>
+
+    </main>
+
+    <!-- 사용설명서 모달창 -->
+    <div id="manual-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="card max-w-2xl w-full rounded-2xl p-6 border border-gray-700 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">📖 20개 정밀 지표 퀀트 스크리너 사용설명서</h3>
+                <button onclick="closeManualModal()" class="text-gray-400 hover:text-white text-xl">✕</button>
+            </div>
+            <div class="space-y-4 text-xs text-gray-300 leading-relaxed">
+                <div class="bg-[#142036] p-3 rounded-lg">
+                    <div class="font-bold text-cyan-400 mb-1 text-sm">1. 전 종목 2,500개 순차 스캔 및 청크 저장</div>
+                    <p>• 코스피와 코스닥 전 상장 종목을 페이징 단위로 끝까지 순회하여 백그라운드 스레드에서 점진적으로 DB에 적재합니다.</p>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div class="header-actions">
-      <button class="refresh-btn" onclick="fetchFromSupabase()">⚡ 새로고침</button>
-      <div class="live-badge">
-        <span class="live-dot"></span> LIVE
-      </div>
+    <!-- 상세 분석 모달창 -->
+    <div id="detail-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="card max-w-3xl w-full rounded-2xl p-6 border border-gray-700 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-4 border-b border-gray-800 mb-4">
+                <div>
+                    <h3 class="text-2xl font-bold text-white flex items-center gap-2" id="modal-stock-name">종목명</h3>
+                    <div class="text-xs text-gray-400 mt-1" id="modal-stock-code">코드 · 섹터</div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <div class="text-xs text-gray-400">정밀 퀀트 총점</div>
+                        <div class="text-2xl font-black text-cyan-400" id="modal-score">0 / 95</div>
+                    </div>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-white text-2xl">✕</button>
+                </div>
+            </div>
+
+            <div class="space-y-5">
+                <div class="bg-cyan-950/30 border border-cyan-800/40 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-bold text-cyan-400">📊 AI & 실데이터 심층 종합 브리핑</span>
+                        <span class="text-xs text-emerald-400 font-semibold" id="modal-upside-badge">상승 가능성: 85%</span>
+                    </div>
+                    <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden mb-3">
+                        <div class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-full transition-all duration-500" id="modal-prob-bar" style="width: 85%"></div>
+                    </div>
+                    <p class="text-xs text-gray-300 leading-relaxed" id="modal-ai-briefing">분석 중...</p>
+                </div>
+
+                <div>
+                    <div class="text-xs font-bold text-gray-300 mb-2 flex items-center justify-between">
+                        <span>📈 기간별 수익률 (상세)</span>
+                        <span class="text-[10px] text-gray-500">기준가격 대비 수학적 산출</span>
+                    </div>
+                    <div class="grid grid-cols-7 gap-1.5 text-center text-xs mb-3" id="modal-returns-grid"></div>
+                </div>
+
+                <div>
+                    <div class="text-xs font-bold text-gray-300 mb-2">🏢 기업 펀더멘털 & 밸류에이션</div>
+                    <div class="grid grid-cols-4 gap-2 text-center text-xs bg-[#142036] p-3 rounded-lg" id="modal-fundamentals-grid"></div>
+                </div>
+
+                <div>
+                    <div class="text-xs font-bold text-gray-300 mb-2">🎯 20개 정밀 채점 내역 (95점 만점)</div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs bg-[#0d1527] p-3 rounded-lg" id="modal-20-metrics"></div>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="bg-[#142036] p-3 rounded-lg text-xs">
+                        <div class="font-bold text-gray-200 mb-2">📉 공매도 및 대차 위험 현황</div>
+                        <div id="modal-short-selling-box" class="text-gray-300 space-y-1"></div>
+                    </div>
+                    <div class="bg-[#142036] p-3 rounded-lg text-xs">
+                        <div class="font-bold text-gray-200 mb-2">📑 DART 최근 수주 및 공급계약 체결 공시</div>
+                        <div id="modal-dart-box" class="text-gray-300 space-y-1.5"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="text-xs font-bold text-gray-300 mb-2">⚠️ 리스크 진단</div>
+                    <div class="grid grid-cols-3 gap-2 text-xs" id="modal-risk-grid"></div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- 5분할 메인 탭 -->
-  <div class="market-tabs">
-    <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
-    <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
-    <button class="tab-btn" onclick="setTab('KOSDAQ', this)">코스닥</button>
-    <button class="tab-btn" onclick="setTab('SUPPLY', this)">수급</button>
-    <button class="tab-btn" onclick="setTab('GUIDE', this)">📖 설명서</button>
-  </div>
-
-  <!-- 점수 필터 칩 -->
-  <div class="score-filters" id="scoreFilters">
-    <button class="score-filter-chip active" onclick="setMinScore(0, this)">전체 점수</button>
-    <button class="score-filter-chip" onclick="setMinScore(80, this)">🔴 80점 이상</button>
-    <button class="score-filter-chip" onclick="setMinScore(70, this)">🟠 70점 이상</button>
-    <button class="score-filter-chip" onclick="setMinScore(60, this)">🟡 60점 이상</button>
-    <button class="score-filter-chip" onclick="setMinScore(50, this)">⚪ 50점 이상</button>
-  </div>
-
-  <!-- 상단 토글 필터 -->
-  <div class="filter-toggle-group" id="filterToggleGroup">
-    <div class="toggle-card" id="doubleToggle" onclick="toggleDoubleOnly()">
-      <div class="toggle-card-label">
-        <input type="checkbox" id="doubleCheckbox" style="accent-color:#f59e0b;width:15px;height:15px;pointer-events:none;">
-        <span>🔥 쌍끌이만</span>
-      </div>
-      <div class="toggle-card-count" id="doubleCount">(0)</div>
+    <!-- 지표 안내 모달 팝업 (캘린더 전용) -->
+    <div id="guide-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="card rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center">
+                <h3 id="modal-title" class="text-lg font-bold text-white">지표 안내</h3>
+                <button onclick="closeModalGuide()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+            </div>
+            <p id="modal-desc" class="text-sm text-slate-300 leading-relaxed">--</p>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeModalGuide()" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium px-4 py-2 rounded-lg transition">확인</button>
+            </div>
+        </div>
     </div>
 
-    <div class="toggle-card" id="strongToggle" onclick="toggleStrongBuyOnly()">
-      <div class="toggle-card-label">
-        <input type="checkbox" id="strongBuyCheckbox" style="accent-color:#fbbf24;width:15px;height:15px;pointer-events:none;">
-        <span>👑 강한 매수세</span>
-      </div>
-      <div class="toggle-card-count" id="strongBuyCount">(0)</div>
-    </div>
-  </div>
-
-  <div class="summary-bar" id="summaryBar">
-    <span id="filteredCount">선별 종목: 0개</span>
-    <span id="updatedTime">방금 갱신됨 (-)</span>
-  </div>
-
-  <!-- 리스트 영역 -->
-  <div class="card-list" id="cardList">
-    <div class="loading-box">데이터를 불러오는 중입니다...</div>
-  </div>
-
-</div>
-
-<script>
-  const SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn";
-
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-  const INDICATORS = [
-    ["score_01", "주가등락률", 7], ["score_02", "거래대금", 7], ["score_03", "거래량비율", 5],
-    ["score_04", "20일이평선", 6], ["score_05", "주가위치", 4], ["score_06", "양봉마감", 4],
-    ["score_07", "고가근접", 4], ["score_08", "윗꼬리제한", 3], ["score_09", "단기이평정배열", 6],
-    ["score_10", "외국인순매수", 6], ["score_11", "기관순매수", 5], ["score_12", "순매수비율", 5],
-    ["score_13", "5일이평선", 4], ["score_14", "60일이평선", 5], ["score_15", "120일이평선", 4],
-    ["score_16", "52주신고가", 5], ["score_17", "전고점돌파", 5], ["score_18", "RSI(14)", 4],
-    ["score_19", "이격도", 4], ["score_20", "MACD", 3]
-  ];
-
-  let allData = [];
-  let currentTab = "ALL";
-  let minScoreFilter = 0;
-  let isDoubleOnly = false;
-  let isStrongBuyOnly = false;
-
-  function num(v) { return Number(v || 0); }
-
-  function formatStockVol(v) {
-    const value = num(v);
-    if (!value) return "0";
-    const sign = value > 0 ? "+" : "";
-    if (Math.abs(value) >= 10000) return `${sign}${(value / 10000).toFixed(1)}만`;
-    return `${sign}${value.toLocaleString()}`;
-  }
-
-  function formatPrice(v) { return Math.round(num(v)).toLocaleString(); }
-
-  function formatAmountKRW(v) {
-    const value = num(v);
-    if (!value) return "0원";
-    const absVal = Math.abs(value);
-    const sign = value < 0 ? "-" : "";
-    if (absVal >= 100000000) {
-      return `${sign}${(absVal / 100000000).toFixed(1)}억`;
-    } else if (absVal >= 10000) {
-      return `${sign}${(absVal / 10000).toFixed(1)}만`;
-    }
-    return `${sign}${absVal.toLocaleString()}원`;
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
-  }
-
-  function gradeClass(score) { return score >= 80 ? "score-high" : ""; }
-
-  function startLiveClock() {
-    const clockEl = document.getElementById("liveClockSub");
-    if (!clockEl) return;
-    setInterval(() => {
-      const now = new Date();
-      clockEl.textContent = `현재시각: ${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-    }, 1000);
-  }
-
-  function renderCategoryBadges(item) {
-    const passedList = String(item.passed_tags || "").split(",").filter(Boolean);
-    const checks = [
-      { key: "가격", pass: passedList.includes("주가등락률") && passedList.includes("양봉마감") },
-      { key: "거래", pass: num(item.trade_amount) >= 30000000000 || num(item.volume_ratio) >= 150 },
-      { key: "수급", pass: num(item.foreign_net_buy) > 0 || num(item.inst_net_buy) > 0 },
-      { key: "추세", pass: passedList.includes("단기이평정배열") },
-      { key: "돌파", pass: passedList.includes("52주신고가") || passedList.includes("전고점돌파") },
-      { key: "과열/모멘텀", pass: passedList.includes("MACD") && passedList.includes("RSI(14)") }
-    ];
-    return checks.map(cat => `<span class="cond-badge ${cat.pass ? "pass" : "fail"}">${cat.pass ? "✓ " : ""}${cat.key}</span>`).join("");
-  }
-
-  function renderScoreDetails(item) {
-    const scoreHtml = INDICATORS.map(([key, label, max]) => `
-      <div class="score-item">
-        <span class="score-item-name">${label}</span>
-        <span class="score-item-value">${num(item[key])}/${max}</span>
-      </div>
-    `).join("");
-
-    const techHtml = [
-      ["거래량비율", `${num(item.volume_ratio).toFixed(1)}%`], ["MA5", formatPrice(item.ma5)],
-      ["MA10", formatPrice(item.ma10)], ["MA20", formatPrice(item.ma20)],
-      ["MA60", formatPrice(item.ma60)], ["MA120", formatPrice(item.ma120)],
-      ["52주고점", formatPrice(item.high_52w)], ["전고점", formatPrice(item.previous_high_60)],
-      ["RSI14", num(item.rsi14).toFixed(1)], ["이격도", `${num(item.disparity20).toFixed(1)}%`],
-      ["MACD", num(item.macd).toFixed(3)], ["MACD Signal", num(item.macd_signal).toFixed(3)]
-    ].map(([name, value]) => `<div class="tech-item">${name}<strong>${value}</strong></div>`).join("");
-
-    return `<div class="score-grid">${scoreHtml}</div><div class="tech-grid">${techHtml}</div>`;
-  }
-
-  function toggleDetail(ticker) {
-    const panel = document.getElementById(`detail-${ticker}`);
-    if (!panel) return;
-    panel.classList.toggle("open");
-    const button = document.querySelector(`[data-detail-btn="${ticker}"]`);
-    if (button) button.innerText = panel.classList.contains("open") ? "▲ 20개 지표 접기" : "▼ 20개 지표 상세보기";
-  }
-
-  async function fetchFromSupabase() {
-    const list = document.getElementById("cardList");
-    if (currentTab === "GUIDE" || currentTab === "SUPPLY") {
-      renderList();
-      return;
-    }
-
-    list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
-
-    try {
-      const { data, error } = await supabaseClient
-        .from("TRIPLE D PAPA")
-        .select("*")
-        .order("date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .order("trade_amount", { ascending: false });
-
-      if (error) throw error;
-      const rawData = data || [];
-
-      if (!rawData.length) {
-        allData = [];
-        document.getElementById("baseDate").innerText = "기준일자: 데이터 없음 (최신화 필요)";
-        renderList();
-        return;
-      }
-
-      const latestDate = rawData[0].date;
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const isToday = (latestDate === todayStr);
-
-      document.getElementById("baseDate").innerHTML = `기준일자: <span style="color:${isToday ? '#10b981' : '#f59e0b'};font-weight:800;">${latestDate} ${isToday ? '(오늘 최신)' : '(⚠️ 이전 날짜 데이터)'}</span>`;
-
-      const seen = new Set();
-      const unique = [];
-      for (const item of rawData) {
-        if (item.market === "INDEX") continue;
-        const key = `${item.date}_${item.market}_${item.ticker}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        unique.push(item);
-      }
-
-      // 오늘 날짜 데이터만 필터링하거나 전체 최신 데이터 유지 (날짜가 지난 경우 안내 포함)
-      allData = unique.filter(x => x.date === latestDate);
-
-      const now = new Date();
-      document.getElementById("updatedTime").innerText = `방금 갱신됨 (${now.getHours()}시 ${now.getMinutes()}분 ${now.getSeconds()}초)`;
-
-      updateCounts();
-      renderList();
-
-    } catch (err) {
-      console.error(err);
-      list.innerHTML = `<div class="error-box">데이터 로드 실패<br><small>${escapeHtml(err.message || err)}</small></div>`;
-    }
-  }
-
-  function isDouble(item) {
-    return Boolean(
-      item.double_buy ||
-      (num(item.foreign_net_buy) > 0 && num(item.inst_net_buy) > 0) ||
-      String(item.passed_tags || "").includes("쌍끌이")
-    );
-  }
-
-  function isStrongBuy(item) {
-    return (num(item.total_score) >= 80 && isDouble(item));
-  }
-
-  function updateCounts() {
-    const doubleCount = allData.filter(isDouble).length;
-    const strongCount = allData.filter(isStrongBuy).length;
-
-    document.getElementById("doubleCount").innerText = `(${doubleCount})`;
-    document.getElementById("strongBuyCount").innerText = `(${strongCount})`;
-    document.getElementById("doubleCheckbox").checked = isDoubleOnly;
-    document.getElementById("strongBuyCheckbox").checked = isStrongBuyOnly;
-    document.getElementById("doubleToggle").classList.toggle("on", isDoubleOnly);
-    document.getElementById("strongToggle").classList.toggle("on", isStrongBuyOnly);
-  }
-
-  function renderList() {
-    const cardListEl = document.getElementById("cardList");
-    const scoreFiltersEl = document.getElementById("scoreFilters");
-    const toggleGroupEl = document.getElementById("filterToggleGroup");
-    const summaryBarEl = document.getElementById("summaryBar");
-
-    if (currentTab === "GUIDE") {
-      scoreFiltersEl.style.display = "none";
-      toggleGroupEl.style.display = "none";
-      summaryBarEl.style.display = "none";
-      renderGuideTab(cardListEl);
-    } else if (currentTab === "SUPPLY") {
-      scoreFiltersEl.style.display = "none";
-      toggleGroupEl.style.display = "none";
-      summaryBarEl.style.display = "none";
-      renderSupplyTab(cardListEl);
-    } else {
-      scoreFiltersEl.style.display = "flex";
-      toggleGroupEl.style.display = "flex";
-      summaryBarEl.style.display = "flex";
-      renderStockTab(cardListEl);
-    }
-  }
-
-  /* 수급 탭 (개인, 외국인, 기관 순 / 왼쪽 매수, 오른쪽 매도 대칭 구조) */
-  function renderSupplyTab(container) {
-    // 개인 정렬 (매수 / 매도)
-    const rBuy = [...allData].sort((a, b) => (num(b.retail_net_buy) * num(b.close_price)) - (num(a.retail_net_buy) * num(a.close_price))).slice(0, 10);
-    const rSell = [...allData].sort((a, b) => (num(a.retail_net_buy) * num(a.close_price)) - (num(b.retail_net_buy) * num(b.close_price))).slice(0, 10);
-
-    // 외국인 정렬 (매수 / 매도)
-    const fBuy = [...allData].sort((a, b) => (num(b.foreign_net_buy) * num(b.close_price)) - (num(a.foreign_net_buy) * num(a.close_price))).slice(0, 10);
-    const fSell = [...allData].sort((a, b) => (num(a.foreign_net_buy) * num(a.close_price)) - (num(b.foreign_net_buy) * num(b.close_price))).slice(0, 10);
-
-    // 기관 정렬 (매수 / 매도)
-    const iBuy = [...allData].sort((a, b) => (num(b.inst_net_buy) * num(b.close_price)) - (num(a.inst_net_buy) * num(a.close_price))).slice(0, 10);
-    const iSell = [...allData].sort((a, b) => (num(a.inst_net_buy) * num(a.close_price)) - (num(b.inst_net_buy) * num(b.close_price))).slice(0, 10);
-
-    const makeTableRows = (list, isBuy) => {
-      if (!list.length) return `<tr><td colspan="3" style="text-align:center;padding:15px;">데이터 없음</td></tr>`;
-      return list.map((item, idx) => {
-        const val = isBuy ? (item.market ? (item.market.includes('R') ? item.retail_net_buy : item[isBuy === 'retail' ? 'retail_net_buy' : isBuy === 'foreign' ? 'foreign_net_buy' : 'inst_net_buy']) : 0) : 0;
-        // 동적 필드 매핑 처리
-        let rawVal = 0;
-        if (isBuy.includes('retail')) rawVal = item.retail_net_buy;
-        else if (isBuy.includes('foreign')) rawVal = item.foreign_net_buy;
-        else if (isBuy.includes('inst')) rawVal = item.inst_net_buy;
-
-        const amt = num(rawVal) * num(item.close_price);
-        const colorStyle = isBuy.includes('buy') ? "color:#f87171;" : "color:#60a5fa;";
-        return `
-          <tr>
-            <td style="width:24px;text-align:center;">${idx+1}</td>
-            <td><strong>${escapeHtml(item.name)}</strong></td>
-            <td style="text-align:right;${colorStyle}">${formatAmountKRW(amt)}</td>
-          </tr>
-        `;
-      }).join('');
-    };
-
-    container.innerHTML = `
-      <!-- 1. 개인 -->
-      <div class="supply-category-block">
-        <div class="supply-category-title">👤 개인 수급 순위 TOP 10</div>
-        <div class="supply-dual-grid">
-          <div>
-            <div class="supply-col-title" style="color:#f87171;">🟢 순매수 상위</div>
-            <table class="supply-table">
-              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
-              <tbody>${makeTableRows(rBuy, 'retail_buy')}</tbody>
-            </table>
-          </div>
-          <div>
-            <div class="supply-col-title" style="color:#60a5fa;">🔵 순매도 상위</div>
-            <table class="supply-table">
-              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
-              <tbody>${makeTableRows(rSell, 'retail_sell')}</tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. 외국인 -->
-      <div class="supply-category-block">
-        <div class="supply-category-title">🌐 외국인 수급 순위 TOP 10</div>
-        <div class="supply-dual-grid">
-          <div>
-            <div class="supply-col-title" style="color:#f87171;">🟢 순매수 상위</div>
-            <table class="supply-table">
-              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
-              <tbody>${makeTableRows(fBuy, 'foreign_buy')}</tbody>
-            </table>
-          </div>
-          <div>
-            <div class="supply-col-title" style="color:#60a5fa;">🔵 순매도 상위</div>
-            <table class="supply-table">
-              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
-              <tbody>${makeTableRows(fSell, 'foreign_sell')}</tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. 기관 -->
-      <div class="supply-category-block">
-        <div class="supply-category-title">🏛️ 기관 수급 순위 TOP 10</div>
-        <div class="supply-dual-grid">
-          <div>
-            <div class="supply-col-title" style="color:#f87171;">🟢 순매수 상위</div>
-            <table class="supply-table">
-              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
-              <tbody>${makeTableRows(iBuy, 'inst_buy')}</tbody>
-            </table>
-          </div>
-          <div>
-            <div class="supply-col-title" style="color:#60a5fa;">🔵 순매도 상위</div>
-            <table class="supply-table">
-              <thead><tr><th>#</th><th>종목명</th><th style="text-align:right;">추정금액</th></tr></thead>
-              <tbody>${makeTableRows(iSell, 'inst_sell')}</tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderGuideTab(container) {
-    container.innerHTML = `
-      <div class="guide-box">
-        <div class="guide-title">⏰ 데이터 동기화 & 일별 교체 안내</div>
-        <ul class="guide-list">
-          <li><strong>GitHub Actions 자동 수집</strong>: 평일 장중 30분 간격 신규 데이터 자동 갱신</li>
-          <li><strong>당일 데이터 자동 필터</strong>: 기준일자가 오늘 날짜와 일치하는 최신 정보만 화면에 고정 노출</li>
-          <li><strong>화면 실시간 갱신</strong>: 30초 간격으로 Supabase와 연동되어 최신 지표 반영</li>
-        </ul>
-      </div>
-    `;
-  }
-
-  function renderStockTab(container) {
-    let filtered = allData.filter(item => {
-      if (currentTab !== "ALL" && item.market !== currentTab) return false;
-      const score = num(item.total_score);
-      if (minScoreFilter > 0 && score < minScoreFilter) return false;
-      if (isDoubleOnly && !isDouble(item)) return false;
-      if (isStrongBuyOnly && !isStrongBuy(item)) return false;
-      return true;
-    });
-
-    filtered.sort((a,b) => {
-      const strongDiff = Number(isStrongBuy(b)) - Number(isStrongBuy(a));
-      if (strongDiff !== 0) return strongDiff;
-      const scoreDiff = num(b.total_score) - num(a.total_score);
-      if (scoreDiff !== 0) return scoreDiff;
-      return (num(b.trade_amount) - num(a.trade_amount));
-    });
-
-    document.getElementById("filteredCount").innerText = `선별 종목: ${filtered.length}개`;
-
-    if (!filtered.length) {
-      container.innerHTML = `<div class="loading-box">조건에 맞는 오늘자 종목이 없습니다. (장 시작 후 갱신 확인)</div>`;
-      return;
-    }
-
-    container.innerHTML = filtered.map(renderStockCard).join("");
-  }
-
-  function renderStockCard(item) {
-    const closeP = num(item.close_price);
-    const rate = num(item.change_rate);
-    const score = num(item.total_score);
-    const strong = isStrongBuy(item);
-    const double = isDouble(item);
-
-    const prevClose = num(item.prev_close) || (rate !== -100 && closeP > 0 ? closeP / (1 + rate / 100) : 0);
-    const rateClass = rate > 0 ? "rate-up" : rate < 0 ? "rate-down" : "";
-    const sign = rate > 0 ? "+" : "";
-    const dealInEok = Math.round(num(item.trade_amount) / 100000000);
-
-    const badgeHtml = strong ? `<span class="strong-badge">👑 강한 매수세</span>` : double ? `<span class="double-badge">🔥 쌍끌이</span>` : "";
-    const ticker = String(item.ticker || "").replace(/[^a-zA-Z0-9_-]/g, "");
-
-    return `
-      <div class="card ${strong ? "strong-buy-card" : ""}">
-        <div class="card-head">
-          <div class="stock-info">
-            <span class="market-tag ${item.market === "KOSDAQ" ? "kosdaq" : ""}">${escapeHtml(item.market)}</span>
-            <span class="stock-title">${escapeHtml(item.name)}</span>
-            ${badgeHtml}
-            <span class="score-badge ${gradeClass(score)}">${score}점 ${escapeHtml(item.grade || "")}</span>
-          </div>
-          <div class="price-wrap">
-            <div class="current-price">${Math.round(closeP).toLocaleString()}원</div>
-            <div class="rate-text ${rateClass}">${sign}${rate.toFixed(2)}%</div>
-          </div>
-        </div>
-
-        <div class="investor-row">
-          <span class="investor-chip chip-foreign">외인 ${formatStockVol(item.foreign_net_buy)}</span>
-          <span class="investor-chip chip-inst">기관 ${formatStockVol(item.inst_net_buy)}</span>
-          <span class="investor-chip chip-retail">개인 ${formatStockVol(item.retail_net_buy)}</span>
-        </div>
-
-        <div class="conditions-grid">${renderCategoryBadges(item)}</div>
-
-        <div class="card-footer">
-          <span class="prev-close-price">전일종가 ${Math.round(prevClose).toLocaleString()}원</span>
-          <span class="trade-amount">거래대금 ${dealInEok.toLocaleString()}억</span>
-        </div>
-
-        <button class="detail-btn" data-detail-btn="${ticker}" onclick="toggleDetail('${ticker}')">▼ 20개 지표 상세보기</button>
-        <div class="detail-panel" id="detail-${ticker}">${renderScoreDetails(item)}</div>
-      </div>
-    `;
-  }
-
-  function setTab(tab, btn) {
-    currentTab = tab;
-    document.querySelectorAll(".market-tabs .tab-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    fetchFromSupabase();
-  }
-
-  function setMinScore(scoreThreshold, btn) {
-    minScoreFilter = scoreThreshold;
-    document.querySelectorAll(".score-filters .score-filter-chip").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    renderList();
-  }
-
-  function toggleDoubleOnly() {
-    isDoubleOnly = !isDoubleOnly;
-    updateCounts();
-    renderList();
-  }
-
-  function toggleStrongBuyOnly() {
-    isStrongBuyOnly = !isStrongBuyOnly;
-    updateCounts();
-    renderList();
-  }
-
-  window.addEventListener("DOMContentLoaded", () => {
-    startLiveClock();
-    fetchFromSupabase();
-    setInterval(fetchFromSupabase, 30000);
-  });
-</script>
-
+    <script>
+        let rawStocks = [];
+        let currentFilter = 'ALL';
+        let selectedIndustry = null;
+        let searchQuery = '';
+        let expandedLeaderSector = null;
+
+        // 2026년 1월부터 2030년 12월까지의 모든 주차를 동적으로 자동 생성
+        function generateMultiYearWeeks() {
+            let weeks = [];
+            let d = new Date(2026, 0, 1);
+            let endDate = new Date(2030, 11, 31);
+
+            while (d <= endDate) {
+                let year = d.getFullYear();
+                let month = d.getMonth() + 1;
+                let startDay = new Date(d);
+                let endDay = new Date(d);
+                endDay.setDate(endDay.getDate() + 6);
+                if (endDay > endDate) endDay = new Date(endDate);
+
+                let sMonth = String(startDay.getMonth() + 1).padStart(2, '0');
+                let sDate = String(startDay.getDate()).padStart(2, '0');
+                let eMonth = String(endDay.getMonth() + 1).padStart(2, '0');
+                let eDate = String(endDay.getDate()).padStart(2, '0');
+
+                let label = `${year}년 ${month}월 (${sMonth}.${sDate} - ${eMonth}.${eDate})`;
+                weeks.push(label);
+                d.setDate(d.getDate() + 7);
+            }
+            return weeks;
+        }
+
+        const weeksList = generateMultiYearWeeks();
+        let currentWeekIndex = weeksList.findIndex(w => w.includes("2026년 9월") && w.includes("09.14")) !== -1 
+            ? weeksList.findIndex(w => w.includes("2026년 9월") && w.includes("09.14")) 
+            : 35;
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('text-cyan-400', 'font-semibold', 'border-b-2', 'border-cyan-400');
+                el.classList.add('hover:text-cyan-400');
+            });
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            const activeNav = document.getElementById('nav-' + tabId);
+            if (activeNav) {
+                activeNav.classList.remove('hover:text-cyan-400');
+                activeNav.classList.add('text-cyan-400', 'font-semibold', 'border-b-2', 'border-cyan-400');
+            }
+            if (tabId === 'money' || tabId === 'home') triggerScan(false);
+            if (tabId === 'feed') fetchDisclosures('전체');
+            if (tabId === 'calendar') fetchCalendarData(currentCalMode);
+        }
+
+        async function triggerScan(force = false) {
+            const spinner = document.getElementById('refresh-spinner');
+            if (spinner) spinner.classList.add('animate-spin');
+
+            try {
+                const url = force ? '/api/scan?force=true' : '/api/scan';
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.market) {
+                    const m = data.market.macro;
+                    for (const [key, obj] of Object.entries(m)) {
+                        const el = document.getElementById('macro-' + key);
+                        if (el) el.innerHTML = `${obj.val} <span class="${obj.up ? 'text-rose-400' : 'text-sky-400'} text-[10px]">${obj.chg}</span>`;
+                    }
+
+                    const n = data.market.night;
+                    for (const [key, obj] of Object.entries(n)) {
+                        const el = document.getElementById('night-' + key);
+                        if (el) {
+                            if (obj.status) {
+                                el.innerText = `${obj.val} (${obj.status})`;
+                            } else {
+                                el.innerHTML = `${obj.val} <span class="${obj.up ? 'text-rose-400' : 'text-sky-400'} text-[10px]">${obj.chg}</span>`;
+                            }
+                        }
+                    }
+
+                    const b = data.market.bonds;
+                    if (b && b.yield_2y && b.yield_5y && b.yield_10y && b.yield_30y) {
+                        const b2 = document.getElementById('bond-2y'); if(b2) b2.innerText = b.yield_2y.val;
+                        const b5 = document.getElementById('bond-5y'); if(b5) b5.innerText = b.yield_5y.val;
+                        const b10 = document.getElementById('bond-10y'); if(b10) b10.innerText = b.yield_10y.val;
+                        const b30 = document.getElementById('bond-30y'); if(b30) b30.innerText = b.yield_30y.val;
+                    }
+                }
+
+                if (data.results && data.results.length > 0) {
+                    rawStocks = data.results;
+                    renderTable();
+                    renderIndustryFlow();
+                }
+
+                if (data.time_str) {
+                    const bt = document.getElementById('base-time');
+                    if (bt) bt.innerText = data.time_str;
+                }
+                if (data.count !== undefined) {
+                    const tc = document.getElementById('table-total-count');
+                    if (tc) tc.innerText = `${data.count}종목`;
+                }
+            } catch (err) {
+                console.error("데이터 로드 실패:", err);
+            } finally {
+                if (spinner) spinner.classList.remove('animate-spin');
+            }
+        }
+
+        function formatPct(val) {
+            if (val === null || val === undefined || isNaN(val)) return '<span class="text-gray-500">미확보</span>';
+            const n = parseFloat(val);
+            const color = n > 0 ? 'text-rose-400' : (n < 0 ? 'text-sky-400' : 'text-gray-400');
+            return `<span class="${color} font-medium">${n > 0 ? '▲' : (n < 0 ? '▼' : '')} ${Math.abs(n).toFixed(1)}%</span>`;
+        }
+
+        function formatNetQty(val) {
+            if (val === null || val === undefined || isNaN(val)) return '<span class="text-gray-500">0주</span>';
+            const n = parseInt(val);
+            return `<span class="${n > 0 ? 'text-rose-400' : 'text-sky-400'} font-medium">${n > 0 ? '+' : ''}${n.toLocaleString()}주</span>`;
+        }
+
+        function getRoleBadgeClass(role) {
+            if (role === '대장주') return 'badge-leader';
+            if (role === '직접 수혜') return 'badge-direct';
+            if (role === '이후 수혜') return 'badge-later';
+            return 'badge-late';
+        }
+
+        function filterTab(filterName, btn) {
+            currentFilter = filterName;
+            document.querySelectorAll('.btn-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderTable();
+        }
+
+        let searchTimer = null;
+        function handleSearch(query) {
+            searchQuery = query.trim().toLowerCase();
+            renderTable();
+            clearTimeout(searchTimer);
+            if (searchQuery.length < 1) return;
+            searchTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(searchQuery)}&limit=100`);
+                    const json = await res.json();
+                    if (json.data?.length) {
+                        const known = new Set(rawStocks.map(x => x.code));
+                        json.data.forEach(x => { if (!known.has(x.code)) rawStocks.push(x); });
+                        renderTable();
+                    }
+                } catch (err) { console.error('티커 검색 실패:', err); }
+            }, 250);
+        }
+
+        function selectIndustry(ind) {
+            selectedIndustry = (selectedIndustry === ind) ? null : ind;
+            document.getElementById('table-title').innerText = selectedIndustry ? `[${selectedIndustry}] 섹터 후보` : '분석 후보 전체';
+            document.getElementById('btn-reset-filter').classList.toggle('hidden', !selectedIndustry);
+            renderIndustryFlow();
+            renderTable();
+        }
+
+        function clearIndustryFilter() {
+            selectedIndustry = null;
+            document.getElementById('table-title').innerText = '분석 후보 전체';
+            document.getElementById('btn-reset-filter').classList.add('hidden');
+            renderIndustryFlow();
+            renderTable();
+        }
+
+        function toggleSubTable(industryName) {
+            expandedLeaderSector = (expandedLeaderSector === industryName) ? null : industryName;
+            renderTable();
+        }
+
+        function openManualModal() { document.getElementById('manual-modal').classList.remove('hidden'); }
+        function closeManualModal() { document.getElementById('manual-modal').classList.add('hidden'); }
+
+        function renderIndustryFlow() {
+            const industryMap = {};
+            rawStocks.forEach(item => {
+                const ind = item.industry || '기타';
+                const m = item.metrics || {};
+                const amt = m.turnover || 0;
+                const chg = m.change_pct || 0;
+                if (!industryMap[ind]) {
+                    industryMap[ind] = { totalTurnover: 0, weightedChangeSum: 0, count: 0 };
+                }
+                industryMap[ind].totalTurnover += amt;
+                industryMap[ind].weightedChangeSum += (amt * chg);
+                industryMap[ind].count += 1;
+            });
+
+            const sorted = Object.entries(industryMap)
+                .sort((a, b) => b[1].totalTurnover - a[1].totalTurnover)
+                .slice(0, 10);
+
+            const container = document.getElementById('industry-list');
+            if (sorted.length === 0) {
+                container.innerHTML = `<div class="text-xs text-gray-500 py-4 text-center">집계 데이터 없음</div>`;
+                return;
+            }
+
+            let html = '';
+            sorted.forEach(([indName, data], idx) => {
+                const bill = Math.round(data.totalTurnover / 100000000);
+                const weightedAvg = data.totalTurnover > 0 ? (data.weightedChangeSum / data.totalTurnover).toFixed(2) : "0.00";
+                const activeClass = (selectedIndustry === indName) ? 'industry-card-active' : '';
+
+                html += `
+                    <div onclick="selectIndustry('${indName}')" class="card p-3 rounded-lg cursor-pointer hover:border-cyan-500/50 transition flex items-center justify-between ${activeClass}">
+                        <div>
+                            <div class="flex items-center gap-1.5 mb-0.5">
+                                <span class="bg-gray-800 text-gray-300 text-[10px] px-1.5 py-0.2 rounded font-mono">${idx + 1}</span>
+                                <span class="font-bold text-white text-xs">${indName}</span>
+                            </div>
+                            <div class="text-[10px] text-gray-400">${data.count}개 종목 연동</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs font-bold text-cyan-400">${bill.toLocaleString()}억</div>
+                            <div class="text-[11px] ${parseFloat(weightedAvg) >= 0 ? 'text-rose-400' : 'text-sky-400'} font-medium mt-0.5">${formatPct(weightedAvg)}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('stock-tbody');
+            let filtered = rawStocks;
+
+            if (selectedIndustry) filtered = filtered.filter(x => x.industry === selectedIndustry);
+            if (currentFilter === 'LEADER') filtered = filtered.filter(x => x.role === '대장주');
+            else if (currentFilter === 'DIRECT') filtered = filtered.filter(x => x.role === '직접 수혜');
+            else if (currentFilter === 'LATER') filtered = filtered.filter(x => x.role === '후발 수혜');
+            else if (currentFilter === 'FOREIGN') filtered = filtered.filter(x => (x.foreign_inst_net || 0) > 0);
+
+            if (searchQuery) filtered = filtered.filter(x => x.name.toLowerCase().includes(searchQuery) || x.code.includes(searchQuery));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="12" class="py-12 text-center text-gray-400">검색되거나 조건에 맞는 종목이 없습니다.</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach((item, index) => {
+                const m = item.metrics || {};
+                const r = m.returns || {};
+                const priceChange = m.change_pct || 0;
+                const priceColor = priceChange > 0 ? 'text-rose-400' : (priceChange < 0 ? 'text-sky-400' : 'text-gray-300');
+                const roleClass = getRoleBadgeClass(item.role);
+
+                html += `
+                    <tr>
+                        <td class="py-3 px-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-gray-400 w-5">${index + 1}</span>
+                                <div>
+                                    <div class="font-bold text-white">${item.name}</div>
+                                    <div class="text-[11px] text-gray-500 font-mono">${item.code} · ${item.industry || '기타'}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3 px-3 text-center">
+                            <button onclick="toggleSubTable('${item.industry}')" class="${roleClass}">
+                                ${item.role} ${item.role === '대장주' ? '▾' : ''}
+                            </button>
+                        </td>
+                        <td class="py-3 px-3 text-center font-bold text-cyan-400">${item.score || 0}</td>
+                        <td class="py-3 px-3 text-right">
+                            <div class="font-semibold text-white" id="price-${item.code}">${(m.current_price || 0).toLocaleString()}</div>
+                            <div class="text-xs ${priceColor}" id="chg-${item.code}">${priceChange > 0 ? '▲' : (priceChange < 0 ? '▼' : '')}${Math.abs(priceChange).toFixed(2)}%</div>
+                        </td>
+                        <td class="py-3 px-3 text-right">${formatPct(r['1일'])}</td>
+                        <td class="py-3 px-3 text-right">${formatPct(r['2일'])}</td>
+                        <td class="py-3 px-3 text-right">${formatPct(r['3일'])}</td>
+                        <td class="py-3 px-3 text-right">${formatPct(r['4일'])}</td>
+                        <td class="py-3 px-3 text-right">${formatPct(r['5일'])}</td>
+                        <td class="py-3 px-3 text-right font-medium text-gray-200">${Math.round((m.turnover || 0)/100000000).toLocaleString()}억</td>
+                        <td class="py-3 px-3 text-right">${formatNetQty(item.foreign_inst_net)}</td>
+                        <td class="py-3 px-3 text-center">
+                            <button onclick="openModal('${item.code}')" class="btn-detail">상세분석</button>
+                        </td>
+                    </tr>
+                `;
+
+                if (expandedLeaderSector === item.industry && item.role === '대장주') {
+                    const subStocks = rawStocks.filter(x => x.industry === item.industry && x.code !== item.code);
+                    html += `
+                        <tr class="subtable-row">
+                            <td colspan="12" class="p-5">
+                                <div class="flex items-center justify-between mb-3 pb-2 border-b border-amber-500/30">
+                                    <div class="text-xs font-bold text-amber-400">👑 [${item.name}] 대장주 연계 밸류체인 머니 플로우 맵</div>
+                                    <div class="text-[11px] text-cyan-300 font-medium">자금 확산 순서: 직접 수혜 ➔ 이후 수혜 ➔ 후발 수혜</div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    `;
+                    subStocks.forEach(sub => {
+                        const sm = sub.metrics || {};
+                        html += `
+                            <div class="bg-[#0b1320] p-3 rounded-lg border border-gray-700/80 shadow-md flex items-center justify-between">
+                                <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="font-bold text-white text-xs">${sub.name}</span>
+                                        <span class="${getRoleBadgeClass(sub.role)}">${sub.role}</span>
+                                    </div>
+                                    <div class="text-[10px] text-emerald-300">키맞추기 룸 대기</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-xs font-bold text-white">${(sm.current_price || 0).toLocaleString()}원</div>
+                                    <div class="text-[11px] ${(sm.change_pct || 0) >= 0 ? 'text-rose-400' : 'text-sky-400'} font-bold">${formatPct(sm.change_pct)}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += `</div></td></tr>`;
+                }
+            });
+            tbody.innerHTML = html;
+        }
+
+        async function openModal(code) {
+            let item = rawStocks.find(x => x.code === code);
+            if (!item) return;
+            try {
+                const res = await fetch(`/api/stocks/${encodeURIComponent(code)}`);
+                const json = await res.json();
+                if (json.data) item = json.data;
+            } catch (err) { console.error('종목 상세 조회 실패:', err); }
+
+            document.getElementById('modal-stock-name').innerHTML = `${item.name}`;
+            document.getElementById('modal-stock-code').innerText = `${item.code} · ${item.industry || '기타'} · 역할: ${item.role}`;
+            document.getElementById('modal-score').innerText = `${item.score || 0} / 95`;
+
+            const prob = item.upside_probability || 85;
+            document.getElementById('modal-upside-badge').innerText = `상승 가능성: ${prob}% (${item.upside_status || '단기 상승 우세'})`;
+            document.getElementById('modal-prob-bar').style.width = `${prob}%`;
+            document.getElementById('modal-ai-briefing').innerText = item.ai_briefing || `${item.name} 심층 분석 보고서입니다.`;
+
+            const mr = item.metrics?.modal_returns || {};
+            document.getElementById('modal-returns-grid').innerHTML = `
+                <div class="bg-[#142036] p-2 rounded">1년<br/>${formatPct(mr['1년'])}</div>
+                <div class="bg-[#142036] p-2 rounded">6개월<br/>${formatPct(mr['6개월'])}</div>
+                <div class="bg-[#142036] p-2 rounded">3개월<br/>${formatPct(mr['3개월'])}</div>
+                <div class="bg-[#142036] p-2 rounded">1개월<br/>${formatPct(mr['1개월'])}</div>
+                <div class="bg-[#142036] p-2 rounded">20일<br/>${formatPct(mr['20일'])}</div>
+                <div class="bg-[#142036] p-2 rounded">10일<br/>${formatPct(mr['10일'])}</div>
+                <div class="bg-[#142036] p-2 rounded">5일<br/>${formatPct(mr['5일'])}</div>
+            `;
+
+            const f = item.fundamentals || {};
+            document.getElementById('modal-fundamentals-grid').innerHTML = `
+                <div><div class="text-gray-400 text-[10px]">PER</div><div class="font-bold text-gray-200 mt-0.5">${f.per ?? '미확보'}${f.per != null ? '배' : ''}</div></div>
+                <div><div class="text-gray-400 text-[10px]">PBR</div><div class="font-bold text-gray-200 mt-0.5">${f.pbr ?? '미확보'}${f.pbr != null ? '배' : ''}</div></div>
+                <div><div class="text-gray-400 text-[10px]">ROE</div><div class="font-bold text-emerald-400 mt-0.5">${f.roe ?? '미확보'}${f.roe != null ? '%' : ''}</div></div>
+                <div><div class="text-gray-400 text-[10px]">배당수익률</div><div class="font-bold text-cyan-400 mt-0.5">${f.dividend_yield ?? '미확보'}${f.dividend_yield != null ? '%' : ''}</div></div>
+            `;
+
+            const tm = item.twenty_metrics || [];
+            let tmHtml = '';
+            if (tm.length > 0) {
+                tm.forEach(m => {
+                    tmHtml += `
+                        <div class="flex items-center justify-between p-1.5 bg-[#142036] rounded">
+                            <span class="text-gray-300 text-[11px]">${m.name}</span>
+                            <span class="font-bold text-cyan-400 text-xs">${m.score}</span>
+                        </div>
+                    `;
+                });
+            } else {
+                tmHtml = `<div class="text-gray-500 col-span-4 text-center py-2">채점 완료</div>`;
+            }
+            document.getElementById('modal-20-metrics').innerHTML = tmHtml;
+
+            const ss = item.short_selling || {};
+            document.getElementById('modal-short-selling-box').innerHTML = `
+                <div>• 공매도 비중: <span class="text-rose-400 font-semibold">${ss.short_ratio != null ? ss.short_ratio + '%' : '데이터 미연결'}</span></div>
+                <div>• 대차잔고 비율: <span class="text-yellow-400 font-semibold">${ss.balance_ratio != null ? ss.balance_ratio + '%' : '데이터 미연결'}</span></div>
+                <div>• 숏스퀴즈 가능성: <span class="text-emerald-400 font-semibold">${ss.is_short_squeeze == null ? '판단보류' : (ss.is_short_squeeze ? '높음' : '보통')}</span></div>
+            `;
+
+            const dartList = item.dart_timeline || [];
+            let dartHtml = '';
+            dartList.forEach(d => {
+                const label = typeof d === 'string' ? d : `${d.date_md || ''} ${d.title || ''}`;
+                const url = typeof d === 'object' ? d.url : '';
+                dartHtml += url ? `<div><a class="text-cyan-300 hover:underline" href="${url}" target="_blank" rel="noopener">${label}</a></div>` : `<div>${label}</div>`;
+            });
+            if (!dartHtml) dartHtml = '<div class="text-gray-500">최근 연계 공시 없음 또는 DART 키 미설정</div>';
+            document.getElementById('modal-dart-box').innerHTML = dartHtml;
+
+            const rk = item.risks || {};
+            document.getElementById('modal-risk-grid').innerHTML = `
+                <div class="bg-[#142036] p-2.5 rounded"><div class="text-rose-400 font-bold mb-1">단기 리스크</div><div class="text-gray-300 text-[11px]">${rk.short || '정상'}</div></div>
+                <div class="bg-[#142036] p-2.5 rounded"><div class="text-yellow-400 font-bold mb-1">중기 리스크</div><div class="text-gray-300 text-[11px]">${rk.mid || '정상'}</div></div>
+                <div class="bg-[#142036] p-2.5 rounded"><div class="text-sky-400 font-bold mb-1">장기 리스크</div><div class="text-gray-300 text-[11px]">${rk.long || '정상'}</div></div>
+            `;
+
+            document.getElementById('detail-modal').classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('detail-modal').classList.add('hidden'); }
+
+        // 공시 피드 로직
+        let currentCategory = '전체';
+        async function fetchDisclosures(category) {
+            currentCategory = category;
+            ['전체', '주요공시', '실적·수주', '연금관련'].forEach(cat => {
+                const btn = document.getElementById(`cat-${cat}`);
+                if (btn) {
+                    btn.className = cat === category ? "px-3 py-1.5 text-xs font-semibold rounded-lg bg-cyan-600 text-white transition" : "px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-gray-300 hover:bg-slate-700 transition";
+                }
+            });
+
+            try {
+                const res = await fetch(`/api/disclosures?category=${encodeURIComponent(category)}`);
+                const json = await res.json();
+                const list = document.getElementById('disclosure-list');
+                list.innerHTML = '';
+                if (json.data && json.data.length > 0) {
+                    json.data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center justify-between p-3 rounded-xl card hover:border-slate-700 transition";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <span class="text-xs text-slate-400 shrink-0">${item.time}</span>
+                                <span class="text-[11px] px-2 py-0.5 rounded border shrink-0 ${item.tag_color}">* ${item.tag}</span>
+                                <a href="${item.url || '#'}" target="_blank" rel="noopener" class="text-xs sm:text-sm font-medium text-slate-200 truncate hover:text-cyan-300">${item.title}</a>
+                            </div>
+                        `;
+                        list.appendChild(div);
+                    });
+                } else {
+                    list.innerHTML = `<div class="text-center py-10 text-slate-500 text-xs">해당 카테고리 공시 내역이 없습니다.</div>`;
+                }
+            } catch (err) { console.error("공시 피드 로드 실패:", err); }
+        }
+        function filterDisclosures(cat) { fetchDisclosures(cat); }
+
+        // MONEY갤린더 로직 (다년도 동적 주차 이동 연동)
+        let currentCalMode = 'economic';
+        let calendarData = [];
+
+        function changeWeek(direction) {
+            currentWeekIndex += direction;
+            if (currentWeekIndex < 0) currentWeekIndex = 0;
+            if (currentWeekIndex >= weeksList.length) currentWeekIndex = weeksList.length - 1;
+            fetchCalendarData(currentCalMode);
+        }
+
+        async function switchCalendarSubTab(mode) {
+            currentCalMode = mode;
+            document.getElementById('sub-eco').className = mode === 'economic' ? "px-4 py-1.5 text-xs font-bold rounded-lg bg-cyan-600 text-white transition" : "px-4 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
+            document.getElementById('sub-earn').className = mode === 'earnings' ? "px-4 py-1.5 text-xs font-bold rounded-lg bg-cyan-600 text-white transition" : "px-4 py-1.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
+            await fetchCalendarData(mode);
+        }
+
+        async function fetchCalendarData(mode) {
+            const weekLabel = weeksList[currentWeekIndex];
+            const weekLabelEl = document.getElementById('current-week-label');
+            if (weekLabelEl) weekLabelEl.innerText = weekLabel;
+
+            const endpoint = mode === 'economic' ? `/api/calendar/economic?week=${encodeURIComponent(weekLabel)}` : `/api/calendar/earnings?week=${encodeURIComponent(weekLabel)}`;
+            try {
+                const res = await fetch(endpoint);
+                const json = await res.json();
+                calendarData = json.data || [];
+                renderCalendarTimeline();
+                if (calendarData.length > 0) {
+                    selectCalendarItem(calendarData[0].id);
+                } else {
+                    document.getElementById('calendar-timeline').innerHTML = `<div class="text-center py-10 text-slate-500 text-xs">${weekLabel}<br>등록된 일정이 없습니다.</div>`;
+                    document.getElementById('det-title').innerText = "예정된 주요 일정 없음";
+                    document.getElementById('det-actual').innerText = "-";
+                    document.getElementById('det-forecast').innerText = "-";
+                    document.getElementById('det-ai').innerText = "해당 주차에 수집된 거시경제 또는 실적 발표 일정이 없습니다. 상단 화살표를 눌러 다른 주차를 확인하세요.";
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        function renderCalendarTimeline() {
+            const timeline = document.getElementById('calendar-timeline');
+            timeline.innerHTML = '';
+            calendarData.forEach(item => {
+                const div = document.createElement('div');
+                div.className = "p-3 rounded-xl bg-slate-950/40 border border-slate-800 hover:border-cyan-500/50 cursor-pointer transition space-y-1.5";
+                div.onclick = () => selectCalendarItem(item.id);
+                div.innerHTML = `
+                    <div class="flex justify-between items-center text-xs text-slate-400">
+                        <span>${item.country} ${item.date} ${item.time}</span>
+                    </div>
+                    <div class="font-semibold text-sm text-slate-200">${item.title}</div>
+                    <div class="inline-block text-[11px] px-2 py-0.5 rounded border ${item.tag_color}">* ${item.tag}</div>
+                `;
+                timeline.appendChild(div);
+            });
+        }
+
+        function selectCalendarItem(id) {
+            const item = calendarData.find(d => d.id === id);
+            if (!item) return;
+            document.getElementById('det-time').innerText = `${item.date} ${item.time} 발표`;
+            document.getElementById('det-title').innerText = item.title;
+            document.getElementById('det-actual').innerText = item.actual;
+            document.getElementById('det-forecast').innerText = item.forecast;
+            const srcEl = document.getElementById('det-source');
+            if (srcEl) srcEl.innerText = `출처: ${item.source}`;
+            document.getElementById('det-ai').innerText = item.ai_summary;
+            window.activeGuide = item.guide;
+        }
+
+        function openModalGuide() {
+            if (!window.activeGuide) return;
+            document.getElementById('modal-title').innerText = window.activeGuide.title;
+            document.getElementById('modal-desc').innerText = window.activeGuide.desc;
+            document.getElementById('guide-modal').classList.remove('hidden');
+            document.getElementById('guide-modal').classList.add('flex');
+        }
+
+        function closeModalGuide() {
+            document.getElementById('guide-modal').classList.remove('flex');
+            document.getElementById('guide-modal').classList.add('hidden');
+        }
+
+        // 1분 스마트 폴링: 임의 가격 시뮬레이션 없이 서버 원천 데이터만 갱신
+        setInterval(() => {
+            const activeTab = document.querySelector('.tab-content:not(.hidden)').id;
+            if (activeTab === 'tab-money' || activeTab === 'tab-home') triggerScan(false);
+            if (activeTab === 'tab-feed') fetchDisclosures(currentCategory);
+            if (activeTab === 'tab-calendar') fetchCalendarData(currentCalMode);
+        }, 60000);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            triggerScan(false);
+        });
+    </script>
 </body>
 </html>

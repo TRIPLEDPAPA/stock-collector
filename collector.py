@@ -1,22 +1,23 @@
 import datetime
 import json
+import os
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple, Optional
 
 import requests
-from supabase import create_client, Client
+from dotenv import load_dotenv
+from sector_master import get_stock_profile
 
 
 # ============================================================
 # TRIPLE D PAPA - 국내 종목 전용 초고속 병렬 수집기 및 수급 생성기
 # ============================================================
 
-SUPABASE_URL = "https://xnjnknhwezminpdmsrtm.supabase.co"
-SUPABASE_KEY = "sb_publishable_qBB0Q_OsOCcHWtSNoXsyZg_raCUUTfn"
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 EXCLUDE_KEYWORDS = [
     "KODEX", "TIGER", "ACE", "SOL", "RISE", "PLUS", "KOSEF", "ARIRANG",
@@ -27,7 +28,8 @@ EXCLUDE_KEYWORDS = [
 ]
 
 HISTORY_COUNT = 250
-STOCK_PAGES = 3  # 시장별 60종목, 총 120개 핵심 주도주 고속 수집
+STOCK_PAGES = int(os.getenv("STOCK_PAGES", "130"))
+SCAN_LIMIT = int(os.getenv("SCAN_LIMIT", "300"))  # 0이면 수집된 전 종목 정밀분석
 REQUEST_TIMEOUT = 6
 INVESTOR_TIMEOUT = 4
 MAX_WORKERS = 8
@@ -506,11 +508,22 @@ def parse_stock_item(item: Dict, market_type: str, today_str: str, headers: Dict
     )
 
     prev_close = history[-2]["close"] if len(history) >= 2 else close_p
+    industry, role, mapped_code = get_stock_profile(name)
+    code = ticker if mapped_code == "000000" else mapped_code
+    closes = [row["close"] for row in history]
+
+    def period_return(days: int) -> float:
+        if len(closes) <= days or closes[-days - 1] <= 0:
+            return 0.0
+        return round((closes[-1] / closes[-days - 1] - 1.0) * 100.0, 2)
 
     return {
         "market": market_type,
         "ticker": ticker,
+        "code": code,
         "name": name,
+        "industry": industry,
+        "role": role,
         "close_price": int(round(close_p)),
         "open_price": int(round(open_p)),
         "high_price": int(round(high_p)),
@@ -532,6 +545,12 @@ def parse_stock_item(item: Dict, market_type: str, today_str: str, headers: Dict
         "foreign_net_buy_5d": f_5d,
         "inst_net_buy_5d": i_5d,
         "date": today_str,
+        "returns": {f"{d}일": period_return(d) for d in range(1, 6)},
+        "modal_returns": {
+            "1년": period_return(240), "6개월": period_return(120), "3개월": period_return(60),
+            "1개월": period_return(20), "20일": period_return(20),
+            "10일": period_return(10), "5일": period_return(5),
+        },
         **scoring,
     }
 
@@ -627,7 +646,7 @@ def generate_investor_ranking_json(compiled_items: List[Dict], today_str: str):
 # 국내 주식 전용 초고속 병렬 수집 실행
 # ============================================================
 
-def collect_market_data():
+def collect_market_data(persist_local: bool = True):
     now_kst = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9)))
     today_str = now_kst.strftime("%Y-%m-%d")
     headers = get_headers()
@@ -652,7 +671,9 @@ def collect_market_data():
                     seen_tickers.add(ticker)
                     raw_stock_list.append((it, market))
 
-    print(f"총 분석 대상: {len(raw_stock_list)}개 주도주 (병렬 분석 진행)")
+    if SCAN_LIMIT > 0:
+        raw_stock_list = raw_stock_list[:SCAN_LIMIT]
+    print(f"총 분석 대상: {len(raw_stock_list)}개 종목 (병렬 분석 진행)")
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = [
@@ -668,17 +689,30 @@ def collect_market_data():
             except Exception:
                 pass
 
-    # Supabase 배치 일괄 저장
-    print(f"\n총 {len(compiled_items)}건 데이터 Supabase 일괄 저장 중...")
+    # Supabase는 선택 기능입니다. 키가 없으면 로컬 SQLite/JSON만 저장합니다.
     saved = 0
-    batch_size = 50
-    for i in range(0, len(compiled_items), batch_size):
-        batch = compiled_items[i:i + batch_size]
+    if SUPABASE_URL and SUPABASE_KEY:
         try:
-            supabase.table("TRIPLE D PAPA").upsert(batch).execute()
-            saved += len(batch)
+            from supabase import create_client
+            client = create_client(SUPABASE_URL, SUPABASE_KEY)
+            for i in range(0, len(compiled_items), 50):
+                batch = compiled_items[i:i + 50]
+                client.table(os.getenv("SUPABASE_TABLE", "stocks")).upsert(batch).execute()
+                saved += len(batch)
         except Exception as e:
-            print(f"[배치 저장 실패] {e}")
+            print(f"[Supabase 저장 실패] {e}")
+
+    if persist_local and compiled_items:
+        import db
+        db.init_db()
+        db.upsert_candidates_bulk(compiled_items, now_kst.strftime("%Y-%m-%d %H:%M"))
+        payload = {
+            "base_date": today_str, "last_updated": now_kst.isoformat(),
+            "status": "FINAL" if now_kst.hour >= 16 else "PROVISIONAL",
+            "count": len(compiled_items), "stocks": compiled_items,
+        }
+        with open(os.path.join(os.path.dirname(__file__), "data.json"), "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
 
     # 수급 TOP60 JSON 파일 생성 (GitHub Pages 연동용)
     if compiled_items:
@@ -687,6 +721,7 @@ def collect_market_data():
     print("=" * 70)
     print(f"[완료] 총 {len(compiled_items)}건 수집 및 {saved}건 Supabase 저장 완료")
     print("=" * 70)
+    return compiled_items
 
 
 if __name__ == "__main__":

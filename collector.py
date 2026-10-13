@@ -216,36 +216,4 @@ def fetch_naver_chart(ticker: str, headers: Dict[str, str]) -> List[Dict[str, fl
 def get_real_investor_trend(ticker: str, headers: Dict[str, str]) -> Tuple[int, int, int, int, int]:
     url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
     try:
-        res = requests.get(url, headers=headers, timeout=INVESTOR_TIMEOUT)
-        if res.status_code != 200:
-            return 0, 0, 0, 0, 0
-
-        data = res.json()
-        trend_list = data if isinstance(data, list) else (
-            data.get("message", {}).get("result", []) or data.get("result", []) or []
-        )
-        if not trend_list:
-            return 0, 0, 0, 0, 0
-
-        def get_f(x): return safe_int(x.get("foreignerPureBuyQuant") or x.get("frgnPureBuyQuant") or 0)
-        def get_i(x): return safe_int(x.get("organPureBuyQuant") or x.get("instPureBuyQuant") or 0)
-        def get_r(x): return safe_int(x.get("individualPureBuyQuant") or x.get("retailPureBuyQuant") or 0)
-
-        latest = trend_list[0]
-        f_1d, i_1d, r_1d = get_f(latest), get_i(latest), get_r(latest)
-        if r_1d == 0 and (f_1d != 0 or i_1d != 0):
-            r_1d = -(f_1d + i_1d)
-
-        first5 = trend_list[:5]
-        f_5d = sum(get_f(x) for x in first5)
-        i_5d = sum(get_i(x) for x in first5)
-
-        return f_1d, i_1d, r_1d, f_5d, i_5d
-    except Exception:
-        return 0, 0, 0, 0, 0
-
-
-def grade_from_score(score: int) -> str:
-    if score >= 90: return "S"
-    if score >= 85: return "A+"
-    if score >= 80:
+        res = requests.get(url, headers=headers, timeout=INVESTOR

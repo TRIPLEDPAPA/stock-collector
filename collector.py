@@ -136,4 +136,116 @@ def technical_snapshot(history: List[Dict[str, float]]) -> Dict[str, float]:
     volumes = [x["volume"] for x in history]
 
     result = {
-        "ma5": 0.0, "ma10": 0.0, "ma20": 0.
+        "ma5": 0.0, "ma10": 0.0, "ma20": 0.0, "ma60": 0.0, "ma120": 0.0,
+        "volume_ratio": 0.0, "high_52w": 0.0, "previous_high_60": 0.0,
+        "rsi14": 50.0, "macd": 0.0, "macd_signal": 0.0, "macd_hist": 0.0,
+        "disparity20": 100.0,
+    }
+    if not closes:
+        return result
+
+    for period, key in [(5, "ma5"), (10, "ma10"), (20, "ma20"), (60, "ma60"), (120, "ma120")]:
+        val = sma(closes, period)
+        if val is not None:
+            result[key] = val
+
+    if len(volumes) >= 21:
+        avg20 = sum(volumes[-21:-1]) / 20.0
+        if avg20 > 0:
+            result["volume_ratio"] = (volumes[-1] / avg20) * 100.0
+
+    window_highs = highs[-250:] if len(highs) >= 250 else highs[:]
+    if window_highs:
+        result["high_52w"] = max(window_highs)
+
+    prev_high_window = highs[-61:-1] if len(highs) >= 61 else highs[:-1]
+    if prev_high_window:
+        result["previous_high_60"] = max(prev_high_window)
+
+    rsi_val = rsi(closes, 14)
+    if rsi_val is not None:
+        result["rsi14"] = rsi_val
+
+    m_val, s_val, h_val = macd(closes)
+    if m_val is not None:
+        result["macd"] = m_val
+        result["macd_signal"] = s_val
+        result["macd_hist"] = h_val
+
+    if result["ma20"] > 0:
+        result["disparity20"] = (closes[-1] / result["ma20"]) * 100.0
+
+    return result
+
+
+def fetch_naver_chart(ticker: str, headers: Dict[str, str]) -> List[Dict[str, float]]:
+    url = f"https://fchart.stock.naver.com/sise.nhn?symbol={ticker}&timeframe=day&count={HISTORY_COUNT}&requestType=0"
+    try:
+        res = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        res.raise_for_status()
+
+        xml_content = res.content.decode("euc-kr", errors="replace")
+        root = ET.fromstring(xml_content)
+        rows = []
+
+        for item in root.findall(".//item"):
+            data = item.attrib.get("data", "")
+            parts = data.split("|")
+            if len(parts) < 6:
+                continue
+
+            close_p = safe_float(parts[1])
+            if close_p <= 0:
+                continue
+
+            rows.append({
+                "date": parts[0],
+                "close": close_p,
+                "open": safe_float(parts[2]),
+                "high": safe_float(parts[3]),
+                "low": safe_float(parts[4]),
+                "volume": safe_float(parts[5]),
+            })
+
+        rows.sort(key=lambda x: x["date"])
+        return rows
+    except Exception:
+        return []
+
+
+def get_real_investor_trend(ticker: str, headers: Dict[str, str]) -> Tuple[int, int, int, int, int]:
+    url = f"https://m.stock.naver.com/api/stock/{ticker}/trend"
+    try:
+        res = requests.get(url, headers=headers, timeout=INVESTOR_TIMEOUT)
+        if res.status_code != 200:
+            return 0, 0, 0, 0, 0
+
+        data = res.json()
+        trend_list = data if isinstance(data, list) else (
+            data.get("message", {}).get("result", []) or data.get("result", []) or []
+        )
+        if not trend_list:
+            return 0, 0, 0, 0, 0
+
+        def get_f(x): return safe_int(x.get("foreignerPureBuyQuant") or x.get("frgnPureBuyQuant") or 0)
+        def get_i(x): return safe_int(x.get("organPureBuyQuant") or x.get("instPureBuyQuant") or 0)
+        def get_r(x): return safe_int(x.get("individualPureBuyQuant") or x.get("retailPureBuyQuant") or 0)
+
+        latest = trend_list[0]
+        f_1d, i_1d, r_1d = get_f(latest), get_i(latest), get_r(latest)
+        if r_1d == 0 and (f_1d != 0 or i_1d != 0):
+            r_1d = -(f_1d + i_1d)
+
+        first5 = trend_list[:5]
+        f_5d = sum(get_f(x) for x in first5)
+        i_5d = sum(get_i(x) for x in first5)
+
+        return f_1d, i_1d, r_1d, f_5d, i_5d
+    except Exception:
+        return 0, 0, 0, 0, 0
+
+
+def grade_from_score(score: int) -> str:
+    if score >= 90: return "S"
+    if score >= 85: return "A+"
+    if score >= 80:

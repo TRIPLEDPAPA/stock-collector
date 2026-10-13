@@ -46,7 +46,6 @@
     .live-badge { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 9px; border-radius: 8px; font-size: 0.68rem; font-weight: 800; }
     .live-dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; display: inline-block; margin-right: 4px; }
 
-    /* 5분할 메인 탭 */
     .market-tabs {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -149,7 +148,6 @@
     .tech-item { padding: 6px; background: #111b2b; border-radius: 5px; font-size: .63rem; color: #94a3b8; }
     .tech-item strong { display: block; color: #e2e8f0; font-size: .68rem; margin-top: 2px; }
 
-    /* 수급 탭 스타일 (개인/외국인/기관 순, 좌 매수 우 매도 대칭 구조) */
     .supply-category-block { margin-bottom: 16px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; }
     .supply-category-title { font-size: 0.88rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #223249; padding-bottom: 6px; }
     .supply-dual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -159,13 +157,8 @@
     .supply-table th { color: #829ab1; font-weight: 700; background: #162235; }
     .supply-table td { color: #cbd5e1; }
 
-    /* 설명서 스타일 */
     .guide-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
     .guide-title { font-size: 0.95rem; font-weight: 900; color: #38bdf8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-    .guide-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; margin-top: 8px; }
-    .guide-table th, .guide-table td { border: 1px solid #223249; padding: 7px 8px; text-align: left; }
-    .guide-table th { background: #182338; color: #94a3b8; font-weight: 800; }
-    .guide-table td { color: #cbd5e1; }
     .guide-list { list-style: none; padding: 0; font-size: 0.77rem; color: #cbd5e1; line-height: 1.7; }
     .guide-list li { margin-bottom: 6px; position: relative; padding-left: 14px; }
     .guide-list li::before { content: "•"; position: absolute; left: 2px; color: #38bdf8; font-weight: bold; }
@@ -200,7 +193,6 @@
     </div>
   </div>
 
-  <!-- 5분할 메인 탭 -->
   <div class="market-tabs">
     <button class="tab-btn active" onclick="setTab('ALL', this)">전체</button>
     <button class="tab-btn" onclick="setTab('KOSPI', this)">코스피</button>
@@ -209,7 +201,6 @@
     <button class="tab-btn" onclick="setTab('GUIDE', this)">📖 설명서</button>
   </div>
 
-  <!-- 점수 필터 칩 -->
   <div class="score-filters" id="scoreFilters">
     <button class="score-filter-chip active" onclick="setMinScore(0, this)">전체 점수</button>
     <button class="score-filter-chip" onclick="setMinScore(80, this)">🔴 80점 이상</button>
@@ -218,7 +209,6 @@
     <button class="score-filter-chip" onclick="setMinScore(50, this)">⚪ 50점 이상</button>
   </div>
 
-  <!-- 상단 토글 필터 -->
   <div class="filter-toggle-group" id="filterToggleGroup">
     <div class="toggle-card" id="doubleToggle" onclick="toggleDoubleOnly()">
       <div class="toggle-card-label">
@@ -242,7 +232,6 @@
     <span id="updatedTime">방금 갱신됨 (-)</span>
   </div>
 
-  <!-- 리스트 영역 -->
   <div class="card-list" id="cardList">
     <div class="loading-box">데이터를 불러오는 중입니다...</div>
   </div>
@@ -353,13 +342,14 @@
   }
 
   async function fetchFromSupabase() {
+    // 1. 자동 갱신 및 새로고침 시 스크롤 튀김 방지를 위해 현재 스크롤 위치 저장
+    const scrollPos = window.scrollY || document.documentElement.scrollTop;
+
     const list = document.getElementById("cardList");
     if (currentTab === "GUIDE" || currentTab === "SUPPLY") {
       renderList();
       return;
     }
-
-    list.innerHTML = `<div class="loading-box">데이터를 불러오는 중입니다...</div>`;
 
     try {
       const { data, error } = await supabaseClient
@@ -395,7 +385,6 @@
         unique.push(item);
       }
 
-      // 오늘 날짜 데이터만 필터링하거나 전체 최신 데이터 유지 (날짜가 지난 경우 안내 포함)
       allData = unique.filter(x => x.date === latestDate);
 
       const now = new Date();
@@ -403,6 +392,9 @@
 
       updateCounts();
       renderList();
+
+      // 2. 화면 렌더링 직후 저장해둔 스크롤 위치로 즉시 복원 (모바일 튐 현상 차단)
+      window.scrollTo({ top: scrollPos, behavior: 'instant' });
 
     } catch (err) {
       console.error(err);
@@ -458,25 +450,19 @@
     }
   }
 
-  /* 수급 탭 (개인, 외국인, 기관 순 / 왼쪽 매수, 오른쪽 매도 대칭 구조) */
   function renderSupplyTab(container) {
-    // 개인 정렬 (매수 / 매도)
     const rBuy = [...allData].sort((a, b) => (num(b.retail_net_buy) * num(b.close_price)) - (num(a.retail_net_buy) * num(a.close_price))).slice(0, 10);
     const rSell = [...allData].sort((a, b) => (num(a.retail_net_buy) * num(a.close_price)) - (num(b.retail_net_buy) * num(b.close_price))).slice(0, 10);
 
-    // 외국인 정렬 (매수 / 매도)
     const fBuy = [...allData].sort((a, b) => (num(b.foreign_net_buy) * num(b.close_price)) - (num(a.foreign_net_buy) * num(a.close_price))).slice(0, 10);
     const fSell = [...allData].sort((a, b) => (num(a.foreign_net_buy) * num(a.close_price)) - (num(b.foreign_net_buy) * num(b.close_price))).slice(0, 10);
 
-    // 기관 정렬 (매수 / 매도)
     const iBuy = [...allData].sort((a, b) => (num(b.inst_net_buy) * num(b.close_price)) - (num(a.inst_net_buy) * num(a.close_price))).slice(0, 10);
     const iSell = [...allData].sort((a, b) => (num(a.inst_net_buy) * num(a.close_price)) - (num(b.inst_net_buy) * num(b.close_price))).slice(0, 10);
 
     const makeTableRows = (list, isBuy) => {
       if (!list.length) return `<tr><td colspan="3" style="text-align:center;padding:15px;">데이터 없음</td></tr>`;
       return list.map((item, idx) => {
-        const val = isBuy ? (item.market ? (item.market.includes('R') ? item.retail_net_buy : item[isBuy === 'retail' ? 'retail_net_buy' : isBuy === 'foreign' ? 'foreign_net_buy' : 'inst_net_buy']) : 0) : 0;
-        // 동적 필드 매핑 처리
         let rawVal = 0;
         if (isBuy.includes('retail')) rawVal = item.retail_net_buy;
         else if (isBuy.includes('foreign')) rawVal = item.foreign_net_buy;
@@ -495,7 +481,6 @@
     };
 
     container.innerHTML = `
-      <!-- 1. 개인 -->
       <div class="supply-category-block">
         <div class="supply-category-title">👤 개인 수급 순위 TOP 10</div>
         <div class="supply-dual-grid">
@@ -516,7 +501,6 @@
         </div>
       </div>
 
-      <!-- 2. 외국인 -->
       <div class="supply-category-block">
         <div class="supply-category-title">🌐 외국인 수급 순위 TOP 10</div>
         <div class="supply-dual-grid">
@@ -537,7 +521,6 @@
         </div>
       </div>
 
-      <!-- 3. 기관 -->
       <div class="supply-category-block">
         <div class="supply-category-title">🏛️ 기관 수급 순위 TOP 10</div>
         <div class="supply-dual-grid">
